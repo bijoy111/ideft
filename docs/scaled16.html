@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>16 Hosts (Heterogeneous) — iDEFT: Intelligent Backup-Node Selection for DEFT</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <nav class="site">
+    <span class="brand">iDEFT: Intelligent Backup-Node Selection for DEFT</span>
+    <a href="index.html">Overview</a>
+    <a href="homogeneous.html">9 Hosts</a>
+    <a href="scaled16.html" class="current">16 Hosts</a>
+    <a href="scaled32.html">32 Hosts</a>
+    <a href="scaled128.html">128 Hosts</a>
+    <a href="overhead.html">Overhead</a>
+    <a href="throughput.html">Throughput</a>
+    <a href="reproduce.html">Reproduce</a>
+    <a href="code.html">Code</a>
+    <a href="downloads.html">Downloads</a>
+    <a href="https://github.com/bijoy111/ideft" target="_blank" rel="noopener">GitHub ↗</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <h1>Scaled + Heterogeneous: 16 Hosts</h1>
+  <p class="lede">
+    A 16-host network (10 primaries, 6 hosts that can act as backups), where
+    <strong>2 of those 6 backups are made deliberately bad</strong> (health=0.05,
+    capacity ratio≈0.03, and an extra 50ms delay on every call). This is the test that
+    shows whether the smarter methods really do avoid known-bad hosts, and it is the main
+    result of this project.
+  </p>
+  <div class="pill-row">
+    <span class="pill">5 context seeds × 3 trials</span>
+    <span class="pill">200 calls/primary, burst=10</span>
+    <span class="pill">n = 30,000 calls/method</span>
+    <span class="pill"><span class="mono">baseline</span> excluded (9-host only)</span>
+  </div>
+
+  <div class="card good">
+    <strong>How often each method used a bad host (out of 10 choices per seed):</strong>
+    <span class="mono">concentrated</span>, <span class="mono">heuristic</span>,
+    <span class="mono">optimal</span>, and <span class="mono">rl</span> <strong>never</strong>
+    used one, in all 5 seeds. <span class="mono">round_robin</span> used one
+    <strong>2 times out of 10, in every seed</strong>, because it just goes round the pool
+    and has no way to know which hosts are bad. <span class="mono">random</span> varies
+    from 0 to 4 out of 10, depending on the seed.
+  </div>
+
+  <h2>Per-Call Latency</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Mean (ms)</th><th>Median (ms)</th><th>p95 (ms)</th><th>p99 (ms)</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">concentrated</td><td>157.37</td><td>4.89</td><td>1029.37</td><td>3361.56</td></tr>
+      <tr><td class="mono">random</td><td>124.97</td><td>16.77</td><td>360.19</td><td>1069.84</td></tr>
+      <tr><td class="mono">round_robin</td><td>106.94</td><td>22.41</td><td>360.26</td><td>1040.29</td></tr>
+      <tr><td class="mono">heuristic</td><td>39.11</td><td>19.55</td><td>53.68</td><td>1050.06</td></tr>
+      <tr><td class="mono">optimal</td><td>37.25</td><td>21.46</td><td>54.44</td><td>1036.45</td></tr>
+      <tr><td class="mono">rl</td><td>37.71</td><td>21.47</td><td>56.97</td><td>1039.31</td></tr>
+    </tbody>
+  </table>
+
+  <div class="chart">
+    <div class="chart-title">Mean latency (ms) — log-scaled bar widths</div>
+    <div class="bar-row"><span class="bar-label">concentrated</span><div class="bar-track"><div class="bar-fill m-concentrated" style="width:100%"></div></div><span class="bar-value">157.37</span></div>
+    <div class="bar-row"><span class="bar-label">random</span><div class="bar-track"><div class="bar-fill m-random" style="width:95%"></div></div><span class="bar-value">124.97</span></div>
+    <div class="bar-row"><span class="bar-label">round_robin</span><div class="bar-track"><div class="bar-fill m-round_robin" style="width:92%"></div></div><span class="bar-value">106.94</span></div>
+    <div class="bar-row"><span class="bar-label">heuristic</span><div class="bar-track"><div class="bar-fill m-heuristic" style="width:72%"></div></div><span class="bar-value">39.11</span></div>
+    <div class="bar-row"><span class="bar-label">optimal</span><div class="bar-track"><div class="bar-fill m-optimal" style="width:72%"></div></div><span class="bar-value">37.25</span></div>
+    <div class="bar-row"><span class="bar-label">rl</span><div class="bar-track"><div class="bar-fill m-rl" style="width:72%"></div></div><span class="bar-value">37.71</span></div>
+  </div>
+  <p class="legend-note">Bar widths use a log scale, so the gap between round_robin/random and heuristic/optimal/rl looks smaller than it is. The real difference is about 3×.</p>
+
+  <h2>Statistical Comparison</h2>
+  <table>
+    <thead><tr><th>Comparison</th><th>r</th><th style="text-align:left">Reading</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">round_robin vs heuristic</td><td>−0.1465</td><td style="text-align:left">small to medium: heuristic is clearly better</td></tr>
+      <tr><td class="mono">round_robin vs optimal</td><td>−0.1008</td><td style="text-align:left">small, but a real difference</td></tr>
+      <tr><td class="mono">heuristic vs optimal</td><td>+0.0586</td><td style="text-align:left">very small: heuristic is a little behind optimal</td></tr>
+      <tr><td class="mono">heuristic vs rl</td><td>+0.0673</td><td style="text-align:left">tiny: RL matches the heuristic</td></tr>
+      <tr><td class="mono">optimal vs rl</td><td>+0.0089</td><td style="text-align:left">too small to call: RL is level with the best possible</td></tr>
+      <tr><td class="mono">concentrated vs rest</td><td>0.47–0.56</td><td style="text-align:left">large: far worse than everything else</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Mechanism Check: Latency vs. Backup Load</h2>
+  <p>All methods and seeds pooled together. The question: does sharing one backup between more primaries slow things down on its own, no matter which method caused the sharing?</p>
+  <table>
+    <thead><tr><th>Backup load</th><th>Mean (ms)</th><th>Median (ms)</th><th>p95 (ms)</th><th>p99 (ms)</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>58.19</td><td>20.67</td><td>355.99</td><td>1038.28</td></tr>
+      <tr><td>2</td><td>49.88</td><td>13.35</td><td>49.22</td><td>1071.96</td></tr>
+      <tr><td>3</td><td>238.40</td><td>14.08</td><td>361.21</td><td>1390.65</td></tr>
+      <tr><td>9 (concentrated)</td><td>172.04</td><td>4.59</td><td>1036.05</td><td>3374.23</td></tr>
+    </tbody>
+  </table>
+  <p class="legend-note">Load 9 is <span class="mono">concentrated</span> putting 9 of its 10 primaries on one backup (the tenth is that backup's own primary, which cannot back up to itself). Average and p99 latency both jump, which fits the connection queue filling up on Python's single-threaded <span class="mono">SimpleXMLRPCServer</span> once enough calls arrive at one backup at the same time.</p>
+
+  <div class="finding">
+    <strong>What this means:</strong> this test separates <em>knowing which host is
+    good</em> from simply spreading load. <span class="mono">round_robin</span> spreads
+    load as well as anything, but it cannot tell a good host from a bad one, so apart from
+    <span class="mono">random</span> it is the only method that keeps using bad hosts.
+    <span class="mono">heuristic</span>, <span class="mono">optimal</span>, and
+    <span class="mono">rl</span> avoid the bad hosts completely in every seed, and their
+    results are too close to tell apart. That the RL policy does this across every seed,
+    not just one, shows it learned the idea rather than memorising a single case. This is
+    the main result of the project: once hosts differ in quality, choosing a backup by its
+    features beats spreading load blindly, and the reason why is clear from the numbers.
+    Hosts differing in quality is the normal case in production.
+  </div>
+
+  <div class="scenario-nav">
+    <a href="homogeneous.html">← 9 Hosts</a>
+    <a href="scaled32.html">Next: 32 Hosts — does it hold at 2× scale? →</a>
+  </div>
+</div>
+</body>
+</html>

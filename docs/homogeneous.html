@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>9 Hosts (Homogeneous) — iDEFT: Intelligent Backup-Node Selection for DEFT</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <nav class="site">
+    <span class="brand">iDEFT: Intelligent Backup-Node Selection for DEFT</span>
+    <a href="index.html">Overview</a>
+    <a href="homogeneous.html" class="current">9 Hosts</a>
+    <a href="scaled16.html">16 Hosts</a>
+    <a href="scaled32.html">32 Hosts</a>
+    <a href="scaled128.html">128 Hosts</a>
+    <a href="overhead.html">Overhead</a>
+    <a href="throughput.html">Throughput</a>
+    <a href="reproduce.html">Reproduce</a>
+    <a href="code.html">Code</a>
+    <a href="downloads.html">Downloads</a>
+    <a href="https://github.com/bijoy111/ideft" target="_blank" rel="noopener">GitHub ↗</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <h1>Homogeneous Scale: 9 Hosts</h1>
+  <p class="lede">
+    DEFT's real 9-host network, 5 primaries. Host resource values are drawn fresh for
+    each seed, and <strong>no host is made deliberately bad</strong>, so on average every
+    backup is as good as any other.
+  </p>
+  <div class="pill-row">
+    <span class="pill">5 context seeds × 3 trials</span>
+    <span class="pill">200 calls/primary, burst=10</span>
+    <span class="pill">n = 15,000 calls/method</span>
+  </div>
+
+  <h2>Per-Call Latency</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Mean (ms)</th><th>Median (ms)</th><th>p95 (ms)</th><th>p99 (ms)</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">baseline</td><td>57.33</td><td>10.67</td><td>41.24</td><td>1071.77</td></tr>
+      <tr><td class="mono">concentrated</td><td>94.99</td><td>6.81</td><td>221.69</td><td>3125.54</td></tr>
+      <tr><td class="mono">random</td><td>45.98</td><td>12.35</td><td>47.50</td><td>1063.38</td></tr>
+      <tr><td class="mono">round_robin</td><td>35.67</td><td>18.46</td><td>54.27</td><td>1035.42</td></tr>
+      <tr><td class="mono">heuristic</td><td>41.06</td><td>17.48</td><td>50.68</td><td>1054.36</td></tr>
+      <tr><td class="mono">optimal</td><td>37.00</td><td>19.63</td><td>56.03</td><td>1034.23</td></tr>
+      <tr><td class="mono">rl</td><td>36.20</td><td>18.88</td><td>54.47</td><td>1038.38</td></tr>
+    </tbody>
+  </table>
+
+  <div class="chart">
+    <div class="chart-title">Mean latency (ms) — log-scaled bar widths</div>
+    <div class="bar-row"><span class="bar-label">baseline</span><div class="bar-track"><div class="bar-fill m-baseline" style="width:89%"></div></div><span class="bar-value">57.33</span></div>
+    <div class="bar-row"><span class="bar-label">concentrated</span><div class="bar-track"><div class="bar-fill m-concentrated" style="width:100%"></div></div><span class="bar-value">94.99</span></div>
+    <div class="bar-row"><span class="bar-label">random</span><div class="bar-track"><div class="bar-fill m-random" style="width:84%"></div></div><span class="bar-value">45.98</span></div>
+    <div class="bar-row"><span class="bar-label">round_robin</span><div class="bar-track"><div class="bar-fill m-round_robin" style="width:78%"></div></div><span class="bar-value">35.67</span></div>
+    <div class="bar-row"><span class="bar-label">heuristic</span><div class="bar-track"><div class="bar-fill m-heuristic" style="width:82%"></div></div><span class="bar-value">41.06</span></div>
+    <div class="bar-row"><span class="bar-label">optimal</span><div class="bar-track"><div class="bar-fill m-optimal" style="width:79%"></div></div><span class="bar-value">37.00</span></div>
+    <div class="bar-row"><span class="bar-label">rl</span><div class="bar-track"><div class="bar-fill m-rl" style="width:79%"></div></div><span class="bar-value">36.20</span></div>
+  </div>
+  <p class="legend-note">Bar widths use a log scale so they fit on screen. Exact values are in the table above.</p>
+
+  <h2>Statistical Comparison</h2>
+  <p>Mann-Whitney U (two-sided) + rank-biserial effect size (|r| ≈ 0.1 / 0.3 / 0.5 ≈ small / medium / large):</p>
+  <table>
+    <thead><tr><th>Comparison</th><th>r</th><th>p-value</th><th style="text-align:left">Reading</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">round_robin vs rl</td><td>+0.008</td><td>0.23</td><td style="text-align:left">no difference (the only pair we cannot call)</td></tr>
+      <tr><td class="mono">heuristic vs rl</td><td>+0.036</td><td>&lt;0.001</td><td style="text-align:left">the gap is real but far too small to matter</td></tr>
+      <tr><td class="mono">round_robin vs heuristic</td><td>−0.029</td><td>&lt;0.001</td><td style="text-align:left">real, but a small difference</td></tr>
+      <tr><td class="mono">baseline/concentrated vs rest</td><td>0.08–0.40</td><td>&lt;0.001</td><td style="text-align:left">small to medium: clearly worse</td></tr>
+    </tbody>
+  </table>
+
+  <div class="finding">
+    <strong>What this means:</strong> at this small size, with every host about equally
+    good, any method that avoids piling primaries onto one backup does about as well as
+    any other. The smarter methods gain nothing over plain round-robin here. The real gap
+    is between the methods that pile up load
+    (<span class="mono">baseline</span>, <span class="mono">concentrated</span>) and
+    everything else. What drives the difference at this size is load sharing, not host
+    quality (see the backup-load check on
+    <a href="scaled16.html">the 16-host page</a>). Knowing which host is good only starts
+    to pay off once hosts actually differ.
+  </div>
+
+  <div class="scenario-nav">
+    <span></span>
+    <a href="scaled16.html">Next: 16 Hosts — the core result →</a>
+  </div>
+</div>
+</body>
+</html>

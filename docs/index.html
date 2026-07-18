@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iDEFT: Intelligent Backup-Node Selection for DEFT</title>
+<meta name="description" content="iDEFT: choosing backup nodes intelligently for DEFT's fault-tolerant NF state replication, comparing a heuristic, an optimal solver, and reinforcement learning.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <nav class="site">
+    <span class="brand">iDEFT: Intelligent Backup-Node Selection for DEFT</span>
+    <a href="index.html" class="current">Overview</a>
+    <a href="homogeneous.html">9 Hosts</a>
+    <a href="scaled16.html">16 Hosts</a>
+    <a href="scaled32.html">32 Hosts</a>
+    <a href="scaled128.html">128 Hosts</a>
+    <a href="overhead.html">Overhead</a>
+    <a href="throughput.html">Throughput</a>
+    <a href="reproduce.html">Reproduce</a>
+    <a href="code.html">Code</a>
+    <a href="downloads.html">Downloads</a>
+    <a href="https://github.com/bijoy111/ideft" target="_blank" rel="noopener">GitHub ↗</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <h1>iDEFT: Intelligent Backup-Node Selection for Fault-Tolerant NF State Replication</h1>
+  <p class="lede">
+    DEFT copies a primary network function's state to a backup so it can survive
+    failures, but it never says <em>how that backup is chosen</em>. This project builds
+    and tests three ways to choose it, and compares them against DEFT's fixed hand-picked
+    mapping across four network sizes, from 9 to 128 hosts.
+  </p>
+
+  <div class="pill-row">
+    <span class="pill">Base system: DEFT (CNSM'23)</span>
+    <span class="pill">4 topology scales: 9 / 16 / 32 / 128 hosts</span>
+    <span class="pill">Multi-seed, Mann-Whitney U + effect sizes</span>
+    <span class="pill">Real, unmodified 2PC backup implementation</span>
+  </div>
+
+  <h2>The Gap</h2>
+  <p>
+    Every major NF state-replication system we looked at (OpenNF, Split/Merge,
+    StatelessNF, S6, Pico Replication, FTMB, REINFORCE, and DEFT itself) copies state to a
+    backup without saying how that backup is picked. In DEFT's own code, the fixed mapping
+    puts 3 of 5 primaries on a single backup host, with no awareness of load or health.
+    This project treats the choice of backup as a real decision, and measures whether a
+    smarter choice helps, and when.
+  </p>
+
+  <h2>Methods Compared</h2>
+  <table>
+    <thead>
+      <tr><th>Method</th><th style="text-align:left">Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="mono">baseline</span></td><td style="text-align:left">DEFT's shipped static hardcoded mapping (9-host topology only).</td></tr>
+      <tr><td><span class="mono">concentrated</span></td><td style="text-align:left">Puts every primary on the same backup. The worst case, at any size.</td></tr>
+      <tr><td><span class="mono">random</span></td><td style="text-align:left">Picks a random valid backup for each primary, with a fixed seed.</td></tr>
+      <tr><td><span class="mono">round_robin</span></td><td style="text-align:left">Goes through the backup pool in order. Spreads load, but knows nothing about host quality.</td></tr>
+      <tr><td><span class="mono">heuristic</span></td><td style="text-align:left">Scores each choice on health, capacity, latency and hop-count, then lowers a host's score after it is used.</td></tr>
+      <tr><td><span class="mono">optimal</span></td><td style="text-align:left">The best possible answer under a per-backup capacity limit, solved with the Hungarian algorithm.</td></tr>
+      <tr><td><span class="mono">rl</span></td><td style="text-align:left">A PPO agent trained on the same score, penalised for invalid choices during training.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Headline Findings</h2>
+  <div class="grid-cards">
+    <div class="stat-card">
+      <div class="num">0/80</div>
+      <div class="label">times heuristic, optimal and RL sent a primary to a bad host, in every seed at every size</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">7–10×</div>
+      <div class="label">worse average and tail latency for RL than the heuristic at 128 hosts, even after fixing its collapse (though RL's median is the best of any method)</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">16×</div>
+      <div class="label">worse average latency for the naive "concentrated" choice than the heuristic at 128 hosts</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">≈50ms</div>
+      <div class="label">the slowest time any method took to work out a mapping, at the largest size; every other method is under 10 ms</div>
+    </div>
+  </div>
+
+  <div class="finding">
+    <strong>Core result:</strong> a simple, well-designed heuristic stays close to the
+    best possible answer at every size we tested. Reinforcement learning matches it up to
+    32 hosts, but needs non-default settings to avoid collapsing onto one host at 128
+    hosts. Even after that fix it still spreads load less evenly than the heuristic,
+    though it picks good hosts just as well. The
+    <a href="scaled128.html">128-host page</a> has the full account of what broke and what
+    we fixed.
+  </div>
+
+  <figure class="fig">
+    <img src="assets/fig_latency_scale.svg" alt="Two line charts of per-call latency (mean and p99, log scale) against network size from 9 to 128 hosts. Heuristic and optimal stay flat; concentrated gets steadily worse; RL follows the smarter methods until 128 hosts, then jumps.">
+    <figcaption>
+      Per-call latency against network size: (a) average, (b) p99, on log axes.
+      <span class="mono">heuristic</span> and <span class="mono">optimal</span> stay flat,
+      <span class="mono">concentrated</span> gets steadily worse, and
+      <span class="mono">rl</span> follows the smarter methods until 128 hosts.
+      (Figure 2 of the paper.)
+    </figcaption>
+  </figure>
+
+  <h2>Reproduce Everything</h2>
+  <p>
+    Trained RL models come with the code, and everything runs on a laptop with no root
+    access, no Mininet, and no SDN controller:
+  </p>
+  <pre><code>git clone https://github.com/bijoy111/ideft.git
+cd iDEFT/backup-node-selection/code
+python3 -m venv venv &amp;&amp; source venv/bin/activate &amp;&amp; pip install -r requirements.txt</code></pre>
+  <p>
+    Then follow the <a href="reproduce.html">step-by-step guide</a>. Each command is
+    linked to the exact table it produces.
+  </p>
+
+  <h2>Explore the Results</h2>
+  <div class="grid-cards">
+    <div class="stat-card"><a href="homogeneous.html"><strong>9 Hosts →</strong></a><div class="label">All hosts equally good: every method does about the same when load is light.</div></div>
+    <div class="stat-card"><a href="scaled16.html"><strong>16 Hosts →</strong></a><div class="label">The main result: the smarter methods avoid bad hosts, round-robin cannot.</div></div>
+    <div class="stat-card"><a href="scaled32.html"><strong>32 Hosts →</strong></a><div class="label">The 16-host result still holds at twice the size.</div></div>
+    <div class="stat-card"><a href="scaled128.html"><strong>128 Hosts →</strong></a><div class="label">Where the backup server breaks, round-robin gets lucky, and RL collapses.</div></div>
+    <div class="stat-card"><a href="overhead.html"><strong>Selection Overhead →</strong></a><div class="label">Does picking a backup take too long to be useful? No.</div></div>
+    <div class="stat-card"><a href="throughput.html"><strong>Throughput &amp; Failure Rate →</strong></a><div class="label">The same story from DEFT's own two metrics.</div></div>
+  </div>
+
+  <h2>Method, Paper &amp; Code</h2>
+  <p>
+    Every method is tested against DEFT's <strong>real, unchanged</strong> 2PC backup code
+    under a controlled load, not a simulation. The full method page explains why and how.
+  </p>
+  <div class="grid-cards">
+    <div class="stat-card"><a href="assets/paper.pdf"><strong>The paper (PDF) →</strong></a><div class="label">The full write-up: related work, methods, results, discussion. 10 pages, IEEE format.</div></div>
+    <div class="stat-card"><a href="reproduce.html"><strong>Reproduce →</strong></a><div class="label">Step-by-step commands for every table, with run times and common problems.</div></div>
+    <div class="stat-card"><a href="code.html"><strong>Code walkthrough →</strong></a><div class="label">How the pipeline flows and what each file does, then the source on GitHub.</div></div>
+    <div class="stat-card"><a href="downloads.html"><strong>Downloads →</strong></a><div class="label">Paper, code package, trained models, guides.</div></div>
+    <div class="stat-card"><a href="https://github.com/bijoy111/ideft/blob/main/backup-node-selection/EXPERIMENTS.md" target="_blank" rel="noopener"><strong>EXPERIMENTS.md →</strong></a><div class="label">Full method, every results table, statistics, and limits of the study.</div></div>
+    <div class="stat-card"><a href="https://github.com/bijoy111/ideft/blob/main/backup-node-selection/IMPLEMENTATION.md" target="_blank" rel="noopener"><strong>IMPLEMENTATION.md →</strong></a><div class="label">What was added where in the code, and how to re-run every number.</div></div>
+  </div>
+
+  <footer class="site">
+    Built on top of <a href="https://github.com/MahirSez/DEFT" target="_blank" rel="noopener">DEFT</a> (CNSM'23).
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reproduce the Results — iDEFT: Intelligent Backup-Node Selection for DEFT</title>
+<meta name="description" content="Step-by-step guide to re-running every result: setup, a quick check that it works, the command for each experiment, and common problems.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <nav class="site">
+    <span class="brand">iDEFT: Intelligent Backup-Node Selection for DEFT</span>
+    <a href="index.html">Overview</a>
+    <a href="homogeneous.html">9 Hosts</a>
+    <a href="scaled16.html">16 Hosts</a>
+    <a href="scaled32.html">32 Hosts</a>
+    <a href="scaled128.html">128 Hosts</a>
+    <a href="overhead.html">Overhead</a>
+    <a href="throughput.html">Throughput</a>
+    <a href="reproduce.html" class="current">Reproduce</a>
+    <a href="code.html">Code</a>
+    <a href="downloads.html">Downloads</a>
+    <a href="https://github.com/bijoy111/ideft" target="_blank" rel="noopener">GitHub ↗</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <h1>Reproduce the Results</h1>
+  <p class="lede">
+    You can re-run every number on this site from the
+    <a href="https://github.com/bijoy111/ideft/tree/main/backup-node-selection" target="_blank" rel="noopener">backup-node-selection</a>
+    package. Trained RL models are included, so you do not need to train anything.
+  </p>
+
+  <div class="pill-row">
+    <span class="pill">Linux (tested on Ubuntu / WSL2)</span>
+    <span class="pill">Python 3.10</span>
+    <span class="pill">~2 GB disk (mostly PyTorch)</span>
+    <span class="pill">No root · no Mininet · no SDN controller</span>
+  </div>
+
+  <h2><span class="step-num">1</span>Get the code and set up</h2>
+  <pre><code>git clone https://github.com/bijoy111/ideft.git
+cd iDEFT/backup-node-selection/code
+
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt</code></pre>
+  <p>
+    All commands on this page run from inside <span class="mono">backup-node-selection/code/</span>.
+    You can also grab the package from the <a href="downloads.html">Downloads page</a>.
+  </p>
+
+  <h2><span class="step-num">2</span>Quick check that it works</h2>
+  <pre><code>python3 backup_selector.py --mode heuristic --seed 42 --out /tmp/mapping.json
+python3 rpc_contention_experiment.py --context-seeds 42 --trials 1 --calls 50 --burst 4 \
+    --methods baseline heuristic</code></pre>
+  <p>
+    You should see the mapping each method picked, then a summary table of latency
+    numbers and a Mann-Whitney comparison. If that runs, your setup is ready. Everything
+    below uses the same code with bigger settings.
+  </p>
+
+  <div class="card warn">
+    <strong>⚠ One mistake will quietly spoil your results:</strong> the scripts
+    <em>add to</em> <span class="mono">results_rpc/*.csv</span> instead of replacing it,
+    and the summary at the end reads the whole file. Delete the CSV before each scenario.
+    Every block below starts with <span class="mono">rm</span> for this reason. If you
+    skip it, results from different runs get mixed together.
+  </div>
+
+  <h2><span class="step-num">3</span>Per-call latency — the four scale points</h2>
+
+  <h3>9 hosts, homogeneous → <a href="homogeneous.html">results</a>, EXPERIMENTS.md §4.1, paper Table I</h3>
+  <pre><code>rm -f results_rpc/rpc_contention_raw.csv
+python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 \
+    --methods baseline concentrated random round_robin heuristic optimal rl</code></pre>
+
+  <h3>16 hosts, heterogeneous → <a href="scaled16.html">results</a>, EXPERIMENTS.md §4.2, paper Table II</h3>
+  <pre><code>rm -f results_rpc/rpc_contention_raw.csv
+python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 \
+    --methods concentrated random round_robin heuristic optimal rl \
+    --n-hosts 16 --n-primaries 10 --n-degraded 2 --scale-seed 0 --rl-model rl_model_scaled.zip</code></pre>
+
+  <h3>32 hosts → <a href="scaled32.html">results</a>, EXPERIMENTS.md §4.5, paper Table V</h3>
+  <pre><code>rm -f results_rpc/rpc_contention_raw.csv
+python3 rpc_contention_experiment.py --context-seeds 1 2 3 --trials 2 --calls 150 --burst 8 \
+    --methods concentrated random round_robin heuristic optimal rl \
+    --n-hosts 32 --n-primaries 20 --n-degraded 4 --scale-seed 0 --rl-model rl_model_scaled32.zip</code></pre>
+
+  <h3>128 hosts → <a href="scaled128.html">results</a>, EXPERIMENTS.md §4.6, paper Table VI</h3>
+  <pre><code>rm -f results_rpc/rpc_contention_raw.csv
+python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 \
+    --methods concentrated random round_robin heuristic optimal rl \
+    --n-hosts 128 --n-primaries 80 --n-degraded 16 --scale-seed 0 --rl-model rl_model_scaled128_v3.zip</code></pre>
+  <p>
+    Note: at this size <span class="mono">concentrated</span> pushes DEFT's backup server
+    close to failure. Long pauses, and in some seeds calls that fail even after 8 retries,
+    are <em>part of the result</em>, not a broken run. See the
+    <a href="scaled128.html">128-host page</a>.
+  </p>
+
+  <h2><span class="step-num">4</span>Selection-time overhead → <a href="overhead.html">results</a>, EXPERIMENTS.md §4.4, paper Table IV</h2>
+  <pre><code>python3 selection_overhead.py</code></pre>
+
+  <h2><span class="step-num">5</span>Throughput and failure rate → <a href="throughput.html">results</a>, EXPERIMENTS.md §4.7, paper Tables VII–VIII</h2>
+  <pre><code>rm -f results_rpc/throughput_raw.csv
+python3 throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration 3.0 --burst 10 \
+    --methods baseline concentrated random round_robin heuristic optimal rl
+
+rm -f results_rpc/throughput_raw.csv
+python3 throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration 3.0 --burst 10 \
+    --methods concentrated random round_robin heuristic optimal rl \
+    --n-hosts 16 --n-primaries 10 --n-degraded 2 --scale-seed 0 --rl-model rl_model_scaled.zip</code></pre>
+
+  <h2><span class="step-num">6</span>Optional: retrain the RL models</h2>
+  <p>
+    Trained models come with the package, so you only need this step if you want to check
+    the training itself, or see the 128-host collapse for yourself.
+  </p>
+  <pre><code>python3 rl_backup_selector.py --train --timesteps 50000  --model rl_model.zip
+python3 rl_backup_selector.py --train --timesteps 80000  --model rl_model_scaled.zip \
+    --n-hosts 16 --n-primaries 10 --n-degraded 2 --scale-seed 0
+python3 rl_backup_selector.py --train --timesteps 100000 --model rl_model_scaled32.zip \
+    --n-hosts 32 --n-primaries 20 --n-degraded 4 --scale-seed 0
+
+# See the collapse for yourself: PPO's default settings break down at 128 hosts
+python3 rl_backup_selector.py --train --check-collapse --timesteps 400000 \
+    --model rl_model_scaled128_collapsed.zip \
+    --n-hosts 128 --n-primaries 80 --n-degraded 16 --scale-seed 0 \
+    --ent-coef 0.0 --net-arch 64 64
+
+# The fix used for the reported 128-host results
+python3 rl_backup_selector.py --train --check-collapse --timesteps 1000000 \
+    --model rl_model_scaled128_v3.zip \
+    --n-hosts 128 --n-primaries 80 --n-degraded 16 --scale-seed 0 \
+    --ent-coef 0.02 --net-arch 256 256 --n-steps 4096 --batch-size 256</code></pre>
+  <div class="card good">
+    <strong>Tip:</strong> always add <span class="mono">--check-collapse</span> when you
+    train at a new size. It prints how many different backups the policy uses across 5
+    seeds, so you catch a bad policy straight away instead of part-way through a full run.
+  </div>
+
+  <h2>Common problems</h2>
+  <ul>
+    <li><strong>Running the commands from a script:</strong> a <span class="mono">cd</span>
+      in one shell command does not carry over to the next one. Use
+      <span class="mono">cd path &amp;&amp; command</span> on each line, or full paths.</li>
+    <li><strong><span class="mono">SimpleXMLRPCServer</span> only queues 5 waiting
+      connections by default.</strong> When many primaries share one backup
+      (concentrated, 80 on one), hitting that limit is part of the result. Do not raise
+      the limit to "fix" it, or you are no longer measuring what DEFT actually ships. The
+      retry-with-backoff in the harness handles it and records the failures as data.</li>
+    <li><strong>The RL policy can collapse at any new size</strong>, not just 128 hosts.
+      That is why <span class="mono">--check-collapse</span> is there.</li>
+    <li><strong><span class="mono">NameError: name 'json' is not defined</span></strong>
+      means the one-line <span class="mono">config.py</span> import fix is missing. It is
+      already applied in this package.</li>
+  </ul>
+
+  <p>
+    Full method and statistics:
+    <a href="https://github.com/bijoy111/ideft/blob/main/backup-node-selection/EXPERIMENTS.md" target="_blank" rel="noopener">EXPERIMENTS.md</a>.
+    Code walkthrough: <a href="code.html">Code page</a> and
+    <a href="https://github.com/bijoy111/ideft/blob/main/backup-node-selection/IMPLEMENTATION.md" target="_blank" rel="noopener">IMPLEMENTATION.md</a>.
+  </p>
+
+  <div class="scenario-nav">
+    <a href="throughput.html">← Throughput &amp; Failure Rate</a>
+    <a href="code.html">Code Walkthrough →</a>
+  </div>
+
+  <footer class="site">
+    Built on top of <a href="https://github.com/MahirSez/DEFT" target="_blank" rel="noopener">DEFT</a> (CNSM'23).
+  </footer>
+</div>
+</body>
+</html>

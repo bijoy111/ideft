@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Selection Overhead — iDEFT: Intelligent Backup-Node Selection for DEFT</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <nav class="site">
+    <span class="brand">iDEFT: Intelligent Backup-Node Selection for DEFT</span>
+    <a href="index.html">Overview</a>
+    <a href="homogeneous.html">9 Hosts</a>
+    <a href="scaled16.html">16 Hosts</a>
+    <a href="scaled32.html">32 Hosts</a>
+    <a href="scaled128.html">128 Hosts</a>
+    <a href="overhead.html" class="current">Overhead</a>
+    <a href="throughput.html">Throughput</a>
+    <a href="reproduce.html">Reproduce</a>
+    <a href="code.html">Code</a>
+    <a href="downloads.html">Downloads</a>
+    <a href="https://github.com/bijoy111/ideft" target="_blank" rel="noopener">GitHub ↗</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <h1>Selection Overhead</h1>
+  <p class="lede">
+    If the system is going to add and remove hosts while running, the method that picks
+    backups has to be fast. A method that picks perfectly but takes seconds to decide is
+    much less useful than one that is nearly as good and answers straight away. This page
+    asks a different question from the others: not "how good is the mapping" but "how long
+    does it take to <em>work it out</em>."
+  </p>
+  <div class="pill-row">
+    <span class="pill">30 repeats per method and size, first call skipped as warm-up</span>
+  </div>
+
+  <h2>Time to work out one full mapping</h2>
+  <table>
+    <thead><tr><th>Method</th><th>9 hosts (ms)</th><th>16 hosts (ms)</th><th>32 hosts (ms)</th><th>128 hosts (ms)</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">concentrated</td><td>0.005</td><td>0.013</td><td>0.055</td><td>0.731</td></tr>
+      <tr><td class="mono">random</td><td>0.021</td><td>0.029</td><td>0.084</td><td>0.639</td></tr>
+      <tr><td class="mono">round_robin</td><td>0.004</td><td>0.005</td><td>0.015</td><td>0.030</td></tr>
+      <tr><td class="mono">heuristic</td><td>0.055</td><td>0.161</td><td>0.646</td><td>7.260</td></tr>
+      <tr><td class="mono">optimal (Hungarian)</td><td>0.097</td><td>0.208</td><td>0.913</td><td>8.943</td></tr>
+      <tr><td class="mono">rl (PPO inference)</td><td>1.81</td><td>3.76</td><td>11.29</td><td>49.64</td></tr>
+    </tbody>
+  </table>
+
+  <div class="chart">
+    <div class="chart-title">Time at 128 hosts (ms) — log scale, the size where the methods differ most</div>
+    <div class="bar-row"><span class="bar-label">concentrated</span><div class="bar-track"><div class="bar-fill m-concentrated" style="width:13%"></div></div><span class="bar-value">0.731</span></div>
+    <div class="bar-row"><span class="bar-label">random</span><div class="bar-track"><div class="bar-fill m-random" style="width:12%"></div></div><span class="bar-value">0.639</span></div>
+    <div class="bar-row"><span class="bar-label">round_robin</span><div class="bar-track"><div class="bar-fill m-round_robin" style="width:3%"></div></div><span class="bar-value">0.030</span></div>
+    <div class="bar-row"><span class="bar-label">heuristic</span><div class="bar-track"><div class="bar-fill m-heuristic" style="width:54%"></div></div><span class="bar-value">7.260</span></div>
+    <div class="bar-row"><span class="bar-label">optimal</span><div class="bar-track"><div class="bar-fill m-optimal" style="width:60%"></div></div><span class="bar-value">8.943</span></div>
+    <div class="bar-row"><span class="bar-label">rl</span><div class="bar-track"><div class="bar-fill m-rl" style="width:100%"></div></div><span class="bar-value">49.64</span></div>
+  </div>
+
+  <figure class="fig narrow">
+    <img src="assets/fig_overhead.svg" alt="Log-log line chart of selection time versus host count for all six methods. All methods grow with scale; RL is consistently the slowest, at about 50 milliseconds at 128 hosts.">
+    <figcaption>
+      Selection overhead per full mapping computation, log–log axes. Even the slowest
+      method (<span class="mono">rl</span>, 49.6&nbsp;ms at 128 hosts) stays well below
+      realistic failure-detection intervals. (Figure 1 of the paper.)
+    </figcaption>
+  </figure>
+
+  <div class="grid-cards">
+    <div class="stat-card"><div class="num">≈50ms</div><div class="label">worst-case selection time (rl at 128 hosts); every other method is under 10 ms</div></div>
+    <div class="stat-card"><div class="num">O(n³)</div><div class="label">Hungarian algorithm complexity — still only ≈9 ms at 128 hosts</div></div>
+    <div class="stat-card"><div class="num">≈4×</div><div class="label">rl's overhead jump from 32→128 hosts (11.3ms→49.6ms), driven by the wider [256,256] network needed to fix its collapse, plus more primaries</div></div>
+  </div>
+
+  <div class="finding">
+    <strong>Conclusion:</strong> every method is far quicker than the time a system
+    normally takes to even notice a failure, which is usually hundreds of milliseconds to
+    a few seconds. <span class="mono">rl</span> is always the slowest, because it runs the
+    neural network once for each primary on top of the usual library overhead. Its jump at
+    128 hosts comes mainly from the bigger network needed to fix the collapse described on
+    the <a href="scaled128.html">128-host page</a>, not just from having more primaries to
+    go through. Even so, the time to pick backups is <strong>not</strong> what holds things
+    back at 128 hosts. As that page shows, the real limit is how evenly
+    <span class="mono">rl</span> spreads load, not how fast it decides.
+  </div>
+
+  <div class="scenario-nav">
+    <a href="scaled128.html">← 128 Hosts</a>
+    <a href="throughput.html">Next: Throughput &amp; Failure Rate →</a>
+  </div>
+</div>
+</body>
+</html>

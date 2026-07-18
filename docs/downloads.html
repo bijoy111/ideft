@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Downloads — iDEFT: Intelligent Backup-Node Selection for DEFT</title>
+<meta name="description" content="Download the paper, the package to re-run everything, the saved results, and the trained RL models.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <nav class="site">
+    <span class="brand">iDEFT: Intelligent Backup-Node Selection for DEFT</span>
+    <a href="index.html">Overview</a>
+    <a href="homogeneous.html">9 Hosts</a>
+    <a href="scaled16.html">16 Hosts</a>
+    <a href="scaled32.html">32 Hosts</a>
+    <a href="scaled128.html">128 Hosts</a>
+    <a href="overhead.html">Overhead</a>
+    <a href="throughput.html">Throughput</a>
+    <a href="reproduce.html">Reproduce</a>
+    <a href="code.html">Code</a>
+    <a href="downloads.html" class="current">Downloads</a>
+    <a href="https://github.com/bijoy111/ideft" target="_blank" rel="noopener">GitHub ↗</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <h1>Downloads</h1>
+  <p class="lede">
+    Everything you need in one place: the paper, the full package to re-run the results
+    (code, trained models and guides), and the original sources.
+  </p>
+
+  <h2>The paper</h2>
+  <p>
+    <a class="dl-btn" href="assets/paper.pdf" download>⬇ paper.pdf</a>
+    &nbsp;
+    <a class="dl-btn secondary" href="https://github.com/bijoy111/ideft/tree/main/backup-node-selection/paper" target="_blank" rel="noopener">LaTeX source ↗</a>
+  </p>
+  <p class="legend-note">
+    "iDEFT: Intelligent Backup-Node Selection for Fault-Tolerant Network Function State
+    Replication", IEEE conference format, 10 pages. The LaTeX source includes the
+    bibliography and the scripts that draw every figure.
+  </p>
+
+  <h2>The package to re-run everything</h2>
+  <p>
+    The <span class="mono">backup-node-selection/</span> folder has everything in it: the
+    experiment code, DEFT's own 2PC classes unchanged, five trained RL models, the saved
+    results, the paper, and both guides
+    (<span class="mono">EXPERIMENTS.md</span>, <span class="mono">IMPLEMENTATION.md</span>).
+  </p>
+  <p>
+    <a class="dl-btn" href="https://github.com/bijoy111/ideft/releases/latest" target="_blank" rel="noopener">⬇ Latest release</a>
+    &nbsp;
+    <a class="dl-btn secondary" href="https://github.com/bijoy111/ideft/archive/refs/heads/main.zip">Repo snapshot (.zip)</a>
+    &nbsp;
+    <a class="dl-btn secondary" href="https://github.com/bijoy111/ideft/tree/main/backup-node-selection" target="_blank" rel="noopener">Browse on GitHub ↗</a>
+  </p>
+  <p class="legend-note">
+    The release holds only the <span class="mono">backup-node-selection</span> package. The
+    repo snapshot also includes the older Mininet folders, which you do <em>not</em> need
+    to re-run any of the results here.
+  </p>
+  <pre><code>git clone https://github.com/bijoy111/ideft.git
+cd iDEFT/backup-node-selection</code></pre>
+
+  <h2>What's inside</h2>
+  <table>
+    <thead><tr><th>Item</th><th style="text-align:left">Description</th><th>Size</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><a href="https://github.com/bijoy111/ideft/tree/main/backup-node-selection/code" target="_blank" rel="noopener"><span class="mono">code/</span></a></td>
+        <td style="text-align:left">8 Python files, DEFT's 2PC classes, and <span class="mono">requirements.txt</span></td>
+        <td>~100 KB</td>
+      </tr>
+      <tr>
+        <td><span class="mono">code/rl_model*.zip</span></td>
+        <td style="text-align:left">Trained PPO models for 9 / 16 / 32 / 128 hosts, plus the collapsed 128-host one. No training needed.</td>
+        <td>~9 MB</td>
+      </tr>
+      <tr>
+        <td><a href="https://github.com/bijoy111/ideft/tree/main/backup-node-selection/findings" target="_blank" rel="noopener"><span class="mono">findings/</span></a></td>
+        <td style="text-align:left">The saved output of all 8 experiments, so you can read the results without running anything. Re-running replaces these files.</td>
+        <td>104 KB</td>
+      </tr>
+      <tr>
+        <td><a href="https://github.com/bijoy111/ideft/tree/main/backup-node-selection/paper" target="_blank" rel="noopener"><span class="mono">paper/</span></a></td>
+        <td style="text-align:left">LaTeX source, bibliography, figure scripts, and the built PDF</td>
+        <td>~350 KB</td>
+      </tr>
+      <tr>
+        <td><a href="https://github.com/bijoy111/ideft/blob/main/backup-node-selection/EXPERIMENTS.md" target="_blank" rel="noopener"><span class="mono">EXPERIMENTS.md</span></a></td>
+        <td style="text-align:left">The full method, every results table, the statistics, and the limits of the study</td>
+        <td>39 KB</td>
+      </tr>
+      <tr>
+        <td><a href="https://github.com/bijoy111/ideft/blob/main/backup-node-selection/IMPLEMENTATION.md" target="_blank" rel="noopener"><span class="mono">IMPLEMENTATION.md</span></a></td>
+        <td style="text-align:left">A walk through each file, why it is built that way, and common problems</td>
+        <td>25 KB</td>
+      </tr>
+      <tr>
+        <td><a href="https://github.com/bijoy111/ideft/blob/main/backup-node-selection/README.md" target="_blank" rel="noopener"><span class="mono">README.md</span></a></td>
+        <td style="text-align:left">Setup and every command to re-run the results (same as the <a href="reproduce.html">Reproduce page</a>)</td>
+        <td>8 KB</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Related</h2>
+  <ul>
+    <li><a href="https://github.com/MahirSez/DEFT" target="_blank" rel="noopener">DEFT</a> —
+      the base system this work builds on (Shahriyar et al., CNSM'23);
+      <a href="https://arxiv.org/pdf/2311.18595" target="_blank" rel="noopener">paper on arXiv</a>.</li>
+  </ul>
+
+  <div class="scenario-nav">
+    <a href="code.html">← Code Walkthrough</a>
+    <a href="index.html">Overview →</a>
+  </div>
+
+  <footer class="site">
+    Built on top of <a href="https://github.com/MahirSez/DEFT" target="_blank" rel="noopener">DEFT</a> (CNSM'23).
+  </footer>
+</div>
+</body>
+</html>

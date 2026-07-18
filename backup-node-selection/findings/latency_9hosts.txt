@@ -1,0 +1,110 @@
+# iDEFT findings: latency_9hosts
+# command: rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 --methods baseline concentrated random round_robin heuristic optimal rl
+# generated: 2026-07-17 16:33:56 UTC
+# (reproducing this scenario overwrites this file)
+
+
+--- context_seed=1 ---
+  baseline     mapping: {'h1': 'h4', 'h2': 'h1', 'h3': 'h6', 'h5': 'h4', 'h7': 'h4'}
+  concentrated mapping: {'h1': 'h2', 'h2': 'h1', 'h3': 'h1', 'h5': 'h1', 'h7': 'h1'}
+  random       mapping: {'h1': 'h3', 'h2': 'h6', 'h3': 'h1', 'h5': 'h3', 'h7': 'h1'}
+  round_robin  mapping: {'h1': 'h2', 'h2': 'h3', 'h3': 'h4', 'h5': 'h6', 'h7': 'h1'}
+  heuristic    mapping: {'h1': 'h3', 'h2': 'h7', 'h3': 'h2', 'h5': 'h3', 'h7': 'h5'}
+  optimal      mapping: {'h1': 'h2', 'h2': 'h3', 'h3': 'h5', 'h5': 'h7', 'h7': 'h1'}
+  rl           mapping: {'h1': 'h7', 'h2': 'h3', 'h3': 'h2', 'h5': 'h1', 'h7': 'h5'}
+  trial 1/3 done (order: ['heuristic', 'random', 'concentrated', 'baseline', 'optimal', 'round_robin', 'rl'])
+  trial 2/3 done (order: ['concentrated', 'baseline', 'heuristic', 'optimal', 'rl', 'random', 'round_robin'])
+  trial 3/3 done (order: ['rl', 'round_robin', 'baseline', 'optimal', 'random', 'concentrated', 'heuristic'])
+
+--- context_seed=2 ---
+  baseline     mapping: {'h1': 'h4', 'h2': 'h1', 'h3': 'h6', 'h5': 'h4', 'h7': 'h4'}
+  concentrated mapping: {'h1': 'h2', 'h2': 'h1', 'h3': 'h1', 'h5': 'h1', 'h7': 'h1'}
+  random       mapping: {'h1': 'h2', 'h2': 'h1', 'h3': 'h1', 'h5': 'h3', 'h7': 'h2'}
+  round_robin  mapping: {'h1': 'h2', 'h2': 'h3', 'h3': 'h4', 'h5': 'h6', 'h7': 'h1'}
+  heuristic    mapping: {'h1': 'h6', 'h2': 'h4', 'h3': 'h5', 'h5': 'h3', 'h7': 'h2'}
+  optimal      mapping: {'h1': 'h4', 'h2': 'h3', 'h3': 'h5', 'h5': 'h6', 'h7': 'h2'}
+  rl           mapping: {'h1': 'h4', 'h2': 'h6', 'h3': 'h2', 'h5': 'h3', 'h7': 'h1'}
+  trial 1/3 done (order: ['random', 'baseline', 'round_robin', 'concentrated', 'rl', 'optimal', 'heuristic'])
+  trial 2/3 done (order: ['concentrated', 'rl', 'heuristic', 'round_robin', 'random', 'baseline', 'optimal'])
+  trial 3/3 done (order: ['baseline', 'optimal', 'heuristic', 'concentrated', 'rl', 'round_robin', 'random'])
+
+--- context_seed=3 ---
+  baseline     mapping: {'h1': 'h4', 'h2': 'h1', 'h3': 'h6', 'h5': 'h4', 'h7': 'h4'}
+  concentrated mapping: {'h1': 'h2', 'h2': 'h1', 'h3': 'h1', 'h5': 'h1', 'h7': 'h1'}
+  random       mapping: {'h1': 'h3', 'h2': 'h6', 'h3': 'h6', 'h5': 'h2', 'h7': 'h3'}
+  round_robin  mapping: {'h1': 'h2', 'h2': 'h3', 'h3': 'h4', 'h5': 'h6', 'h7': 'h1'}
+  heuristic    mapping: {'h1': 'h3', 'h2': 'h1', 'h3': 'h5', 'h5': 'h7', 'h7': 'h3'}
+  optimal      mapping: {'h1': 'h3', 'h2': 'h1', 'h3': 'h5', 'h5': 'h7', 'h7': 'h4'}
+  rl           mapping: {'h1': 'h7', 'h2': 'h6', 'h3': 'h1', 'h5': 'h3', 'h7': 'h2'}
+  trial 1/3 done (order: ['concentrated', 'rl', 'optimal', 'baseline', 'random', 'heuristic', 'round_robin'])
+  trial 2/3 done (order: ['heuristic', 'concentrated', 'random', 'rl', 'round_robin', 'optimal', 'baseline'])
+  trial 3/3 done (order: ['heuristic', 'baseline', 'round_robin', 'optimal', 'concentrated', 'random', 'rl'])
+
+--- context_seed=4 ---
+  baseline     mapping: {'h1': 'h4', 'h2': 'h1', 'h3': 'h6', 'h5': 'h4', 'h7': 'h4'}
+  concentrated mapping: {'h1': 'h2', 'h2': 'h1', 'h3': 'h1', 'h5': 'h1', 'h7': 'h1'}
+  random       mapping: {'h1': 'h3', 'h2': 'h4', 'h3': 'h1', 'h5': 'h7', 'h7': 'h4'}
+  round_robin  mapping: {'h1': 'h2', 'h2': 'h3', 'h3': 'h4', 'h5': 'h6', 'h7': 'h1'}
+  heuristic    mapping: {'h1': 'h2', 'h2': 'h6', 'h3': 'h5', 'h5': 'h7', 'h7': 'h1'}
+  optimal      mapping: {'h1': 'h2', 'h2': 'h6', 'h3': 'h5', 'h5': 'h7', 'h7': 'h1'}
+  rl           mapping: {'h1': 'h7', 'h2': 'h6', 'h3': 'h2', 'h5': 'h3', 'h7': 'h1'}
+  trial 1/3 done (order: ['random', 'round_robin', 'baseline', 'optimal', 'rl', 'heuristic', 'concentrated'])
+  trial 2/3 done (order: ['heuristic', 'concentrated', 'optimal', 'round_robin', 'random', 'rl', 'baseline'])
+  trial 3/3 done (order: ['concentrated', 'rl', 'round_robin', 'optimal', 'baseline', 'random', 'heuristic'])
+
+--- context_seed=5 ---
+  baseline     mapping: {'h1': 'h4', 'h2': 'h1', 'h3': 'h6', 'h5': 'h4', 'h7': 'h4'}
+  concentrated mapping: {'h1': 'h2', 'h2': 'h1', 'h3': 'h1', 'h5': 'h1', 'h7': 'h1'}
+  random       mapping: {'h1': 'h6', 'h2': 'h4', 'h3': 'h7', 'h5': 'h3', 'h7': 'h6'}
+  round_robin  mapping: {'h1': 'h2', 'h2': 'h3', 'h3': 'h4', 'h5': 'h6', 'h7': 'h1'}
+  heuristic    mapping: {'h1': 'h3', 'h2': 'h1', 'h3': 'h2', 'h5': 'h7', 'h7': 'h3'}
+  optimal      mapping: {'h1': 'h2', 'h2': 'h3', 'h3': 'h1', 'h5': 'h7', 'h7': 'h6'}
+  rl           mapping: {'h1': 'h4', 'h2': 'h6', 'h3': 'h1', 'h5': 'h3', 'h7': 'h2'}
+  trial 1/3 done (order: ['round_robin', 'baseline', 'concentrated', 'random', 'optimal', 'heuristic', 'rl'])
+  trial 2/3 done (order: ['rl', 'baseline', 'optimal', 'concentrated', 'random', 'round_robin', 'heuristic'])
+  trial 3/3 done (order: ['round_robin', 'heuristic', 'optimal', 'random', 'baseline', 'rl', 'concentrated'])
+
+
+===== SUMMARY across 5 context seeds x 3 trials (200 calls/primary, burst=10) =====
+
+method              n    mean_ms  median_ms     p95_ms     p99_ms           95% CI of mean
+baseline        15000    57.3280    10.6711    41.2425  1071.7726       [53.3147, 61.6085]
+concentrated    15000    94.9863     6.8127   221.6887  3125.5401      [87.6651, 102.8465]
+random          15000    45.9832    12.3517    47.4966  1063.3759       [42.9017, 49.0008]
+round_robin     15000    35.6735    18.4621    54.2718  1035.4170       [33.6789, 37.7882]
+heuristic       15000    41.0588    17.4812    50.6809  1054.3634       [38.6557, 43.4977]
+optimal         15000    36.9991    19.6343    56.0299  1034.2344       [35.0685, 39.0595]
+rl              15000    36.2036    18.8847    54.4658  1038.3774       [34.2247, 38.3056]
+
+===== Pairwise Mann-Whitney U tests + rank-biserial effect size =====
+(|r| ~0.1/0.3/0.5 ~ small/medium/large; p-values alone are near-meaningless at this n)
+baseline     vs concentrated p=0.000000  r=-0.1920  significant (p<0.05)
+baseline     vs random       p=0.000000  r=+0.0789  significant (p<0.05)
+baseline     vs round_robin  p=0.000000  r=+0.2383  significant (p<0.05)
+baseline     vs heuristic    p=0.000000  r=+0.2159  significant (p<0.05)
+baseline     vs optimal      p=0.000000  r=+0.2663  significant (p<0.05)
+baseline     vs rl           p=0.000000  r=+0.2456  significant (p<0.05)
+concentrated vs random       p=0.000000  r=+0.2566  significant (p<0.05)
+concentrated vs round_robin  p=0.000000  r=+0.3802  significant (p<0.05)
+concentrated vs heuristic    p=0.000000  r=+0.3680  significant (p<0.05)
+concentrated vs optimal      p=0.000000  r=+0.4027  significant (p<0.05)
+concentrated vs rl           p=0.000000  r=+0.3859  significant (p<0.05)
+random       vs round_robin  p=0.000000  r=+0.1584  significant (p<0.05)
+random       vs heuristic    p=0.000000  r=+0.1341  significant (p<0.05)
+random       vs optimal      p=0.000000  r=+0.1869  significant (p<0.05)
+random       vs rl           p=0.000000  r=+0.1657  significant (p<0.05)
+round_robin  vs heuristic    p=0.000019  r=-0.0285  significant (p<0.05)
+round_robin  vs optimal      p=0.000004  r=+0.0308  significant (p<0.05)
+round_robin  vs rl           p=0.228424  r=+0.0080  not significant
+heuristic    vs optimal      p=0.000000  r=+0.0593  significant (p<0.05)
+heuristic    vs rl           p=0.000000  r=+0.0364  significant (p<0.05)
+optimal      vs rl           p=0.000602  r=-0.0229  significant (p<0.05)
+
+===== Latency broken down by backup_load (pooled across all methods/seeds) =====
+This isolates the real mechanism: does sharing a backup among more primaries
+increase latency, independent of which method produced that sharing pattern?
+  load        n    mean_ms  median_ms     p95_ms     p99_ms
+     1    70800    35.3534    17.9358    52.0728  1036.5159
+     2    13200    53.4359    10.2340    49.5706  1074.4837
+     3     9000    74.7657     8.1352   221.9554  1090.1987
+     4    12000   111.8521     6.1187  1018.5809  3140.9324

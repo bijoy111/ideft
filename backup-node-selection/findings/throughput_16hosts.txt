@@ -1,0 +1,59 @@
+# iDEFT findings: throughput_16hosts
+# command: throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration 3.0 --burst 10 --methods concentrated random round_robin heuristic optimal rl --n-hosts 16 --n-primaries 10 --n-degraded 2 --scale-seed 0 --rl-model rl_model_scaled.zip
+# generated: 2026-07-17 19:53:10 UTC
+# (reproducing this scenario overwrites this file)
+
+
+--- context_seed=1 ---
+  trial 1/3 done (order: ['optimal', 'round_robin', 'random', 'concentrated', 'rl', 'heuristic'])
+  trial 2/3 done (order: ['optimal', 'concentrated', 'random', 'rl', 'round_robin', 'heuristic'])
+  trial 3/3 done (order: ['rl', 'heuristic', 'concentrated', 'round_robin', 'random', 'optimal'])
+
+--- context_seed=2 ---
+  trial 1/3 done (order: ['rl', 'concentrated', 'heuristic', 'random', 'round_robin', 'optimal'])
+  trial 2/3 done (order: ['heuristic', 'optimal', 'random', 'round_robin', 'concentrated', 'rl'])
+  trial 3/3 done (order: ['random', 'concentrated', 'optimal', 'rl', 'heuristic', 'round_robin'])
+
+--- context_seed=3 ---
+  trial 1/3 done (order: ['concentrated', 'random', 'round_robin', 'rl', 'heuristic', 'optimal'])
+  trial 2/3 done (order: ['round_robin', 'random', 'heuristic', 'rl', 'optimal', 'concentrated'])
+  trial 3/3 done (order: ['round_robin', 'optimal', 'random', 'heuristic', 'concentrated', 'rl'])
+
+--- context_seed=4 ---
+  trial 1/3 done (order: ['random', 'optimal', 'heuristic', 'concentrated', 'round_robin', 'rl'])
+  trial 2/3 done (order: ['optimal', 'round_robin', 'concentrated', 'heuristic', 'rl', 'random'])
+  trial 3/3 done (order: ['rl', 'random', 'concentrated', 'heuristic', 'optimal', 'round_robin'])
+
+--- context_seed=5 ---
+  trial 1/3 done (order: ['heuristic', 'random', 'rl', 'concentrated', 'round_robin', 'optimal'])
+  trial 2/3 done (order: ['heuristic', 'concentrated', 'rl', 'round_robin', 'random', 'optimal'])
+  trial 3/3 done (order: ['random', 'concentrated', 'rl', 'round_robin', 'heuristic', 'optimal'])
+
+
+===== SUMMARY across 5 context seeds x 3 trials (3.0s bursts, burst=10) =====
+(aggregate throughput/failure-rate per trial, summed/averaged across all primaries)
+
+method         n_runs       mean_cps    mean_fail_pct           95% CI (cps)
+concentrated       15        1191.38           2.5749     [1140.51, 1253.40]
+random             15        1297.64           0.6224     [1245.58, 1353.27]
+round_robin        15        1287.96           0.2537     [1260.91, 1324.16]
+heuristic          15        1309.96           0.2850     [1263.69, 1364.05]
+optimal            15        1358.82           0.1550     [1321.58, 1408.29]
+rl                 15        1352.04           0.1681     [1317.33, 1397.89]
+
+===== Pairwise Mann-Whitney U tests on per-trial aggregate throughput =====
+concentrated vs random       p=0.002463  r=+0.6533  significant (p<0.05)
+concentrated vs round_robin  p=0.000780  r=+0.7244  significant (p<0.05)
+concentrated vs heuristic    p=0.003691  r=+0.6267  significant (p<0.05)
+concentrated vs optimal      p=0.000308  r=+0.7778  significant (p<0.05)
+concentrated vs rl           p=0.000422  r=+0.7600  significant (p<0.05)
+random       vs round_robin  p=0.803420  r=-0.0578  not significant
+random       vs heuristic    p=0.618670  r=+0.1111  not significant
+random       vs optimal      p=0.051239  r=+0.4222  not significant
+random       vs rl           p=0.051239  r=+0.4222  not significant
+round_robin  vs heuristic    p=0.383733  r=+0.1911  not significant
+round_robin  vs optimal      p=0.003450  r=+0.6311  significant (p<0.05)
+round_robin  vs rl           p=0.002463  r=+0.6533  significant (p<0.05)
+heuristic    vs optimal      p=0.158465  r=+0.3067  not significant
+heuristic    vs rl           p=0.129996  r=+0.3289  not significant
+optimal      vs rl           p=0.787439  r=+0.0622  not significant

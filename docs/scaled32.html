@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>32 Hosts (Scalability Trend) — iDEFT: Intelligent Backup-Node Selection for DEFT</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <nav class="site">
+    <span class="brand">iDEFT: Intelligent Backup-Node Selection for DEFT</span>
+    <a href="index.html">Overview</a>
+    <a href="homogeneous.html">9 Hosts</a>
+    <a href="scaled16.html">16 Hosts</a>
+    <a href="scaled32.html" class="current">32 Hosts</a>
+    <a href="scaled128.html">128 Hosts</a>
+    <a href="overhead.html">Overhead</a>
+    <a href="throughput.html">Throughput</a>
+    <a href="reproduce.html">Reproduce</a>
+    <a href="code.html">Code</a>
+    <a href="downloads.html">Downloads</a>
+    <a href="https://github.com/bijoy111/ideft" target="_blank" rel="noopener">GitHub ↗</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <h1>Scalability Trend: 32 Hosts</h1>
+  <p class="lede">
+    The same setup as 16 hosts, doubled (20 primaries, 12 hosts that can act as backups,
+    4 of them bad, same proportions). The question here: does the 16-host result still
+    hold when there are more hosts to choose from, or did it only work because the
+    network was small?
+  </p>
+  <div class="pill-row">
+    <span class="pill">3 context seeds × 2 trials <em>(reduced — see note below)</em></span>
+    <span class="pill">150 calls/primary, burst=8</span>
+    <span class="pill">n = 18,000 calls/method</span>
+  </div>
+
+  <div class="card warn">
+    <strong>Fewer runs at this size:</strong> 3×2×150 calls with burst=8, instead of the
+    5×3×200 with burst=10 used at 16 and 128 hosts, to keep the run short enough on one
+    machine. The overall result is the same either way, but this page has less data behind
+    it than the others, so we say so rather than pretend they match. See
+    <a href="https://github.com/bijoy111/ideft/blob/main/backup-node-selection/EXPERIMENTS.md" target="_blank" rel="noopener">EXPERIMENTS.md §5</a>.
+  </div>
+
+  <div class="card good">
+    <strong>How often each method used a bad host (out of 20 choices per seed):</strong>
+    <span class="mono">concentrated</span>, <span class="mono">heuristic</span>,
+    <span class="mono">optimal</span>, and <span class="mono">rl</span> again
+    <strong>never</strong> used one, in any of the 3 seeds.
+    <span class="mono">round_robin</span> used one <strong>4 times out of 20, in every
+    seed</strong>, the same 20% rate as at 16 hosts. One important warning:
+    <span class="mono">round_robin_mapping()</span> never looks at host resources, so this
+    is <em>not</em> chance. It happens because Python sorts host names as text, not
+    numbers, and at this size that ordering lands on the bad hosts. The
+    <a href="scaled128.html">128-host page</a> shows the same accident going the other way,
+    down to 0%. So read that 20% as "out of anyone's control", not "reliable".
+  </div>
+
+  <h2>Per-Call Latency</h2>
+  <table>
+    <thead><tr><th>Method</th><th>Mean (ms)</th><th>Median (ms)</th><th>p95 (ms)</th><th>p99 (ms)</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">concentrated</td><td>210.35</td><td>4.28</td><td>1053.62</td><td>5538.62</td></tr>
+      <tr><td class="mono">random</td><td>91.00</td><td>24.49</td><td>358.65</td><td>1050.90</td></tr>
+      <tr><td class="mono">round_robin</td><td>98.97</td><td>28.78</td><td>359.29</td><td>363.41</td></tr>
+      <tr><td class="mono">heuristic</td><td>36.49</td><td>26.49</td><td>58.41</td><td>105.63</td></tr>
+      <tr><td class="mono">optimal</td><td>35.65</td><td>27.70</td><td>58.59</td><td>103.48</td></tr>
+      <tr><td class="mono">rl</td><td>36.41</td><td>25.86</td><td>54.58</td><td>211.59</td></tr>
+    </tbody>
+  </table>
+
+  <div class="chart">
+    <div class="chart-title">p99 latency (ms) — log scale (the measure that separates the methods most clearly here)</div>
+    <div class="bar-row"><span class="bar-label">concentrated</span><div class="bar-track"><div class="bar-fill m-concentrated" style="width:100%"></div></div><span class="bar-value">5538.62</span></div>
+    <div class="bar-row"><span class="bar-label">random</span><div class="bar-track"><div class="bar-fill m-random" style="width:81%"></div></div><span class="bar-value">1050.90</span></div>
+    <div class="bar-row"><span class="bar-label">round_robin</span><div class="bar-track"><div class="bar-fill m-round_robin" style="width:68%"></div></div><span class="bar-value">363.41</span></div>
+    <div class="bar-row"><span class="bar-label">heuristic</span><div class="bar-track"><div class="bar-fill m-heuristic" style="width:54%"></div></div><span class="bar-value">105.63</span></div>
+    <div class="bar-row"><span class="bar-label">optimal</span><div class="bar-track"><div class="bar-fill m-optimal" style="width:54%"></div></div><span class="bar-value">103.48</span></div>
+    <div class="bar-row"><span class="bar-label">rl</span><div class="bar-track"><div class="bar-fill m-rl" style="width:62%"></div></div><span class="bar-value">211.59</span></div>
+  </div>
+  <p class="legend-note">rl's mean (36.41ms) now matches heuristic/optimal (35.65–36.49ms); only its p99 tail (211.59ms) sits modestly above theirs (103–106ms) — a mild preview of the load-balancing-precision gap that becomes pronounced at 128 hosts.</p>
+
+  <h2>Statistical Comparison</h2>
+  <table>
+    <thead><tr><th>Comparison</th><th>r</th><th style="text-align:left">Reading</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">round_robin vs heuristic</td><td>−0.1422</td><td style="text-align:left">small, and about the same as at 16 hosts</td></tr>
+      <tr><td class="mono">heuristic vs optimal vs rl (each pair)</td><td>−0.07 to +0.04</td><td style="text-align:left">all tiny: the three stay very close</td></tr>
+      <tr><td class="mono">concentrated vs rest</td><td>0.71–0.76</td><td style="text-align:left">large, and <em>bigger</em> than at 16 hosts (0.47–0.56)</td></tr>
+    </tbody>
+  </table>
+
+  <div class="finding">
+    <strong>What this means:</strong> the main 16-host result still holds at twice the
+    size, so it was not just an effect of a small network. The one method that gets
+    relatively worse as the network grows is the naive worst case
+    (<span class="mono">concentrated</span>), which makes sense: putting more primaries on
+    a single backup means a longer queue at that backup. This is a real, if modest,
+    scaling result. The <a href="scaled128.html">128-host page</a> adds a third point,
+    eight times larger again.
+  </div>
+
+  <div class="scenario-nav">
+    <a href="scaled16.html">← 16 Hosts</a>
+    <a href="scaled128.html">Next: 128 Hosts — a breaking point and the RL story →</a>
+  </div>
+</div>
+</body>
+</html>

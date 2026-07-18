@@ -1,0 +1,73 @@
+# iDEFT findings: latency_32hosts
+# command: rpc_contention_experiment.py --context-seeds 1 2 3 --trials 2 --calls 150 --burst 8 --methods concentrated random round_robin heuristic optimal rl --n-hosts 32 --n-primaries 20 --n-degraded 4 --scale-seed 0 --rl-model rl_model_scaled32.zip
+# generated: 2026-07-17 16:52:51 UTC
+# (reproducing this scenario overwrites this file)
+
+
+--- context_seed=1 ---
+  concentrated uses degraded host(s) 0/20 times, mapping: {'w1': 'w2', 'w2': 'w1', 'w3': 'w1', 'w4': 'w1', 'w5': 'w1', 'w6': 'w1', 'w7': 'w1', 'w8': 'w1', 'w9': 'w1', 'w10': 'w1', 'w11': 'w1', 'w12': 'w1', 'w13': 'w1', 'w14': 'w1', 'w15': 'w1', 'w16': 'w1', 'w17': 'w1', 'w18': 'w1', 'w19': 'w1', 'w20': 'w1'}
+  random       uses degraded host(s) 1/20 times, mapping: {'w1': 'w6', 'w2': 'w20', 'w3': 'w29', 'w4': 'w27', 'w5': 'w26', 'w6': 'w3', 'w7': 'w10', 'w8': 'w4', 'w9': 'w17', 'w10': 'w26', 'w11': 'w16', 'w12': 'w17', 'w13': 'w22', 'w14': 'w13', 'w15': 'w27', 'w16': 'w7', 'w17': 'w4', 'w18': 'w16', 'w19': 'w1', 'w20': 'w30'}
+  round_robin  uses degraded host(s) 4/20 times, mapping: {'w1': 'w10', 'w2': 'w11', 'w3': 'w12', 'w4': 'w13', 'w5': 'w14', 'w6': 'w15', 'w7': 'w16', 'w8': 'w17', 'w9': 'w18', 'w10': 'w19', 'w11': 'w2', 'w12': 'w20', 'w13': 'w21', 'w14': 'w22', 'w15': 'w23', 'w16': 'w24', 'w17': 'w25', 'w18': 'w26', 'w19': 'w27', 'w20': 'w28'}
+  heuristic    uses degraded host(s) 0/20 times, mapping: {'w1': 'w13', 'w2': 'w15', 'w3': 'w28', 'w4': 'w3', 'w5': 'w26', 'w6': 'w27', 'w7': 'w8', 'w8': 'w7', 'w9': 'w2', 'w10': 'w9', 'w11': 'w5', 'w12': 'w11', 'w13': 'w17', 'w14': 'w25', 'w15': 'w30', 'w16': 'w19', 'w17': 'w20', 'w18': 'w13', 'w19': 'w29', 'w20': 'w3'}
+  optimal      uses degraded host(s) 0/20 times, mapping: {'w1': 'w5', 'w2': 'w28', 'w3': 'w15', 'w4': 'w26', 'w5': 'w11', 'w6': 'w19', 'w7': 'w13', 'w8': 'w2', 'w9': 'w25', 'w10': 'w3', 'w11': 'w27', 'w12': 'w30', 'w13': 'w8', 'w14': 'w17', 'w15': 'w14', 'w16': 'w29', 'w17': 'w20', 'w18': 'w12', 'w19': 'w7', 'w20': 'w9'}
+  rl           uses degraded host(s) 0/20 times, mapping: {'w1': 'w12', 'w2': 'w20', 'w3': 'w5', 'w4': 'w29', 'w5': 'w16', 'w6': 'w11', 'w7': 'w1', 'w8': 'w29', 'w9': 'w13', 'w10': 'w15', 'w11': 'w2', 'w12': 'w14', 'w13': 'w26', 'w14': 'w6', 'w15': 'w32', 'w16': 'w18', 'w17': 'w9', 'w18': 'w32', 'w19': 'w9', 'w20': 'w17'}
+  trial 1/2 done (order: ['optimal', 'round_robin', 'random', 'concentrated', 'rl', 'heuristic'])
+  trial 2/2 done (order: ['optimal', 'concentrated', 'random', 'rl', 'round_robin', 'heuristic'])
+
+--- context_seed=2 ---
+  concentrated uses degraded host(s) 0/20 times, mapping: {'w1': 'w2', 'w2': 'w1', 'w3': 'w1', 'w4': 'w1', 'w5': 'w1', 'w6': 'w1', 'w7': 'w1', 'w8': 'w1', 'w9': 'w1', 'w10': 'w1', 'w11': 'w1', 'w12': 'w1', 'w13': 'w1', 'w14': 'w1', 'w15': 'w1', 'w16': 'w1', 'w17': 'w1', 'w18': 'w1', 'w19': 'w1', 'w20': 'w1'}
+  random       uses degraded host(s) 3/20 times, mapping: {'w1': 'w32', 'w2': 'w29', 'w3': 'w32', 'w4': 'w29', 'w5': 'w2', 'w6': 'w3', 'w7': 'w3', 'w8': 'w13', 'w9': 'w28', 'w10': 'w6', 'w11': 'w25', 'w12': 'w27', 'w13': 'w23', 'w14': 'w29', 'w15': 'w10', 'w16': 'w9', 'w17': 'w21', 'w18': 'w7', 'w19': 'w21', 'w20': 'w2'}
+  round_robin  uses degraded host(s) 4/20 times, mapping: {'w1': 'w10', 'w2': 'w11', 'w3': 'w12', 'w4': 'w13', 'w5': 'w14', 'w6': 'w15', 'w7': 'w16', 'w8': 'w17', 'w9': 'w18', 'w10': 'w19', 'w11': 'w2', 'w12': 'w20', 'w13': 'w21', 'w14': 'w22', 'w15': 'w23', 'w16': 'w24', 'w17': 'w25', 'w18': 'w26', 'w19': 'w27', 'w20': 'w28'}
+  heuristic    uses degraded host(s) 0/20 times, mapping: {'w1': 'w12', 'w2': 'w6', 'w3': 'w14', 'w4': 'w27', 'w5': 'w18', 'w6': 'w25', 'w7': 'w10', 'w8': 'w13', 'w9': 'w15', 'w10': 'w16', 'w11': 'w9', 'w12': 'w4', 'w13': 'w20', 'w14': 'w3', 'w15': 'w12', 'w16': 'w14', 'w17': 'w11', 'w18': 'w8', 'w19': 'w5', 'w20': 'w19'}
+  optimal      uses degraded host(s) 0/20 times, mapping: {'w1': 'w25', 'w2': 'w12', 'w3': 'w13', 'w4': 'w27', 'w5': 'w10', 'w6': 'w18', 'w7': 'w14', 'w8': 'w16', 'w9': 'w3', 'w10': 'w30', 'w11': 'w20', 'w12': 'w4', 'w13': 'w15', 'w14': 'w8', 'w15': 'w11', 'w16': 'w19', 'w17': 'w26', 'w18': 'w6', 'w19': 'w9', 'w20': 'w5'}
+  rl           uses degraded host(s) 0/20 times, mapping: {'w1': 'w12', 'w2': 'w14', 'w3': 'w9', 'w4': 'w19', 'w5': 'w16', 'w6': 'w11', 'w7': 'w1', 'w8': 'w29', 'w9': 'w17', 'w10': 'w15', 'w11': 'w2', 'w12': 'w19', 'w13': 'w26', 'w14': 'w6', 'w15': 'w32', 'w16': 'w18', 'w17': 'w5', 'w18': 'w32', 'w19': 'w9', 'w20': 'w8'}
+  trial 1/2 done (order: ['rl', 'heuristic', 'concentrated', 'round_robin', 'random', 'optimal'])
+  trial 2/2 done (order: ['rl', 'concentrated', 'heuristic', 'random', 'round_robin', 'optimal'])
+
+--- context_seed=3 ---
+  concentrated uses degraded host(s) 0/20 times, mapping: {'w1': 'w2', 'w2': 'w1', 'w3': 'w1', 'w4': 'w1', 'w5': 'w1', 'w6': 'w1', 'w7': 'w1', 'w8': 'w1', 'w9': 'w1', 'w10': 'w1', 'w11': 'w1', 'w12': 'w1', 'w13': 'w1', 'w14': 'w1', 'w15': 'w1', 'w16': 'w1', 'w17': 'w1', 'w18': 'w1', 'w19': 'w1', 'w20': 'w1'}
+  random       uses degraded host(s) 3/20 times, mapping: {'w1': 'w9', 'w2': 'w20', 'w3': 'w19', 'w4': 'w6', 'w5': 'w13', 'w6': 'w31', 'w7': 'w21', 'w8': 'w17', 'w9': 'w22', 'w10': 'w20', 'w11': 'w3', 'w12': 'w21', 'w13': 'w1', 'w14': 'w31', 'w15': 'w28', 'w16': 'w17', 'w17': 'w9', 'w18': 'w19', 'w19': 'w8', 'w20': 'w7'}
+  round_robin  uses degraded host(s) 4/20 times, mapping: {'w1': 'w10', 'w2': 'w11', 'w3': 'w12', 'w4': 'w13', 'w5': 'w14', 'w6': 'w15', 'w7': 'w16', 'w8': 'w17', 'w9': 'w18', 'w10': 'w19', 'w11': 'w2', 'w12': 'w20', 'w13': 'w21', 'w14': 'w22', 'w15': 'w23', 'w16': 'w24', 'w17': 'w25', 'w18': 'w26', 'w19': 'w27', 'w20': 'w28'}
+  heuristic    uses degraded host(s) 0/20 times, mapping: {'w1': 'w3', 'w2': 'w28', 'w3': 'w1', 'w4': 'w5', 'w5': 'w26', 'w6': 'w8', 'w7': 'w10', 'w8': 'w19', 'w9': 'w7', 'w10': 'w9', 'w11': 'w29', 'w12': 'w14', 'w13': 'w15', 'w14': 'w25', 'w15': 'w31', 'w16': 'w13', 'w17': 'w16', 'w18': 'w28', 'w19': 'w18', 'w20': 'w3'}
+  optimal      uses degraded host(s) 0/20 times, mapping: {'w1': 'w19', 'w2': 'w26', 'w3': 'w10', 'w4': 'w5', 'w5': 'w8', 'w6': 'w14', 'w7': 'w28', 'w8': 'w25', 'w9': 'w3', 'w10': 'w20', 'w11': 'w13', 'w12': 'w16', 'w13': 'w4', 'w14': 'w15', 'w15': 'w31', 'w16': 'w7', 'w17': 'w18', 'w18': 'w29', 'w19': 'w1', 'w20': 'w9'}
+  rl           uses degraded host(s) 0/20 times, mapping: {'w1': 'w12', 'w2': 'w15', 'w3': 'w29', 'w4': 'w16', 'w5': 'w17', 'w6': 'w11', 'w7': 'w25', 'w8': 'w29', 'w9': 'w30', 'w10': 'w28', 'w11': 'w2', 'w12': 'w14', 'w13': 'w26', 'w14': 'w6', 'w15': 'w31', 'w16': 'w18', 'w17': 'w5', 'w18': 'w32', 'w19': 'w9', 'w20': 'w1'}
+  trial 1/2 done (order: ['heuristic', 'optimal', 'random', 'round_robin', 'concentrated', 'rl'])
+  trial 2/2 done (order: ['random', 'concentrated', 'optimal', 'rl', 'heuristic', 'round_robin'])
+
+
+===== SUMMARY across 3 context seeds x 2 trials (150 calls/primary, burst=8) =====
+
+method              n    mean_ms  median_ms     p95_ms     p99_ms           95% CI of mean
+concentrated    18000   210.3452     4.2788  1053.6214  5538.6218     [196.0643, 224.6620]
+random          18000    91.0026    24.4893   358.6478  1050.9046       [83.9443, 98.7094]
+round_robin     18000    98.9749    28.7797   359.2898   363.4083      [94.7309, 103.5684]
+heuristic       18000    36.4865    26.4906    58.4080   105.6298       [35.0850, 37.9314]
+optimal         18000    35.6487    27.7001    58.5919   103.4822       [34.5504, 36.8732]
+rl              18000    36.4068    25.8572    54.5832   211.5891       [34.9874, 37.8466]
+
+===== Pairwise Mann-Whitney U tests + rank-biserial effect size =====
+(|r| ~0.1/0.3/0.5 ~ small/medium/large; p-values alone are near-meaningless at this n)
+concentrated vs random       p=0.000000  r=+0.7052  significant (p<0.05)
+concentrated vs round_robin  p=0.000000  r=+0.7612  significant (p<0.05)
+concentrated vs heuristic    p=0.000000  r=+0.7395  significant (p<0.05)
+concentrated vs optimal      p=0.000000  r=+0.7572  significant (p<0.05)
+concentrated vs rl           p=0.000000  r=+0.7279  significant (p<0.05)
+random       vs round_robin  p=0.000000  r=+0.1494  significant (p<0.05)
+random       vs heuristic    p=0.000000  r=+0.0343  significant (p<0.05)
+random       vs optimal      p=0.000000  r=+0.0700  significant (p<0.05)
+random       vs rl           p=0.169575  r=+0.0084  not significant
+round_robin  vs heuristic    p=0.000000  r=-0.1422  significant (p<0.05)
+round_robin  vs optimal      p=0.000000  r=-0.1110  significant (p<0.05)
+round_robin  vs rl           p=0.000000  r=-0.1661  significant (p<0.05)
+heuristic    vs optimal      p=0.000000  r=+0.0424  significant (p<0.05)
+heuristic    vs rl           p=0.000000  r=-0.0312  significant (p<0.05)
+optimal      vs rl           p=0.000000  r=-0.0742  significant (p<0.05)
+
+===== Latency broken down by backup_load (pooled across all methods/seeds) =====
+This isolates the real mechanism: does sharing a backup among more primaries
+increase latency, independent of which method produced that sharing pattern?
+  load        n    mean_ms  median_ms     p95_ms     p99_ms
+     1    73200    54.2184    26.9330   355.1333   360.9111
+     2    16800    80.7290    24.3058   357.4187  1062.3430
+     3      900    71.2681    20.2818    55.1633  1092.9552
+    19    17100   220.4906     4.1375  1061.5106  6451.9434

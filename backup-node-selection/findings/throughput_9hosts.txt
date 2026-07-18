@@ -1,0 +1,66 @@
+# iDEFT findings: throughput_9hosts
+# command: throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration 3.0 --burst 10 --methods baseline concentrated random round_robin heuristic optimal rl
+# generated: 2026-07-17 19:38:15 UTC
+# (reproducing this scenario overwrites this file)
+
+
+--- context_seed=1 ---
+  trial 1/3 done (order: ['heuristic', 'random', 'concentrated', 'baseline', 'optimal', 'round_robin', 'rl'])
+  trial 2/3 done (order: ['concentrated', 'baseline', 'heuristic', 'optimal', 'rl', 'random', 'round_robin'])
+  trial 3/3 done (order: ['rl', 'round_robin', 'baseline', 'optimal', 'random', 'concentrated', 'heuristic'])
+
+--- context_seed=2 ---
+  trial 1/3 done (order: ['random', 'baseline', 'round_robin', 'concentrated', 'rl', 'optimal', 'heuristic'])
+  trial 2/3 done (order: ['concentrated', 'rl', 'heuristic', 'round_robin', 'random', 'baseline', 'optimal'])
+  trial 3/3 done (order: ['baseline', 'optimal', 'heuristic', 'concentrated', 'rl', 'round_robin', 'random'])
+
+--- context_seed=3 ---
+  trial 1/3 done (order: ['concentrated', 'rl', 'optimal', 'baseline', 'random', 'heuristic', 'round_robin'])
+  trial 2/3 done (order: ['heuristic', 'concentrated', 'random', 'rl', 'round_robin', 'optimal', 'baseline'])
+  trial 3/3 done (order: ['heuristic', 'baseline', 'round_robin', 'optimal', 'concentrated', 'random', 'rl'])
+
+--- context_seed=4 ---
+  trial 1/3 done (order: ['random', 'round_robin', 'baseline', 'optimal', 'rl', 'heuristic', 'concentrated'])
+  trial 2/3 done (order: ['heuristic', 'concentrated', 'optimal', 'round_robin', 'random', 'rl', 'baseline'])
+  trial 3/3 done (order: ['concentrated', 'rl', 'round_robin', 'optimal', 'baseline', 'random', 'heuristic'])
+
+--- context_seed=5 ---
+  trial 1/3 done (order: ['round_robin', 'baseline', 'concentrated', 'random', 'optimal', 'heuristic', 'rl'])
+  trial 2/3 done (order: ['rl', 'baseline', 'optimal', 'concentrated', 'random', 'round_robin', 'heuristic'])
+  trial 3/3 done (order: ['round_robin', 'heuristic', 'optimal', 'random', 'baseline', 'rl', 'concentrated'])
+
+
+===== SUMMARY across 5 context seeds x 3 trials (3.0s bursts, burst=10) =====
+(aggregate throughput/failure-rate per trial, summed/averaged across all primaries)
+
+method         n_runs       mean_cps    mean_fail_pct           95% CI (cps)
+baseline           15        1176.04           0.3816     [1144.80, 1206.05]
+concentrated       15        1158.07           0.6968     [1123.00, 1188.02]
+random             15        1180.53           0.2583     [1154.18, 1203.36]
+round_robin        15        1172.93           0.0592     [1159.47, 1186.89]
+heuristic          15        1197.29           0.1413     [1175.64, 1215.20]
+optimal            15        1159.16           0.0721     [1120.66, 1187.67]
+rl                 15        1175.13           0.0942     [1160.04, 1189.89]
+
+===== Pairwise Mann-Whitney U tests on per-trial aggregate throughput =====
+baseline     vs concentrated p=0.533738  r=-0.1378  not significant
+baseline     vs random       p=0.787439  r=+0.0622  not significant
+baseline     vs round_robin  p=0.678269  r=-0.0933  not significant
+baseline     vs heuristic    p=0.309474  r=+0.2222  not significant
+baseline     vs optimal      p=0.533829  r=-0.1378  not significant
+baseline     vs rl           p=0.787439  r=-0.0622  not significant
+concentrated vs random       p=0.350634  r=+0.2044  not significant
+concentrated vs round_robin  p=0.819506  r=+0.0533  not significant
+concentrated vs heuristic    p=0.071153  r=+0.3911  not significant
+concentrated vs optimal      p=1.000000  r=+0.0044  not significant
+concentrated vs rl           p=0.771551  r=+0.0667  not significant
+random       vs round_robin  p=0.198456  r=-0.2800  not significant
+random       vs heuristic    p=0.350634  r=+0.2044  not significant
+random       vs optimal      p=0.383733  r=-0.1911  not significant
+random       vs rl           p=0.430648  r=-0.1733  not significant
+round_robin  vs heuristic    p=0.029400  r=+0.4711  significant (p<0.05)
+round_robin  vs optimal      p=1.000000  r=-0.0044  not significant
+round_robin  vs rl           p=0.648167  r=+0.1022  not significant
+heuristic    vs optimal      p=0.046487  r=-0.4311  significant (p<0.05)
+heuristic    vs rl           p=0.038088  r=-0.4489  significant (p<0.05)
+optimal      vs rl           p=0.819526  r=+0.0533  not significant

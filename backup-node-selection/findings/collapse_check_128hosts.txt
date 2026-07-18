@@ -1,0 +1,10 @@
+# iDEFT findings: collapse_check_128hosts
+# command: rl_backup_selector.py --check-collapse --model rl_model_scaled128_collapsed.zip --n-hosts 128 --n-primaries 80 --n-degraded 16 --scale-seed 0
+# generated: 2026-07-17 20:07:05 UTC
+
+--- collapse check: distinct backups used per context seed ---
+  seed=0: 2 distinct backups used out of 80 primaries (mapping sample: {'w1': 'w101', 'w2': 'w101', 'w3': 'w101', 'w4': 'w101', 'w5': 'w101'})
+  seed=1: 4 distinct backups used out of 80 primaries (mapping sample: {'w1': 'w101', 'w2': 'w101', 'w3': 'w101', 'w4': 'w101', 'w5': 'w101'})
+  seed=2: 1 distinct backups used out of 80 primaries (mapping sample: {'w1': 'w101', 'w2': 'w101', 'w3': 'w101', 'w4': 'w101', 'w5': 'w101'})
+  seed=3: 5 distinct backups used out of 80 primaries (mapping sample: {'w1': 'w101', 'w2': 'w101', 'w3': 'w101', 'w4': 'w109', 'w5': 'w109'})
+  seed=4: 2 distinct backups used out of 80 primaries (mapping sample: {'w1': 'w101', 'w2': 'w101', 'w3': 'w101', 'w4': 'w101', 'w5': 'w101'})

@@ -3,11 +3,14 @@
 Self-contained reproduction package for the paper/thesis work on backup-node selection
 for [DEFT](https://github.com/MahirSez/DEFT) (CNSM'23), a fault-tolerant NF
 state-management system. DEFT replicates each primary NF's state to a backup node but
-never specifies *how that backup is chosen* — this package implements and evaluates six
-selection strategies (static baseline, worst-case concentrated, random, round-robin, a
-multi-criteria greedy heuristic, an exact Hungarian-optimal assignment) plus a trained
-PPO reinforcement-learning policy, and measures them by driving DEFT's **real,
-unmodified** two-phase-commit backup implementation under controlled concurrent load.
+never specifies *how that backup is chosen* — this package implements and evaluates
+selection strategies spanning naive baselines (static, worst-case concentrated, random,
+round-robin and a fairer randomized-offset variant), decentralized hash placement
+(rendezvous and weighted consistent hashing, the NFV analog of CRUSH/Dynamo), a
+multi-criteria greedy heuristic, an exact Hungarian-optimal assignment, and trained
+reinforcement-learning policies (PPO, with DQN as a cross-algorithm check). All are
+measured by driving DEFT's **real, unmodified** two-phase-commit backup implementation
+under controlled concurrent load.
 
 ## Layout
 
@@ -86,7 +89,31 @@ python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --call
 python3 selection_overhead.py
 ```
 
-### 3. Throughput and failure rate (§4.7)
+### 3. Cross-algorithm check: PPO vs DQN (§4.10)
+
+Is the RL load-balancing gap specific to PPO, or a property of the problem? DQN runs through
+the same environment, reward, and inference path, with only the learner swapped. Both are
+scored **structurally** (distinct backups used, peak per-backup load, degraded-host
+assignments), which are properties of the mapping rather than of RPC timing, so unlike
+latency they are hardware-independent. No RPC servers needed, about a minute:
+
+```bash
+python3 rl_algorithm_comparison.py
+```
+
+At 128 hosts DQN collapses to 1–3 distinct backups of 80 (vs PPO's 24–30) and puts 172/400
+assignments on degraded hosts. DQN can also be driven through the full latency harness with
+the `rl_dqn` method:
+
+```bash
+rm -f results_rpc/rpc_contention_raw.csv
+python3 rpc_contention_experiment.py --context-seeds 1 2 3 --trials 2 --calls 150 --burst 8 \
+    --methods heuristic optimal rl rl_dqn \
+    --n-hosts 32 --n-primaries 20 --n-degraded 4 --scale-seed 0 \
+    --rl-model rl_model_scaled32.zip --rl-dqn-model rl_model_dqn_scaled32_mitigated.zip
+```
+
+### 4. Throughput and failure rate (§4.7)
 
 ```bash
 rm -f results_rpc/throughput_raw.csv
@@ -99,7 +126,7 @@ python3 throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration
     --n-hosts 16 --n-primaries 10 --n-degraded 2 --scale-seed 0 --rl-model rl_model_scaled.zip
 ```
 
-### 4. Retraining the RL models (optional — pre-trained models are included)
+### 5. Retraining the RL models (optional — pre-trained models are included)
 
 ```bash
 python3 rl_backup_selector.py --train --timesteps 50000  --model rl_model.zip
@@ -120,6 +147,28 @@ python3 rl_backup_selector.py --train --check-collapse --timesteps 1000000 \
     --model rl_model_scaled128_v3.zip \
     --n-hosts 128 --n-primaries 80 --n-degraded 16 --scale-seed 0 \
     --ent-coef 0.02 --net-arch 256 256 --n-steps 4096 --batch-size 256
+
+# --- DQN (§4.10). Pass --algorithm dqn; DQN is tuned via exploration/replay flags
+# rather than --ent-coef.
+python3 rl_backup_selector.py --train --algorithm dqn --timesteps 50000 --model rl_model_dqn.zip
+python3 rl_backup_selector.py --train --algorithm dqn --timesteps 80000 \
+    --model rl_model_dqn_scaled.zip \
+    --n-hosts 16 --n-primaries 10 --n-degraded 2 --scale-seed 0
+
+# 32 hosts: DQN collapses to 2-4 of 20 backups on SB3 defaults. This mitigated config
+# lifts it to 16-19 and is the checkpoint used in §4.10.
+python3 rl_backup_selector.py --train --algorithm dqn --check-collapse --timesteps 150000 \
+    --model rl_model_dqn_scaled32_mitigated.zip \
+    --n-hosts 32 --n-primaries 20 --n-degraded 4 --scale-seed 0 \
+    --exploration-fraction 0.7 --exploration-final-eps 0.15 \
+    --buffer-size 100000 --target-update-interval 1000
+
+# 128 hosts: still collapses to 3 of 80 even with a wide network and 1M steps. This is
+# the cross-algorithm evidence in §4.10, not a config to copy.
+python3 rl_backup_selector.py --train --algorithm dqn --check-collapse --timesteps 1000000 \
+    --model rl_model_dqn_scaled128.zip \
+    --n-hosts 128 --n-primaries 80 --n-degraded 16 --scale-seed 0 \
+    --net-arch 256 256 --batch-size 256 --buffer-size 100000 --exploration-fraction 0.5
 ```
 
 Always pass `--check-collapse` after training at a new scale — it prints how many
@@ -134,11 +183,13 @@ straight away instead of part-way through an experiment run.
 | `exp_package/Two_phase_commit/` | DEFT's **unmodified** 2PC `Backup`/`Primary` classes — the actual system under test |
 | `topology_features.py` | Topology graph + seeded synthetic per-host resources (health/capacity/CPU/storage), scaled-topology generator |
 | `backup_selector.py` | All non-learned methods: baseline, concentrated, random, round_robin, heuristic, optimal (Hungarian) |
-| `rl_backup_selector.py` | PPO environment, training (with entropy/net-arch knobs), inference, collapse diagnostic |
+| `rl_backup_selector.py` | RL environment shared by PPO and DQN (`--algorithm ppo\|dqn`): training, inference, collapse diagnostic |
+| `rl_algorithm_comparison.py` | Structural PPO-vs-DQN comparison across all four scales (distinct backups, peak load, degraded hits); no RPC needed |
 | `rpc_contention_experiment.py` | Main latency harness: real OS process per backup, concurrent bursts, retry-with-backoff, Mann-Whitney + effect sizes + bootstrap CIs |
 | `throughput_experiment.py` | Fixed-duration throughput / failure-rate harness |
 | `selection_overhead.py` | Per-mapping compute-time benchmark across all four scales |
 | `rl_model*.zip` | Pre-trained PPO models (9 / 16 / 32 / 128-host scenarios; the 128-host one is the fixed "v3") |
+| `rl_model_dqn*.zip` | Pre-trained DQN models used for the §4.10 cross-algorithm check (the 32-host `_mitigated` one is the post-fix checkpoint; the 128-host one still collapses, by design) |
 | `EXPERIMENTS.md` | Full methodology and results reference |
 
 ## Notes on expected variance

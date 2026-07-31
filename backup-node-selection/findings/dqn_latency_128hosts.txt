@@ -1,0 +1,35 @@
+# iDEFT findings: latency_128hosts
+# source: data/processed/round6_128hosts_matched.csv
+# scenario: latest uniformly completed 128-host slice (context seeds 1-2, trials 0-2, 200 calls/primary, burst=10)
+# generated: 2026-07-31 UTC
+
+Common seed-trials: [(1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2)]
+Rows written: 672000
+
+Aggregate latency summary
+method         mean_ms   median_ms   p95_ms    p99_ms    degraded
+concentrated    221.11        0.68  1001.46   3003.39   0/480
+random          210.24       15.56  1557.44   2770.10   48/480
+round_robin     186.04       20.73  1030.81   3718.06   0/480
+heuristic       157.91       17.86  1027.97   3526.67   0/480
+optimal         168.61       19.37  1021.38   3683.71   0/480
+rl               96.88        2.25  1000.99   2001.09   0/480
+rl_dqn        10413.43      325.93 10000.00 380996.41   354/480
+
+Mapping spread by method (distinct backups range, peak backup load range)
+concentrated  distinct 2-2, peak_load 79-79
+random        distinct 56-57, peak_load 4-5
+round_robin   distinct 80-80, peak_load 1-1
+heuristic     distinct 74-75, peak_load 2-2
+optimal       distinct 80-80, peak_load 1-1
+rl            distinct 24-29, peak_load 23-28
+rl_dqn        distinct 3-3, peak_load 45-73
+
+Per-seed degraded-host counts (primary-assignment level)
+concentrated  (1, 0):0/80, (1, 1):0/80, (1, 2):0/80, (2, 0):0/80, (2, 1):0/80, (2, 2):0/80
+random        (1, 0):9/80, (1, 1):9/80, (1, 2):9/80, (2, 0):7/80, (2, 1):7/80, (2, 2):7/80
+round_robin   (1, 0):0/80, (1, 1):0/80, (1, 2):0/80, (2, 0):0/80, (2, 1):0/80, (2, 2):0/80
+heuristic     (1, 0):0/80, (1, 1):0/80, (1, 2):0/80, (2, 0):0/80, (2, 1):0/80, (2, 2):0/80
+optimal       (1, 0):0/80, (1, 1):0/80, (1, 2):0/80, (2, 0):0/80, (2, 1):0/80, (2, 2):0/80
+rl            (1, 0):0/80, (1, 1):0/80, (1, 2):0/80, (2, 0):0/80, (2, 1):0/80, (2, 2):0/80
+rl_dqn        (1, 0):45/80, (1, 1):45/80, (1, 2):45/80, (2, 0):73/80, (2, 1):73/80, (2, 2):73/80

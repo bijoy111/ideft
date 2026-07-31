@@ -53,14 +53,14 @@ mpl.rcParams.update({
 })
 
 # ---- fixed identity: color + marker + linestyle per method ----
-METHODS = ["concentrated", "random", "round-robin", "heuristic", "optimal", "rl"]
+METHODS = ["concentrated", "random", "round-robin", "heuristic", "optimal", "PPO"]
 STYLE = {
     "concentrated": dict(color="#2a78d6", marker="o", ls="-"),
     "random":       dict(color="#1baf7a", marker="s", ls="-"),
     "round-robin":  dict(color="#eda100", marker="^", ls="-"),
     "heuristic":    dict(color="#008300", marker="D", ls="-"),
     "optimal":      dict(color="#4a3aa7", marker="v", ls="-"),
-    "rl":           dict(color="#e34948", marker="P", ls="-"),
+    "PPO":          dict(color="#e34948", marker="P", ls="-"),
 }
 
 HOSTS = [9, 16, 32, 128]
@@ -71,7 +71,7 @@ MEAN = {
     "round-robin":  [35.67, 106.94,  98.97,  48.13],
     "heuristic":    [41.06,  39.11,  36.49,  47.92],
     "optimal":      [37.00,  37.25,  35.65,  49.06],
-    "rl":           [36.20,  37.71,  36.41, 457.86],
+    "PPO":          [36.20,  37.71,  36.41, 457.86],
 }
 P99 = {
     "concentrated": [3125.54, 3361.56, 5538.62, 18971.94],
@@ -79,7 +79,7 @@ P99 = {
     "round-robin":  [1035.42, 1040.29,  363.41,  1058.35],
     "heuristic":    [1054.36, 1050.06,  105.63,  1058.17],
     "optimal":      [1034.23, 1036.45,  103.48,  1057.86],
-    "rl":           [1038.38, 1039.31,  211.59,  7178.12],
+    "PPO":          [1038.38, 1039.31,  211.59,  7178.12],
 }
 OVERHEAD = {
     "concentrated": [0.005, 0.013, 0.055,  0.731],
@@ -87,7 +87,7 @@ OVERHEAD = {
     "round-robin":  [0.004, 0.005, 0.015,  0.030],
     "heuristic":    [0.055, 0.161, 0.646,  7.260],
     "optimal":      [0.097, 0.208, 0.913,  8.943],
-    "rl":           [1.81,  3.76, 11.29,  49.64],
+    "PPO":          [1.81,  3.76, 11.29,  49.64],
 }
 
 
@@ -153,7 +153,9 @@ fig.savefig(f"{OUT}/fig_overhead.pdf")
 fig.savefig(f"{WEB}/fig_overhead.svg")
 plt.close(fig)
 
-# ================= Figure 3: RL policy spread at 128 hosts =================
+# ============ PPO policy spread at 128 hosts (website only) ============
+# Not included in the paper (removed for length); docs/scaled128.html still embeds the
+# SVG, so it is kept here so that figure stays reproducible.
 # distinct backups used across the 80 primaries (section V-F). The two committed
 # checkpoints: degenerate baseline (collapse_check_128hosts.txt, per-seed 2,4,1,5,2)
 # and the final fixed model (latency_128hosts.txt, per-seed 29,24,30,24,29);

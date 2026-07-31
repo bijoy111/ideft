@@ -1,0 +1,24 @@
+# iDEFT findings: rl_algorithm_comparison
+# command: rl_algorithm_comparison.py
+# generated: 2026-07-31 11:43:58 UTC
+# (reproducing this scenario overwrites this file)
+
+PPO vs DQN, structural comparison over 5 context seeds per scenario.
+
+Metrics are properties of the mapping (not RPC timing), so they are
+hardware-independent and reproduce across machines.
+
+scale      algo      distinct    peak load       degraded
+9-host     PPO       5-5 of 5          1-1           0/25
+9-host     DQN       5-5 of 5          1-1           0/25
+
+16-host    PPO    10-10 of 10          1-1           0/50
+16-host    DQN     9-10 of 10          1-2           0/50
+
+32-host    PPO    15-19 of 20          2-2          0/100
+32-host    DQN    12-16 of 20          2-3          1/100
+
+128-host   PPO    24-30 of 80         9-28          0/400
+128-host   DQN      1-3 of 80        45-80        172/400
+
+[output captured to findings/rl_algorithm_comparison.txt]

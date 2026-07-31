@@ -64,9 +64,9 @@ tolerance, but its Failure Detection Unit assigns that backup with no stated sel
 criterion — in the repo's own shipped `primary_to_secondary.json`, 3 of 5 primaries are
 hardcoded onto a single backup (`h4`). Everything in this guide implements and evaluates
 alternatives to that static mapping: a deterministic multi-criteria heuristic, an exactly
-optimal assignment (Hungarian algorithm), and a trained RL (PPO) policy, evaluated against
-the static baseline and three naive baselines (random, round-robin, worst-case
-concentrated).
+optimal assignment (Hungarian algorithm), and trained RL policies (PPO, with DQN as a
+cross-algorithm check), evaluated against the static baseline, naive baselines (random,
+round-robin, worst-case concentrated), and decentralized hash placement.
 
 ## 3. Repository Layout: New and Modified Files
 
@@ -75,7 +75,7 @@ code/
 ├── config.py                        (MODIFIED — one-line bugfix)
 ├── topology_features.py             (NEW — real-topology graph + synthetic resources)
 ├── backup_selector.py               (NEW — baseline/concentrated/random/round_robin/heuristic/optimal)
-├── rl_backup_selector.py            (NEW — PPO environment, training, inference)
+├── rl_backup_selector.py            (NEW — shared RL env; PPO + DQN training, inference)
 ├── rpc_contention_experiment.py     (NEW — main latency evaluation harness)
 ├── throughput_experiment.py         (NEW — throughput/failure-rate evaluation harness)
 ├── selection_overhead.py            (NEW — per-mapping compute-time benchmark)
@@ -85,8 +85,10 @@ code/
 ├── rl_model.zip                     (trained model — 9-host homogeneous)
 ├── rl_model_scaled.zip              (trained model — 16-host scaled+heterogeneous)
 ├── rl_model_scaled32.zip            (trained model — 32-host scaled+heterogeneous)
-├── rl_model_scaled128_collapsed.zip (trained model — 128-host degenerate baseline, ent 0 / [64,64]; Figure 3 low bar)
+├── rl_model_scaled128_collapsed.zip (trained model — 128-host degenerate baseline, ent 0 / [64,64])
 ├── rl_model_scaled128_v3.zip        (trained model — 128-host, FINAL fix, used in reported results)
+├── rl_algorithm_comparison.py       (NEW — structural PPO-vs-DQN comparison, all four scales)
+├── rl_model_dqn*.zip                (trained DQN models — cross-algorithm check, EXPERIMENTS.md §4.10)
 └── results_rpc/                     (output — CSVs written by the experiments above)
 
 EXPERIMENTS.md                        (methodology + results narrative)
@@ -95,8 +97,8 @@ IMPLEMENTATION.md                     (this file)
 README.md                             (setup + reproduction commands)
 ```
 
-Two 128-host checkpoints ship: `rl_model_scaled128_collapsed.zip` (the degenerate
-`ent_coef=0.0`/`[64,64]` baseline, the low bar of Figure 3) and
+Two 128-host PPO checkpoints ship: `rl_model_scaled128_collapsed.zip` (the degenerate
+`ent_coef=0.0`/`[64,64]` baseline) and
 `rl_model_scaled128_v3.zip` (the final fix, used in all reported 128-host results). The
 intermediate `[128,128]`/600k attempt is described in EXPERIMENTS.md §4.6 but not released
 as a checkpoint. The Mininet-path files (`test.py`, `perflow-packet-counter.py`,
@@ -166,7 +168,7 @@ All non-learned selection methods, plus the CLI used to regenerate
 
 ### 4.4 `rl_backup_selector.py` (new)
 
-The RL agent: environment, training, and inference.
+The RL agents: shared environment, PPO and DQN training, and inference.
 
 - `BackupSelectionEnv(gym.Env)` — one episode assigns every primary a backup in
   sequence, under one freshly-drawn random `FeatureContext` per episode (so the policy
@@ -177,19 +179,32 @@ The RL agent: environment, training, and inference.
   for re-using an already-loaded host, and a large fixed penalty (`-10`) for an
   infeasible action — chosen so invalid actions are discouraged **during training**,
   not just corrected after the fact.
-- `train(hosts, primaries, ..., ent_coef=0.01, net_arch=None, n_steps=2048, batch_size=64)` —
+- `train_ppo(hosts, primaries, ..., ent_coef=0.01, net_arch=None, n_steps=2048, batch_size=64)` —
   trains a PPO agent (`stable_baselines3`). **`ent_coef` defaults to 0.01, not SB3's own
   default of 0.0** — this was added specifically after the 128-host model trained with
   `ent_coef=0.0` collapsed to a degenerate constant policy (see §4.9 below); with no
   entropy bonus, nothing discourages the policy from locking onto one action early.
   `net_arch` defaults to `[128, 128]` (SB3's own default is `[64, 64]`) for the same
   reason — a bigger action/observation space needs more network capacity.
+- `train_dqn(hosts, primaries, ..., buffer_size=50000, exploration_fraction=0.3, ...)` —
+  trains a DQN agent on the **same** env, reward, and inference path, so only the learner
+  differs: off-policy replay instead of on-policy rollouts, value-based instead of
+  actor-critic, epsilon-greedy decay instead of an entropy bonus. Used for the
+  cross-algorithm check in EXPERIMENTS.md §4.10. Its exploration flags play the role
+  `ent_coef` plays for PPO: with SB3's defaults DQN collapses at 32 hosts, and widening
+  exploration recovers it.
+- `load_rl_model(path, algorithm)` — loads either a PPO or DQN checkpoint; both expose the
+  same `predict(obs, deterministic=True)` interface, so nothing downstream is
+  algorithm-specific.
 - `predict_mapping(model, hosts, primaries, ctx)` — deterministic policy rollout,
   falling back to the best-scoring feasible candidate if the policy still picks an
   infeasible host at inference time (a true fallback now, not the only safety net).
-- CLI: `--train`, `--predict`, `--timesteps`, `--model`, `--seed`, `--n-hosts`,
-  `--n-primaries`, `--n-degraded`, `--scale-seed`, `--ent-coef`, `--net-arch` (space-separated
-  layer sizes), `--n-steps`, `--batch-size`, and `--check-collapse` — the last one prints
+  Shared by both algorithms, which is what keeps the comparison fair.
+- CLI: `--train`, `--predict`, `--algorithm ppo|dqn`, `--timesteps`, `--model`, `--seed`,
+  `--n-hosts`, `--n-primaries`, `--n-degraded`, `--scale-seed`; PPO knobs `--ent-coef`,
+  `--net-arch` (space-separated layer sizes), `--n-steps`, `--batch-size`; DQN knobs
+  `--buffer-size`, `--exploration-fraction`, `--exploration-final-eps`,
+  `--target-update-interval`, `--learning-rate`; and `--check-collapse` — the last one prints
   how many distinct backups the trained/loaded policy uses across 5 context seeds, so you
   can catch a degenerate policy straight away instead of discovering it part-way through
   a full RPC experiment run.
@@ -292,12 +307,24 @@ reproduction sequence in §1/§5.
 | `rl_model.zip` | 9 hosts (homogeneous) | `--timesteps 50000` | |
 | `rl_model_scaled.zip` | 16 hosts | `--timesteps 80000 --n-hosts 16 --n-primaries 10 --n-degraded 2` | |
 | `rl_model_scaled32.zip` | 32 hosts | `--timesteps 100000 --n-hosts 32 --n-primaries 20 --n-degraded 4` | |
-| `rl_model_scaled128_collapsed.zip` | 128 hosts, **degenerate baseline** | `--timesteps 400000 --ent-coef 0.0 --net-arch 64 64` (SB3 raw defaults) | **Collapsed**: uses only 1–5 distinct backups, routing ~all 80 primaries to one host (`w101`). Shipped for reproducibility of the collapse finding (Figure 3 low bar), not usable in production. |
+| `rl_model_scaled128_collapsed.zip` | 128 hosts, **degenerate baseline** | `--timesteps 400000 --ent-coef 0.0 --net-arch 64 64` (SB3 raw defaults) | **Collapsed**: uses only 1–5 distinct backups, routing ~all 80 primaries to one host (`w101`). Shipped for reproducibility of the collapse finding, not usable in production. |
 | *(intermediate attempt, not shipped)* | 128 hosts, **fix attempt 1** | `--timesteps 600000 --ent-coef 0.01 --net-arch 128 128` | Partial improvement only; no checkpoint released. |
 | `rl_model_scaled128_v3.zip` | 128 hosts, **final** | `--timesteps 1000000 --ent-coef 0.02 --net-arch 256 256 --n-steps 4096 --batch-size 256` | Used in all reported 128-host `rl` results. Avoids degraded hosts correctly (0/400) and spreads across 24–30 distinct backups, but still load-balances worse than the heuristic (74–76) — see EXPERIMENTS.md §4.6. |
 
+DQN checkpoints for the §4.10 cross-algorithm check (add `--algorithm dqn`):
+
+| File | Scenario | Command that produced it | Notes |
+|---|---|---|---|
+| `rl_model_dqn.zip` | 9 hosts | `--algorithm dqn --timesteps 50000` | Spreads across all 5 backups, like PPO. |
+| `rl_model_dqn_scaled.zip` | 16 hosts | `--algorithm dqn --timesteps 80000 --n-hosts 16 --n-primaries 10 --n-degraded 2` | 9–10 of 10 backups. |
+| `rl_model_dqn_scaled32.zip` | 32 hosts, **pre-fix** | `--algorithm dqn --timesteps 100000 --n-hosts 32 ...` (SB3 exploration defaults) | **Collapsed**: 2–4 of 20 backups. Kept as the before case. |
+| `rl_model_dqn_scaled32_mitigated.zip` | 32 hosts, **fixed** | `--algorithm dqn --timesteps 150000 --exploration-fraction 0.7 --exploration-final-eps 0.15 --buffer-size 100000 --target-update-interval 1000` | 16–19 of 20 backups. This is the checkpoint used in §4.10. |
+| `rl_model_dqn_scaled128.zip` | 128 hosts | `--algorithm dqn --timesteps 1000000 --net-arch 256 256 --batch-size 256 --buffer-size 100000 --exploration-fraction 0.5` | **Still collapses**: 1–3 of 80 backups, 172/400 assignments on degraded hosts even with a wide network and 1M steps. This is the cross-algorithm evidence, not a config to copy. |
+
 Use `--check-collapse` on any of these (or right after `--train`) to see this diagnosis
 yourself quickly, instead of discovering it part-way through a full RPC experiment run.
+`rl_algorithm_comparison.py` runs the same diagnosis for PPO and DQN across all four scales
+in one pass.
 
 ## 5. Full Reproduction Walkthrough, Mapped to EXPERIMENTS.md
 

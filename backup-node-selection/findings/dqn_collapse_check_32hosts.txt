@@ -1,0 +1,10 @@
+# iDEFT findings: collapse_check_32hosts
+# command: rl_backup_selector.py --train --algorithm dqn --n-hosts 32 --n-primaries 20 --timesteps 150000 --model rl_model_dqn_scaled32_mitigated.zip --exploration-fraction 0.7 --exploration-final-eps 0.15 --buffer-size 100000 --target-update-interval 1000 --check-collapse
+# generated: 2026-07-28 06:05:15 UTC
+
+--- collapse check: distinct backups used per context seed ---
+  seed=0: 19 distinct backups used out of 20 primaries (mapping sample: {'w1': 'w2', 'w2': 'w1', 'w3': 'w17', 'w4': 'w3', 'w5': 'w4'})
+  seed=1: 17 distinct backups used out of 20 primaries (mapping sample: {'w1': 'w17', 'w2': 'w5', 'w3': 'w12', 'w4': 'w24', 'w5': 'w14'})
+  seed=2: 16 distinct backups used out of 20 primaries (mapping sample: {'w1': 'w12', 'w2': 'w14', 'w3': 'w17', 'w4': 'w24', 'w5': 'w21'})
+  seed=3: 16 distinct backups used out of 20 primaries (mapping sample: {'w1': 'w14', 'w2': 'w17', 'w3': 'w12', 'w4': 'w29', 'w5': 'w21'})
+  seed=4: 16 distinct backups used out of 20 primaries (mapping sample: {'w1': 'w14', 'w2': 'w5', 'w3': 'w17', 'w4': 'w18', 'w5': 'w24'})

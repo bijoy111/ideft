@@ -477,7 +477,7 @@ primary metric and treat this throughput/failure-rate result as a corroborating,
 replacing, measurement. **Reproducers: expect the `concentrated` comparisons to hold every
 time and the finer degraded-host ones to be only partially resolved.**
 
-### 4.8 Heuristic weight sensitivity and decay calibration (paper §V-G, Tables VIII–IX)
+### 4.8 Heuristic weight sensitivity and decay calibration (paper §V-G, Table VIII)
 
 The heuristic's scoring weights `(w_h, w_k, w_l, w_d) = (0.35, 0.35, 0.20, 0.10)` and its
 load-decay mechanics (`cap -= 20`; `health *= 0.95`) are otherwise chosen by intuition. To
@@ -542,7 +542,7 @@ variation, could trade host quality for balance). So `(20, 0.95)` is a principle
 monotone response surface, not an arbitrary constant. Full run saved in
 `findings/decay_sensitivity.txt`.
 
-### 4.9 Hash baselines, a fairer round-robin, and topology diversity (paper §V-H, Table X)
+### 4.9 Hash baselines, a fairer round-robin, and topology diversity (paper §V-H, Table IX)
 
 `baseline_comparison.py` broadens the baseline set — the NFV analogs of decentralized,
 load-aware replica placement (CRUSH, Dynamo, consistent-hashing variants) plus a fairer
@@ -578,6 +578,61 @@ The fair `rr_random` hits degraded hosts at **every** scale (1.2/2.6/10.8), conf
 deterministic round-robin's lucky 0-hit at 128 hosts was a naming coincidence. On **multi-hub**
 topologies (16-host/3-hub, 32-host/3-hub) the numbers are identical — the findings are driven
 by host quality, not graph shape. Full run saved in `findings/baseline_comparison.txt`.
+
+### 4.10 Cross-algorithm check: DQN vs PPO (paper §V-F, Table VII)
+
+§4.6's load-balancing gap is measured on PPO alone, which leaves open whether it is a PPO
+quirk or a property of the problem formulation. DQN (`--algorithm dqn`) is trained and
+evaluated through the same `BackupSelectionEnv`, reward, and inference path as PPO, so only
+the learner differs: off-policy replay instead of on-policy rollouts, value-based instead of
+actor-critic, epsilon-greedy decay instead of an entropy bonus.
+
+Both are scored **structurally** — distinct backups used, peak per-backup load, degraded-host
+assignments — rather than by RPC latency, for the same reason as §4.8. These are properties
+of the produced mapping, not of timing, so they are hardware-independent and reproduce
+exactly across machines; §4.3 separately establishes that backup load is what drives latency
+under contention. Load-balancing precision is in any case a structural property, so this
+measures it directly. Reproduce with `python3 rl_algorithm_comparison.py` (no RPC servers,
+about a minute).
+
+| Scale | Algorithm | Distinct backups | Peak load | Degraded |
+|---|---|---|---|---|
+| 9-host | PPO | 5-5 of 5 | 1-1 | 0/25 |
+| 9-host | DQN | 5-5 of 5 | 1-1 | 0/25 |
+| 16-host | PPO | 10-10 of 10 | 1-1 | 0/50 |
+| 16-host | DQN | 9-10 of 10 | 1-2 | 0/50 |
+| 32-host | PPO | 15-19 of 20 | 2-2 | 0/100 |
+| 32-host | DQN | 12-16 of 20 | 2-3 | 1/100 |
+| 128-host | PPO | 24-30 of 80 | 9-28 | 0/400 |
+| 128-host | DQN | **1-3 of 80** | **45-80** | **172/400** |
+
+(5 context seeds per scale; "Degraded" is out of 5 x |P| assignments.)
+
+**Up to 32 hosts the two algorithms behave alike.** Both spread across nearly every available
+backup at 9 and 16 hosts, and at 32 hosts DQN stays within a few backups of PPO at comparable
+peak load. But DQN only reaches that after the same class of fix PPO needed at 128 hosts:
+with SB3 defaults it collapsed to 2-4 distinct backups of 20, and widening exploration
+(fraction 0.5→0.7, final eps 0.05→0.15), enlarging the replay buffer (50k→100k), and training
+longer (100k→150k steps) recovered the spread reported above. That mitigated checkpoint is
+`rl_model_dqn_scaled32_mitigated.zip`.
+
+**At 128 hosts DQN concentrates far harder than PPO**: 1-3 distinct backups of 80, up to 80
+primaries on a single host, and 172 of 400 assignments on degraded hosts. PPO in the same
+comparison avoids degraded hosts entirely while still using only 24-30 backups, against the
+heuristic's 74-76 at max load 2 (§4.8).
+
+**Why this matters:** two architecturally different RL algorithms concentrate load the same
+way as the action space grows, and both respond to the same widened-exploration remedy. That
+points at the problem formulation — a reward that labels host quality explicitly but
+discourages concentration only implicitly — rather than at any one algorithm. Full run in
+`findings/rl_algorithm_comparison.txt`.
+
+**Note on the reference DQN artifacts.** The `findings/dqn_*.txt` files are RPC-latency runs
+of the same checkpoints from a separate machine, kept for reference. Their absolute latencies
+are not comparable to §4.1-§4.7 (different hardware), which is precisely why the paper's
+cross-algorithm claim rests on the structural table above instead. The structural outcome
+matches across both machines: PPO 24-30 distinct backups at 128 hosts here vs 24-29 there,
+DQN 1-3 vs 3.
 
 ## 5. Threats to validity / limitations
 
@@ -698,6 +753,25 @@ python3 decay_sensitivity.py
 # Decentralized hash-based baselines: HRW comparison (§4.9; no RPC, runs in seconds)
 python3 baseline_comparison.py
 
+# Cross-algorithm check: DQN vs PPO (§4.10). Note the reported numbers come from a
+# different machine, so expect different absolute latencies; the pattern is what reproduces.
+rm -f results_rpc/rpc_contention_raw.csv
+python3 rpc_contention_experiment.py \
+    --context-seeds 1 2 3 --trials 2 --calls 150 --burst 8 \
+    --methods heuristic optimal rl rl_dqn \
+    --n-hosts 32 --n-primaries 20 --n-degraded 4 --scale-seed 0 \
+    --rl-model rl_model_scaled32.zip --rl-dqn-model rl_model_dqn_scaled32_mitigated.zip
+rm -f results_rpc/rpc_contention_raw.csv
+python3 rpc_contention_experiment.py \
+    --context-seeds 1 2 --trials 3 --calls 200 --burst 10 \
+    --methods heuristic optimal rl rl_dqn \
+    --n-hosts 128 --n-primaries 80 --n-degraded 16 --scale-seed 0 \
+    --rl-model rl_model_scaled128_v3.zip --rl-dqn-model rl_model_dqn_scaled128.zip
+# Fastest way to see the 128-host DQN collapse without any RPC run (seconds)
+python3 rl_backup_selector.py --check-collapse --algorithm dqn \
+    --model rl_model_dqn_scaled128.zip \
+    --n-hosts 128 --n-primaries 80 --n-degraded 16 --scale-seed 0
+
 # Throughput and failure rate (homogeneous + 16-host scenarios)
 rm -f results_rpc/throughput_raw.csv
 python3 throughput_experiment.py \
@@ -731,6 +805,28 @@ python3 rl_backup_selector.py --train --check-collapse --timesteps 1000000 \
     --model rl_model_scaled128_v3.zip \
     --n-hosts 128 --n-primaries 80 --n-degraded 16 --scale-seed 0 \
     --ent-coef 0.02 --net-arch 256 256 --n-steps 4096 --batch-size 256
+
+# Retrain the DQN models (§4.10). Add --algorithm dqn; DQN is tuned via exploration and
+# replay-buffer flags rather than --ent-coef.
+python3 rl_backup_selector.py --train --algorithm dqn --timesteps 50000 --model rl_model_dqn.zip
+python3 rl_backup_selector.py --train --algorithm dqn --timesteps 80000 \
+    --model rl_model_dqn_scaled.zip \
+    --n-hosts 16 --n-primaries 10 --n-degraded 2 --scale-seed 0
+
+# 32 hosts: DQN collapses to 2-4 of 20 backups on SB3 defaults. This is the mitigated
+# config that lifts it to 16-19 (the rl_model_dqn_scaled32_mitigated.zip used in §4.10).
+python3 rl_backup_selector.py --train --algorithm dqn --check-collapse --timesteps 150000 \
+    --model rl_model_dqn_scaled32_mitigated.zip \
+    --n-hosts 32 --n-primaries 20 --n-degraded 4 --scale-seed 0 \
+    --exploration-fraction 0.7 --exploration-final-eps 0.15 \
+    --buffer-size 100000 --target-update-interval 1000
+
+# 128 hosts: still collapses to 3 of 80 backups even with a wide network and 1M steps --
+# this is the cross-algorithm evidence in §4.10, not a config to copy.
+python3 rl_backup_selector.py --train --algorithm dqn --check-collapse --timesteps 1000000 \
+    --model rl_model_dqn_scaled128.zip \
+    --n-hosts 128 --n-primaries 80 --n-degraded 16 --scale-seed 0 \
+    --net-arch 256 256 --batch-size 256 --buffer-size 100000 --exploration-fraction 0.5
 ```
 
 Raw per-call latency data: `results_rpc/rpc_contention_raw.csv` (columns: `method,

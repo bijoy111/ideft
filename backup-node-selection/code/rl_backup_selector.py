@@ -1,4 +1,4 @@
-"""RL-based backup-node selector (PPO).
+"""RL-based backup-node selector (PPO and DQN).
 
 Design:
 - Reward uses the real per-pair latency from topology_features (ctx.distances).
@@ -9,10 +9,15 @@ Design:
   which keeps the comparison fair.
 - Trains across many random FeatureContext realizations per episode (not one fixed
   scenario), so the learned policy generalizes instead of memorizing one instance.
+- DQN is trained and evaluated through the same BackupSelectionEnv and predict_mapping()
+  as PPO, so the two algorithms are compared on identical footing; only the learning
+  algorithm and its own hyperparameters differ (see train_dqn()).
 
 Usage:
-    python rl_backup_selector.py --train --timesteps 50000 --out rl_model.zip
-    python rl_backup_selector.py --predict --model rl_model.zip --seed 42
+    python rl_backup_selector.py --train --algorithm ppo --timesteps 50000 --model rl_model.zip
+    python rl_backup_selector.py --train --algorithm dqn --timesteps 50000 --model rl_model_dqn.zip
+    python rl_backup_selector.py --predict --algorithm ppo --model rl_model.zip --seed 42
+    python rl_backup_selector.py --predict --algorithm dqn --model rl_model_dqn.zip --seed 42
 """
 
 import argparse
@@ -20,7 +25,7 @@ import argparse
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
-from stable_baselines3 import PPO
+from stable_baselines3 import DQN, PPO
 
 import backup_selector
 import config
@@ -106,8 +111,8 @@ class BackupSelectionEnv(gym.Env):
         return obs, reward, done, False, {}
 
 
-def train(hosts, primaries, graph=None, overrides=None, total_timesteps=50000, seed=0, verbose=0,
-          ent_coef=0.01, net_arch=None, n_steps=2048, batch_size=64):
+def train_ppo(hosts, primaries, graph=None, overrides=None, total_timesteps=50000, seed=0, verbose=0,
+              ent_coef=0.01, net_arch=None, n_steps=2048, batch_size=64):
     """ent_coef defaults to 0.01 (SB3's PPO default is 0.0). With no entropy bonus nothing
     stops the policy from collapsing onto a single action once it looks decent on average,
     which is what the 128-host model does at ent_coef=0.0 (see EXPERIMENTS.md Sec 4.6).
@@ -123,6 +128,42 @@ def train(hosts, primaries, graph=None, overrides=None, total_timesteps=50000, s
     )
     model.learn(total_timesteps=total_timesteps)
     return model
+
+
+def train_dqn(hosts, primaries, graph=None, overrides=None, total_timesteps=50000, seed=0, verbose=0,
+              learning_rate=1e-4, buffer_size=50000, batch_size=64, net_arch=None,
+              exploration_fraction=0.3, exploration_final_eps=0.05, target_update_interval=500):
+    """DQN training with an off-policy replay buffer and epsilon-greedy exploration, the
+    architecturally distinct counterpart to PPO's on-policy actor-critic design (off-policy
+    vs. on-policy, value-based vs. actor-critic, epsilon-greedy vs. entropy-regularized
+    exploration). Used to test whether PPO's policy-collapse behavior at large host counts
+    is a PPO-specific artifact or a property of the problem itself.
+
+    exploration_fraction/exploration_final_eps play the same role DQN's entropy coefficient
+    would for PPO: without enough exploration, nothing stops the policy from locking onto a
+    single action once it looks decent on average. net_arch defaults to [128, 128] for the
+    same reason as PPO's."""
+    env = BackupSelectionEnv(hosts, primaries, graph=graph, overrides=overrides)
+    policy_kwargs = dict(net_arch=net_arch or [128, 128])
+    model = DQN(
+        "MlpPolicy", env, verbose=verbose, seed=seed,
+        learning_rate=learning_rate, buffer_size=buffer_size, learning_starts=1000,
+        batch_size=batch_size, gamma=0.99, train_freq=4, gradient_steps=1,
+        target_update_interval=target_update_interval,
+        exploration_fraction=exploration_fraction, exploration_final_eps=exploration_final_eps,
+        policy_kwargs=policy_kwargs,
+    )
+    model.learn(total_timesteps=total_timesteps)
+    return model
+
+
+def load_rl_model(model_path, algorithm="ppo"):
+    """Load a trained RL model from disk. Both PPO and DQN expose the same
+    model.predict(obs, deterministic=True) interface, so predict_mapping() below needs no
+    algorithm-specific handling once the model is loaded."""
+    if algorithm == "dqn":
+        return DQN.load(model_path)
+    return PPO.load(model_path)
 
 
 def predict_mapping(model, hosts, primaries, ctx, weights=None):
@@ -157,6 +198,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--train", action="store_true")
     parser.add_argument("--predict", action="store_true")
+    parser.add_argument("--algorithm", choices=["ppo", "dqn"], default="ppo",
+                         help="RL algorithm to train/load (default: ppo)")
     parser.add_argument("--timesteps", type=int, default=50000)
     parser.add_argument("--model", default="rl_model.zip")
     parser.add_argument("--seed", type=int, default=42)
@@ -165,10 +208,17 @@ def main():
     parser.add_argument("--n-primaries", type=int, default=None)
     parser.add_argument("--n-degraded", type=int, default=0)
     parser.add_argument("--scale-seed", type=int, default=0)
+    # PPO-specific hyperparameters.
     parser.add_argument("--ent-coef", type=float, default=0.01)
     parser.add_argument("--net-arch", type=int, nargs="+", default=[128, 128])
     parser.add_argument("--n-steps", type=int, default=2048)
     parser.add_argument("--batch-size", type=int, default=64)
+    # DQN-specific hyperparameters.
+    parser.add_argument("--learning-rate", type=float, default=1e-4)
+    parser.add_argument("--buffer-size", type=int, default=50000)
+    parser.add_argument("--exploration-fraction", type=float, default=0.3)
+    parser.add_argument("--exploration-final-eps", type=float, default=0.05)
+    parser.add_argument("--target-update-interval", type=int, default=500)
     parser.add_argument("--check-collapse", action="store_true",
                          help="after training/loading, print how many distinct backups the policy uses across several context seeds")
     args = parser.parse_args()
@@ -187,16 +237,26 @@ def main():
         hosts, primaries = config.HOSTS, config.PRIMARIES
 
     if args.train:
-        model = train(
-            hosts, primaries, graph=graph, overrides=overrides, total_timesteps=args.timesteps,
-            seed=args.seed, verbose=1, ent_coef=args.ent_coef, net_arch=args.net_arch,
-            n_steps=args.n_steps, batch_size=args.batch_size,
-        )
+        if args.algorithm == "dqn":
+            model = train_dqn(
+                hosts, primaries, graph=graph, overrides=overrides, total_timesteps=args.timesteps,
+                seed=args.seed, verbose=1, learning_rate=args.learning_rate,
+                buffer_size=args.buffer_size, batch_size=args.batch_size, net_arch=args.net_arch,
+                exploration_fraction=args.exploration_fraction,
+                exploration_final_eps=args.exploration_final_eps,
+                target_update_interval=args.target_update_interval,
+            )
+        else:
+            model = train_ppo(
+                hosts, primaries, graph=graph, overrides=overrides, total_timesteps=args.timesteps,
+                seed=args.seed, verbose=1, ent_coef=args.ent_coef, net_arch=args.net_arch,
+                n_steps=args.n_steps, batch_size=args.batch_size,
+            )
         model.save(args.model)
-        print("Saved trained model to {}".format(args.model))
+        print("Saved trained {} model to {}".format(args.algorithm.upper(), args.model))
 
     if args.check_collapse:
-        model = model if args.train else PPO.load(args.model)
+        model = model if args.train else load_rl_model(args.model, args.algorithm)
         header = "--- collapse check: distinct backups used per context seed ---"
         print("\n" + header)
         lines = [header]
@@ -215,7 +275,7 @@ def main():
             "collapse_check_{}hosts".format(args.n_hosts or 9), "\n".join(lines))
 
     if args.predict:
-        model = PPO.load(args.model)
+        model = load_rl_model(args.model, args.algorithm)
         ctx = topology_features.build_feature_context(hosts=hosts, seed=args.seed, graph=graph, overrides=overrides)
         mapping = predict_mapping(model, hosts, primaries, ctx)
         backup_selector.write_mapping(mapping, args.out)

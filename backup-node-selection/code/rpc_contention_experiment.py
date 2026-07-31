@@ -198,13 +198,21 @@ def record_raw(method, context_seed, trial, mapping, latencies_by_primary):
 _rl_model_cache = {}
 
 
-def _rl_mapping(ctx, hosts, primaries, model_path="rl_model.zip"):
-    if model_path not in _rl_model_cache:
+def _rl_mapping(ctx, hosts, primaries, model_path="rl_model.zip", algorithm="ppo"):
+    cache_key = (model_path, algorithm)
+    if cache_key not in _rl_model_cache:
         import rl_backup_selector
-        from stable_baselines3 import PPO
-        _rl_model_cache[model_path] = (PPO.load(model_path), rl_backup_selector)
-    model, rl_backup_selector = _rl_model_cache[model_path]
+        _rl_model_cache[cache_key] = (
+            rl_backup_selector.load_rl_model(model_path, algorithm), rl_backup_selector)
+    model, rl_backup_selector = _rl_model_cache[cache_key]
     return rl_backup_selector.predict_mapping(model, hosts, primaries, ctx)
+
+
+def _rl_dqn_mapping(ctx, hosts, primaries, model_path="rl_model_dqn.zip"):
+    """DQN counterpart of _rl_mapping, reported under the rl_dqn method name. "rl" is always
+    PPO and "rl_dqn" is always DQN, each loaded from its own checkpoint path, so the two are
+    never silently pointed at the same model."""
+    return _rl_mapping(ctx, hosts, primaries, model_path=model_path, algorithm="dqn")
 
 
 # Every method function takes (ctx, hosts, primaries) so the same registry works for
@@ -217,6 +225,7 @@ METHODS = {
     "heuristic": lambda ctx, hosts, primaries: backup_selector.select_backups(primaries, hosts, ctx=ctx),
     "optimal": lambda ctx, hosts, primaries: backup_selector.optimal_mapping(primaries, hosts, ctx=ctx),
     "rl": _rl_mapping,
+    "rl_dqn": _rl_dqn_mapping,
 }
 
 
@@ -245,7 +254,7 @@ def rank_biserial_effect_size(a, b, u_stat=None):
 
 def run_experiment(context_seeds, trials, n_calls, burst_size, methods, order_seed=0,
                     hosts=None, primaries=None, graph=None, overrides=None, slow_hosts=None,
-                    rl_model_path="rl_model.zip"):
+                    rl_model_path="rl_model.zip", rl_dqn_model_path="rl_model_dqn.zip"):
     """Runs the full method comparison independently across each seed in context_seeds
     (a fresh topology/resource realization and a fresh mapping per method for each seed),
     then aggregates across all (context_seed x trial) combinations. Running many trials of
@@ -255,7 +264,8 @@ def run_experiment(context_seeds, trials, n_calls, burst_size, methods, order_se
     primaries = primaries if primaries is not None else config.PRIMARIES
 
     method_fns = dict(METHODS)
-    method_fns["rl"] = lambda ctx, hosts, primaries: _rl_mapping(ctx, hosts, primaries, model_path=rl_model_path)
+    method_fns["rl"] = lambda ctx, hosts, primaries: _rl_mapping(ctx, hosts, primaries, model_path=rl_model_path, algorithm="ppo")
+    method_fns["rl_dqn"] = lambda ctx, hosts, primaries: _rl_dqn_mapping(ctx, hosts, primaries, model_path=rl_dqn_model_path)
 
     all_latencies = {name: [] for name in methods}
     base_port = 9001
@@ -353,7 +363,8 @@ if __name__ == "__main__":
     parser.add_argument("--n-primaries", type=int, default=None)
     parser.add_argument("--n-degraded", type=int, default=0, help="mark this many backup-eligible hosts as artificially degraded (low health/capacity)")
     parser.add_argument("--scale-seed", type=int, default=0)
-    parser.add_argument("--rl-model", default="rl_model.zip")
+    parser.add_argument("--rl-model", default="rl_model.zip", help="PPO checkpoint for the 'rl' method")
+    parser.add_argument("--rl-dqn-model", default="rl_model_dqn.zip", help="DQN checkpoint for the 'rl_dqn' method")
     args = parser.parse_args()
 
     # Save this run's output to findings/ as well as the terminal (see run_logging.py).
@@ -376,5 +387,5 @@ if __name__ == "__main__":
     run_experiment(
         args.context_seeds, args.trials, args.calls, args.burst, args.methods,
         hosts=hosts, primaries=primaries, graph=graph, overrides=overrides, slow_hosts=slow_hosts,
-        rl_model_path=args.rl_model,
+        rl_model_path=args.rl_model, rl_dqn_model_path=args.rl_dqn_model,
     )

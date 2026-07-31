@@ -12,10 +12,10 @@ Usage:
 """
 
 import copy
+import os
 import time
 
 import numpy as np
-from stable_baselines3 import PPO
 
 import backup_selector
 import config
@@ -41,9 +41,10 @@ def time_call(fn, prep=None, n_repeats=N_REPEATS):
     return arr.mean(), np.median(arr), arr.std()
 
 
-def measure_scenario(label, hosts, primaries, graph, overrides, rl_model_path, seed=42):
+def measure_scenario(label, hosts, primaries, graph, overrides, rl_model_path, seed=42,
+                     rl_dqn_model_path=None):
     ctx = topology_features.build_feature_context(hosts=hosts, seed=seed, graph=graph, overrides=overrides)
-    model = PPO.load(rl_model_path)
+    model = rl_backup_selector.load_rl_model(rl_model_path, "ppo")
 
     # heuristic and rl mutate the context in place (_apply_load_penalty), so each timed
     # call gets a fresh copy via `prep`, produced outside the clock. Methods that ignore
@@ -57,6 +58,11 @@ def measure_scenario(label, hosts, primaries, graph, overrides, rl_model_path, s
         "optimal": (fresh, lambda c: backup_selector.optimal_mapping(primaries, hosts, ctx=c)),
         "rl": (fresh, lambda c: rl_backup_selector.predict_mapping(model, hosts, primaries, c)),
     }
+    # Timing PPO and DQN back-to-back in the same process keeps their comparison internally
+    # consistent, since absolute wall-clock timings are machine- and load-sensitive.
+    if rl_dqn_model_path is not None and os.path.exists(rl_dqn_model_path):
+        dqn_model = rl_backup_selector.load_rl_model(rl_dqn_model_path, "dqn")
+        calls["rl_dqn"] = (fresh, lambda c: rl_backup_selector.predict_mapping(dqn_model, hosts, primaries, c))
 
     print("\n--- {} ({} hosts, {} primaries) ---".format(label, len(hosts), len(primaries)))
     print("{:<12} {:>10} {:>10} {:>10}".format("method", "mean_ms", "median_ms", "std_ms"))
@@ -73,25 +79,29 @@ def main():
     import run_logging
     run_logging.capture_to_findings("selection_overhead")
 
-    measure_scenario("homogeneous-9", config.HOSTS, config.PRIMARIES, None, None, "rl_model.zip")
+    measure_scenario("homogeneous-9", config.HOSTS, config.PRIMARIES, None, None, "rl_model.zip",
+                     rl_dqn_model_path="rl_model_dqn.zip")
 
     hosts16, primaries16, graph16 = topology_features.generate_scaled_topology(n_hosts=16, n_primaries=10, seed=0)
     backup_pool16 = [h for h in hosts16 if h not in primaries16]
     degraded16 = backup_pool16[:2]
     overrides16 = {h: {"health": 0.05, "capacity": 2, "max_capacity": 60} for h in degraded16}
-    measure_scenario("scaled-16", hosts16, primaries16, graph16, overrides16, "rl_model_scaled.zip")
+    measure_scenario("scaled-16", hosts16, primaries16, graph16, overrides16, "rl_model_scaled.zip",
+                     rl_dqn_model_path="rl_model_dqn_scaled.zip")
 
     hosts32, primaries32, graph32 = topology_features.generate_scaled_topology(n_hosts=32, n_primaries=20, seed=0)
     backup_pool32 = [h for h in hosts32 if h not in primaries32]
     degraded32 = backup_pool32[:4]
     overrides32 = {h: {"health": 0.05, "capacity": 2, "max_capacity": 60} for h in degraded32}
-    measure_scenario("scaled-32", hosts32, primaries32, graph32, overrides32, "rl_model_scaled32.zip")
+    measure_scenario("scaled-32", hosts32, primaries32, graph32, overrides32, "rl_model_scaled32.zip",
+                     rl_dqn_model_path="rl_model_dqn_scaled32_mitigated.zip")
 
     hosts128, primaries128, graph128 = topology_features.generate_scaled_topology(n_hosts=128, n_primaries=80, seed=0)
     backup_pool128 = [h for h in hosts128 if h not in primaries128]
     degraded128 = backup_pool128[:16]
     overrides128 = {h: {"health": 0.05, "capacity": 2, "max_capacity": 60} for h in degraded128}
-    measure_scenario("scaled-128", hosts128, primaries128, graph128, overrides128, "rl_model_scaled128_v3.zip")
+    measure_scenario("scaled-128", hosts128, primaries128, graph128, overrides128, "rl_model_scaled128_v3.zip",
+                     rl_dqn_model_path="rl_model_dqn_scaled128.zip")
 
 
 if __name__ == "__main__":

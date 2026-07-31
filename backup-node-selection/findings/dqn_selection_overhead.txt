@@ -1,0 +1,41 @@
+# iDEFT findings: selection_overhead
+# command: selection_overhead.py --rl-model rl_model_dqn.zip --rl-algorithm dqn
+# generated: 2026-07-29 13:39:32 UTC
+# (reproducing this scenario overwrites this file)
+
+
+--- homogeneous-9 (9 hosts, 5 primaries) ---
+method          mean_ms  median_ms     std_ms
+concentrated     0.0020     0.0020     0.0001
+random           0.0128     0.0128     0.0002
+round_robin      0.0013     0.0013     0.0001
+heuristic        0.0190     0.0189     0.0011
+optimal          0.0229     0.0227     0.0007
+rl               0.2944     0.2924     0.0213
+
+--- scaled-16 (16 hosts, 10 primaries) ---
+method          mean_ms  median_ms     std_ms
+concentrated     0.0055     0.0055     0.0002
+random           0.0157     0.0156     0.0001
+round_robin      0.0022     0.0021     0.0001
+heuristic        0.0780     0.0766     0.0073
+optimal          0.0851     0.0839     0.0056
+rl               0.5077     0.4945     0.0352
+
+--- scaled-32 (32 hosts, 20 primaries) ---
+method          mean_ms  median_ms     std_ms
+concentrated     0.0175     0.0174     0.0016
+random           0.0301     0.0299     0.0018
+round_robin      0.0044     0.0044     0.0002
+heuristic        0.2825     0.2815     0.0107
+optimal          0.3170     0.3093     0.0263
+rl               0.6769     0.6743     0.0272
+
+--- scaled-128 (128 hosts, 80 primaries) ---
+method          mean_ms  median_ms     std_ms
+concentrated     0.2574     0.2552     0.0071
+random           0.2852     0.2854     0.0100
+round_robin      0.0157     0.0157     0.0003
+heuristic        4.2452     4.2382     0.0810
+optimal          4.8403     4.8280     0.0738
+rl               4.4630     4.4521     0.0665

@@ -72,12 +72,12 @@ python3 rpc_contention_experiment.py --context-seeds 42 --trials 1 --calls 50 --
 
   <h2><span class="step-num">3</span>Per-call latency — the four scale points</h2>
 
-  <h3>9 hosts, homogeneous → <a href="homogeneous.html">results</a>, EXPERIMENTS.md §4.1, paper Table I</h3>
+  <h3>9 hosts, homogeneous → <a href="homogeneous.html">results</a>, EXPERIMENTS.md §4.1, paper Table II</h3>
   <pre><code>rm -f results_rpc/rpc_contention_raw.csv
 python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 \
     --methods baseline concentrated random round_robin heuristic optimal rl</code></pre>
 
-  <h3>16 hosts, heterogeneous → <a href="scaled16.html">results</a>, EXPERIMENTS.md §4.2, paper Table II</h3>
+  <h3>16 hosts, heterogeneous → <a href="scaled16.html">results</a>, EXPERIMENTS.md §4.2, paper Table III</h3>
   <pre><code>rm -f results_rpc/rpc_contention_raw.csv
 python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 \
     --methods concentrated random round_robin heuristic optimal rl \
@@ -101,10 +101,10 @@ python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --call
     <a href="scaled128.html">128-host page</a>.
   </p>
 
-  <h2><span class="step-num">4</span>Selection-time overhead → <a href="overhead.html">results</a>, EXPERIMENTS.md §4.4, paper Table IV</h2>
+  <h2><span class="step-num">4</span>Selection-time overhead → <a href="overhead.html">results</a>, EXPERIMENTS.md §4.4, paper Table X</h2>
   <pre><code>python3 selection_overhead.py</code></pre>
 
-  <h2><span class="step-num">5</span>Throughput and failure rate → <a href="throughput.html">results</a>, EXPERIMENTS.md §4.7, paper Tables VII–VIII</h2>
+  <h2><span class="step-num">5</span>Throughput and failure rate → <a href="throughput.html">results</a>, EXPERIMENTS.md §4.7, paper Tables XI–XII</h2>
   <pre><code>rm -f results_rpc/throughput_raw.csv
 python3 throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration 3.0 --burst 10 \
     --methods baseline concentrated random round_robin heuristic optimal rl
@@ -114,7 +114,162 @@ python3 throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration
     --methods concentrated random round_robin heuristic optimal rl \
     --n-hosts 16 --n-primaries 10 --n-degraded 2 --scale-seed 0 --rl-model rl_model_scaled.zip</code></pre>
 
-  <h2><span class="step-num">6</span>Optional: retrain the RL models</h2>
+  <h2><span class="step-num">6</span>Heuristic weight sensitivity &amp; decay calibration → paper §V-G, Table VIII</h2>
+  <p>
+    This answers a natural question about the multi-criteria heuristic: are its scoring
+    weights <span class="mono">(0.35, 0.35, 0.20, 0.10)</span> and its load-decay mechanics
+    (<span class="mono">cap -= 20; health *= 0.95</span>) principled, or ad hoc? The sweep
+    scores <strong>all 287 weight configurations</strong> (a 0.1-step grid over the
+    4-simplex, plus the published default) across the 9/16/32/128-host topologies, 5 seeds
+    each — measuring degraded-host hits, maximum per-backup load, and distinct backups used.
+    It calls the real <span class="mono">select_backups</span> directly, so it needs
+    <em>no RPC servers</em> and runs in seconds.
+  </p>
+  <pre><code>python3 weight_sensitivity.py</code></pre>
+
+  <table>
+    <thead><tr><th>Scale</th><th>Default max load</th><th>Best max load</th><th>Default backups used</th><th>Max possible</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">9-host (real)</td><td>1.40</td><td>1.00</td><td>4.60</td><td>5</td></tr>
+      <tr><td class="mono">16-host</td><td>1.40</td><td>1.00</td><td>9.40</td><td>10</td></tr>
+      <tr><td class="mono">32-host</td><td>2.00</td><td>1.00</td><td>18.00</td><td>20</td></tr>
+      <tr><td class="mono">128-host</td><td>2.00</td><td>1.00</td><td>74.80</td><td>80</td></tr>
+    </tbody>
+  </table>
+
+  <div class="card good">
+    <strong>Result (5-seed average):</strong> degraded-host avoidance is
+    <em>weight-independent</em> — all 287 configurations avoid degraded hosts at every scale
+    (including weighting 100% on hop-count alone). Load-balancing is driven almost entirely
+    by the <span class="mono">capacity</span> term (its <span class="mono">-20</span>
+    decrement is the load-spreading mechanism); latency/hops carry no weight in these
+    uniform-hop topologies. The published default lands within one unit of the best possible
+    max-load and uses 90–94% of the maximum distinct backups — a principled, near-optimal
+    choice, not an arbitrary one. Full run saved in
+    <span class="mono">findings/weight_sensitivity.txt</span>.
+  </div>
+
+  <p>
+    <strong>Decay-constant sweep (paper §V-G).</strong> A companion sweep varies
+    the decay <em>mechanics</em> themselves — the capacity decrement
+    (<span class="mono">cap -= 20</span>) over {5, 10, 20, 40, 80} and the health-decay
+    (<span class="mono">health *= 0.95</span>) over {0.80…1.00} — with the scoring weights
+    fixed:
+  </p>
+  <pre><code>python3 decay_sensitivity.py</code></pre>
+
+  <table>
+    <thead><tr><th>Capacity decrement</th><th>32-host max load</th><th>128-host max load</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">5</td><td>2.60</td><td>2.60</td></tr>
+      <tr><td class="mono">10</td><td>2.00</td><td>2.00</td></tr>
+      <tr><td class="mono">20 (published)</td><td>2.00</td><td>2.00</td></tr>
+      <tr><td class="mono">40</td><td>1.00</td><td>1.00</td></tr>
+      <tr><td class="mono">80</td><td>1.00</td><td>1.00</td></tr>
+    </tbody>
+  </table>
+
+  <div class="card good">
+    <strong>Result:</strong> degraded-host avoidance is <em>decay-independent</em> (0 of 100
+    decrement×decay×topology cells hit a degraded host), and load-balancing is a smooth,
+    monotone function of both constants — bigger decrement / stronger decay spreads better,
+    reaching a perfect max-load of 1 at a decrement of 40+. The published
+    <span class="mono">(20, 0.95)</span> is a deliberately conservative point within one unit
+    of that optimum: a characterized lever, not an ad hoc constant. Full run in
+    <span class="mono">findings/decay_sensitivity.txt</span>.
+  </div>
+
+  <h2><span class="step-num">7</span>Hash baselines, a fairer round-robin &amp; topology diversity → paper §V-H, Table IX</h2>
+  <p>
+    Compares decentralized hash placements — the NFV analog of CRUSH/Dynamo — and a fairer
+    round-robin against the feature-aware methods, structurally (degraded-host hits + max
+    per-backup load, no RPC), over both single-hub star and multi-hub topologies.
+    <span class="mono">hrw</span> is plain (quality-unaware); <span class="mono">weighted_hrw</span>
+    and <span class="mono">weighted_chash</span> (Dynamo-style consistent hashing) weight by
+    health×capacity; <span class="mono">rr_random</span> is round-robin with a random offset.
+  </p>
+  <pre><code>python3 baseline_comparison.py</code></pre>
+
+  <table>
+    <thead><tr><th>Method</th><th>16h deg.</th><th>16h load</th><th>32h deg.</th><th>32h load</th><th>128h deg.</th><th>128h load</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">round_robin</td><td>2.0</td><td>1.0</td><td>4.0</td><td>1.0</td><td>0.0</td><td>1.0</td></tr>
+      <tr><td class="mono">rr_random</td><td>1.2</td><td>1.0</td><td>2.6</td><td>1.0</td><td>10.8</td><td>1.0</td></tr>
+      <tr><td class="mono">hrw</td><td>2.0</td><td>3.0</td><td>0.0</td><td>3.0</td><td>9.0</td><td>2.0</td></tr>
+      <tr><td class="mono">weighted_hrw</td><td>0.0</td><td>3.0</td><td>0.0</td><td>3.6</td><td>0.0</td><td>2.2</td></tr>
+      <tr><td class="mono">weighted_chash</td><td>0.0</td><td>2.8</td><td>0.0</td><td>3.0</td><td>0.0</td><td>3.2</td></tr>
+      <tr><td class="mono">heuristic</td><td>0.0</td><td>1.4</td><td>0.0</td><td>2.0</td><td>0.0</td><td>2.0</td></tr>
+      <tr><td class="mono">optimal</td><td>0.0</td><td>1.0</td><td>0.0</td><td>1.0</td><td>0.0</td><td>1.0</td></tr>
+    </tbody>
+  </table>
+
+  <div class="card good">
+    <strong>Result:</strong> both weighted hash schemes (<span class="mono">weighted_hrw</span>,
+    <span class="mono">weighted_chash</span>) avoid degraded hosts — so quality-awareness, not
+    centralization, buys safety — but being coordination-free they spread only statistically
+    (max-load ≈3), losing to the lightly-coordinated <span class="mono">heuristic</span>
+    (1.4/2.0/2.0). The fair <span class="mono">rr_random</span> hits degraded hosts at
+    <em>every</em> scale (unlike deterministic round-robin's lucky 0 at 128h), confirming its
+    exposure is real. On <strong>multi-hub</strong> topologies the numbers are identical —
+    findings are driven by host quality, not graph shape. Full run in
+    <span class="mono">findings/baseline_comparison.txt</span>.
+  </div>
+
+  <h2><span class="step-num">8</span>Cross-algorithm check: DQN vs PPO → paper §V-F, Table VII</h2>
+  <p>
+    Is the load-balancing gap a PPO quirk, or a property of the problem? DQN answers that: it
+    runs through the same environment, reward, and inference path as PPO, with only the learner
+    swapped (off-policy replay + epsilon-greedy instead of on-policy actor-critic + entropy
+    bonus). Both are scored <strong>structurally</strong> — distinct backups used, peak
+    per-backup load, degraded-host assignments. Those are properties of the mapping rather than
+    of RPC timing, so unlike latency they are hardware-independent and reproduce exactly on any
+    machine. This needs no RPC servers and runs in about a minute:
+  </p>
+  <pre><code>python3 rl_algorithm_comparison.py</code></pre>
+
+  <table>
+    <thead><tr><th>Scale</th><th>Algorithm</th><th>Distinct backups</th><th>Peak load</th><th>Degraded</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="2" class="mono">9-host</td><td class="mono">PPO</td><td>5–5 of 5</td><td>1–1</td><td>0/25</td></tr>
+      <tr><td class="mono">DQN</td><td>5–5 of 5</td><td>1–1</td><td>0/25</td></tr>
+      <tr><td rowspan="2" class="mono">16-host</td><td class="mono">PPO</td><td>10–10 of 10</td><td>1–1</td><td>0/50</td></tr>
+      <tr><td class="mono">DQN</td><td>9–10 of 10</td><td>1–2</td><td>0/50</td></tr>
+      <tr><td rowspan="2" class="mono">32-host</td><td class="mono">PPO</td><td>15–19 of 20</td><td>2–2</td><td>0/100</td></tr>
+      <tr><td class="mono">DQN</td><td>12–16 of 20</td><td>2–3</td><td>1/100</td></tr>
+      <tr><td rowspan="2" class="mono">128-host</td><td class="mono">PPO</td><td>24–30 of 80</td><td>9–28</td><td>0/400</td></tr>
+      <tr><td class="mono">DQN</td><td><strong>1–3 of 80</strong></td><td><strong>45–80</strong></td><td><strong>172/400</strong></td></tr>
+    </tbody>
+  </table>
+
+  <div class="card good">
+    <strong>Result:</strong> up to 32 hosts the two algorithms behave alike — but DQN only gets
+    there after the same class of fix PPO needed at 128 hosts (with library defaults it
+    collapsed to 2–4 backups of 20; widening exploration to fraction 0.7, final eps 0.15,
+    buffer 100k, 150k steps recovered it). At 128 hosts DQN collapses to
+    <strong>1–3 distinct backups of 80</strong>, piling up to 80 primaries on one host, and puts
+    172/400 assignments on degraded hosts. Since two architecturally different RL algorithms
+    concentrate the same way and respond to the same remedy, the gap points at the problem
+    formulation rather than at one algorithm. Full run in
+    <span class="mono">findings/rl_algorithm_comparison.txt</span>.
+  </div>
+
+  <p>
+    You can also drive DQN through the full RPC harness with the <span class="mono">rl_dqn</span>
+    method, or check a single checkpoint's spread directly:
+  </p>
+  <pre><code># DQN inside the RPC latency harness, alongside PPO
+rm -f results_rpc/rpc_contention_raw.csv
+python3 rpc_contention_experiment.py --context-seeds 1 2 3 --trials 2 --calls 150 --burst 8 \
+    --methods heuristic optimal rl rl_dqn \
+    --n-hosts 32 --n-primaries 20 --n-degraded 4 --scale-seed 0 \
+    --rl-model rl_model_scaled32.zip --rl-dqn-model rl_model_dqn_scaled32_mitigated.zip
+
+# Single-checkpoint collapse check (seconds)
+python3 rl_backup_selector.py --check-collapse --algorithm dqn \
+    --model rl_model_dqn_scaled128.zip \
+    --n-hosts 128 --n-primaries 80 --n-degraded 16 --scale-seed 0</code></pre>
+
+  <h2><span class="step-num">9</span>Optional: retrain the RL models</h2>
   <p>
     Trained models come with the package, so you only need this step if you want to check
     the training itself, or see the 128-host collapse for yourself.
@@ -135,7 +290,26 @@ python3 rl_backup_selector.py --train --check-collapse --timesteps 400000 \
 python3 rl_backup_selector.py --train --check-collapse --timesteps 1000000 \
     --model rl_model_scaled128_v3.zip \
     --n-hosts 128 --n-primaries 80 --n-degraded 16 --scale-seed 0 \
-    --ent-coef 0.02 --net-arch 256 256 --n-steps 4096 --batch-size 256</code></pre>
+    --ent-coef 0.02 --net-arch 256 256 --n-steps 4096 --batch-size 256
+
+# --- DQN (add --algorithm dqn; DQN uses exploration flags instead of --ent-coef) ---
+python3 rl_backup_selector.py --train --algorithm dqn --timesteps 50000 --model rl_model_dqn.zip
+python3 rl_backup_selector.py --train --algorithm dqn --timesteps 80000 \
+    --model rl_model_dqn_scaled.zip \
+    --n-hosts 16 --n-primaries 10 --n-degraded 2 --scale-seed 0
+
+# 32 hosts: DQN collapses on defaults, so this is the mitigated config (16-19 of 20 backups)
+python3 rl_backup_selector.py --train --algorithm dqn --check-collapse --timesteps 150000 \
+    --model rl_model_dqn_scaled32_mitigated.zip \
+    --n-hosts 32 --n-primaries 20 --n-degraded 4 --scale-seed 0 \
+    --exploration-fraction 0.7 --exploration-final-eps 0.15 \
+    --buffer-size 100000 --target-update-interval 1000
+
+# 128 hosts: still collapses (3 of 80 backups) even with a wide network and long training
+python3 rl_backup_selector.py --train --algorithm dqn --check-collapse --timesteps 1000000 \
+    --model rl_model_dqn_scaled128.zip \
+    --n-hosts 128 --n-primaries 80 --n-degraded 16 --scale-seed 0 \
+    --net-arch 256 256 --batch-size 256 --buffer-size 100000 --exploration-fraction 0.5</code></pre>
   <div class="card good">
     <strong>Tip:</strong> always add <span class="mono">--check-collapse</span> when you
     train at a new size. It prints how many different backups the policy uses across 5

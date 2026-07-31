@@ -12,7 +12,9 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
+import math
 import random as random_module
 
 import numpy as np
@@ -142,6 +144,116 @@ def round_robin_mapping(primaries=None, hosts=None):
             idx += 1
             if candidate != primary:
                 mapping[primary] = candidate
+                break
+    return mapping
+
+
+def _hrw_unit(primary, candidate):
+    """Deterministic uniform-(0,1) hash weight for a (primary, candidate) pair, the core of
+    rendezvous / highest-random-weight (HRW) hashing. +1 offsets avoid an exact 0 so the
+    weighted (log) form below is always defined."""
+    digest = hashlib.md5("{}:{}".format(primary, candidate).encode()).hexdigest()
+    return (int(digest[:16], 16) + 1) / (16 ** 16 + 1)
+
+
+def hrw_mapping(primaries=None, hosts=None):
+    """Plain rendezvous (HRW) hashing: each primary independently picks the feasible backup
+    with the highest hash weight. Fully decentralized and deterministic (no coordinator, no
+    cross-primary state) and spreads load statistically, but has zero awareness of host
+    health or capacity -- the NFV-context analog of a consistent-hashing/HRW placement
+    (cf. CRUSH/Dynamo) without failure-domain/load weighting."""
+    primaries = primaries if primaries is not None else config.PRIMARIES
+    hosts = hosts if hosts is not None else config.HOSTS
+    mapping = {}
+    for p in primaries:
+        candidates = feasible_backups(p, hosts)
+        mapping[p] = max(candidates, key=lambda c: _hrw_unit(p, c))
+    return mapping
+
+
+def weighted_hrw_mapping(primaries=None, hosts=None, ctx=None):
+    """Capacity/health-weighted rendezvous hashing (weighted HRW, in the spirit of
+    CRUSH/Dynamo node weights): each primary independently picks argmax over feasible
+    candidates of -w(c)/ln(u(p,c)), where u is the uniform hash weight and
+    w(c) = health(c) * cap_ratio(c). Decentralized like plain HRW -- each host advertises
+    its own weight, no central coordinator or cross-primary load state -- but now load- and
+    health-aware, so it avoids degraded hosts. Unlike the greedy heuristic it applies no
+    load penalty between primaries, so it spreads only *statistically* rather than by
+    explicit coordination."""
+    primaries = primaries if primaries is not None else config.PRIMARIES
+    hosts = hosts if hosts is not None else config.HOSTS
+    ctx = ctx if ctx is not None else topology_features.build_feature_context(hosts)
+    mapping = {}
+    for p in primaries:
+        candidates = feasible_backups(p, hosts)
+
+        def wscore(c):
+            state = ctx.resources[c]
+            w = max(state.health * (state.capacity / state.max_capacity), 1e-6)
+            return -w / math.log(_hrw_unit(p, c))
+
+        mapping[p] = max(candidates, key=wscore)
+    return mapping
+
+
+def randomized_round_robin_mapping(primaries=None, hosts=None, seed=None):
+    """Round-robin with a random starting offset over the feasible-host cycle, seeded per
+    run. Unlike the deterministic round-robin (whose degraded-host exposure is an artifact
+    of the fixed alphabetical host-name sort), the offset is randomized, so averaged over
+    seeds its degraded exposure reflects the degraded fraction rather than a naming
+    coincidence -- a fairer blind load-spreading baseline."""
+    primaries = primaries if primaries is not None else config.PRIMARIES
+    hosts = hosts if hosts is not None else config.HOSTS
+    rng = random_module.Random(seed)
+    all_backups = sorted(h for h in hosts if h not in INFEASIBLE_HOSTS)
+    idx = rng.randrange(len(all_backups))  # random starting offset
+
+    mapping = {}
+    for primary in primaries:
+        for _ in range(len(all_backups)):
+            candidate = all_backups[idx % len(all_backups)]
+            idx += 1
+            if candidate != primary:
+                mapping[primary] = candidate
+                break
+    return mapping
+
+
+def weighted_consistent_hash_mapping(primaries=None, hosts=None, ctx=None, base_vnodes=200):
+    """Weighted consistent hashing (Dynamo-style hash ring with capacity/health-proportional
+    virtual nodes). Each feasible host places round(base_vnodes * health*cap_ratio) virtual
+    nodes on the ring; a host whose weight rounds to zero (e.g. a degraded host) places none
+    and is thus never selected. Each primary maps to the first host clockwise from its own
+    ring position (skipping itself). Decentralized and quality-weighted like weighted HRW,
+    and likewise coordination-free, so it too spreads only statistically."""
+    import bisect
+    primaries = primaries if primaries is not None else config.PRIMARIES
+    hosts = hosts if hosts is not None else config.HOSTS
+    ctx = ctx if ctx is not None else topology_features.build_feature_context(hosts)
+
+    def ring_pos(key):
+        return int(hashlib.md5(key.encode()).hexdigest(), 16)
+
+    ring = []
+    for h in hosts:
+        if h in INFEASIBLE_HOSTS:
+            continue
+        state = ctx.resources[h]
+        w = state.health * (state.capacity / state.max_capacity)
+        vn = int(round(base_vnodes * w))
+        for i in range(vn):
+            ring.append((ring_pos("{}#{}".format(h, i)), h))
+    ring.sort()
+    positions = [p for p, _ in ring]
+    ring_hosts = [hh for _, hh in ring]
+
+    mapping = {}
+    for p in primaries:
+        j = bisect.bisect(positions, ring_pos(p)) % len(positions)
+        for step in range(len(positions)):
+            h = ring_hosts[(j + step) % len(positions)]
+            if h != p:
+                mapping[p] = h
                 break
     return mapping
 

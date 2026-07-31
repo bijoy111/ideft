@@ -1,0 +1,76 @@
+# iDEFT findings: baseline_comparison
+# command: baseline_comparison.py
+# generated: 2026-07-30 08:28:21 UTC
+# (reproducing this scenario overwrites this file)
+
+Structural baseline comparison: 8 methods x 6 topologies x 5 seeds
+
+Per method (5-seed avg): degraded-host hits (of |P|), max per-backup load, distinct backups used.
+
+=== 9-host (real) (5 primaries, 0 degraded backup hosts) ===
+method            degraded hits   max load distinct backups
+random                     0.00       2.20             3.20
+round_robin                0.00       1.00             5.00
+rr_random                  0.00       1.00             5.00
+hrw                        0.00       1.00             5.00
+weighted_hrw               0.00       1.60             4.40
+weighted_chash             0.00       3.40             2.60
+heuristic                  0.00       1.40             4.60
+optimal                    0.00       1.00             5.00
+
+=== 16-host (10 primaries, 2 degraded backup hosts) ===
+method            degraded hits   max load distinct backups
+random                     1.00       3.00             7.60
+round_robin                2.00       1.00            10.00
+rr_random                  1.20       1.00            10.00
+hrw                        2.00       3.00             8.00
+weighted_hrw               0.00       3.00             7.20
+weighted_chash             0.00       2.80             6.20
+heuristic                  0.00       1.40             9.40
+optimal                    0.00       1.00            10.00
+
+=== 32-host (20 primaries, 4 degraded backup hosts) ===
+method            degraded hits   max load distinct backups
+random                     1.40       2.20            15.00
+round_robin                4.00       1.00            20.00
+rr_random                  2.60       1.00            20.00
+hrw                        0.00       3.00            14.00
+weighted_hrw               0.00       3.60            14.40
+weighted_chash             0.00       3.00            14.40
+heuristic                  0.00       2.00            18.00
+optimal                    0.00       1.00            20.00
+
+=== 128-host (80 primaries, 16 degraded backup hosts) ===
+method            degraded hits   max load distinct backups
+random                     8.00       4.00            58.40
+round_robin                0.00       1.00            80.00
+rr_random                 10.80       1.00            80.00
+hrw                        9.00       2.00            66.00
+weighted_hrw               0.00       2.20            64.00
+weighted_chash             0.00       3.20            61.40
+heuristic                  0.00       2.00            74.80
+optimal                    0.00       1.00            80.00
+
+=== 16-host/3-hub (10 primaries, 2 degraded backup hosts) ===
+method            degraded hits   max load distinct backups
+random                     1.00       3.00             7.60
+round_robin                2.00       1.00            10.00
+rr_random                  1.20       1.00            10.00
+hrw                        2.00       3.00             8.00
+weighted_hrw               0.00       3.00             7.20
+weighted_chash             0.00       2.80             6.20
+heuristic                  0.00       1.40             9.40
+optimal                    0.00       1.00            10.00
+
+=== 32-host/3-hub (20 primaries, 4 degraded backup hosts) ===
+method            degraded hits   max load distinct backups
+random                     1.40       2.20            15.00
+round_robin                4.00       1.00            20.00
+rr_random                  2.60       1.00            20.00
+hrw                        0.00       3.00            14.00
+weighted_hrw               0.00       3.60            14.40
+weighted_chash             0.00       3.00            14.40
+heuristic                  0.00       2.00            18.40
+optimal                    0.00       1.00            20.00
+
+[output captured to findings/baseline_comparison.txt]

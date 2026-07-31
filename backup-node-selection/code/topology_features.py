@@ -50,6 +50,29 @@ def generate_scaled_topology(n_hosts=20, n_primaries=15, seed=0):
     return hosts, primaries, graph
 
 
+def generate_multihub_topology(n_hosts=32, n_primaries=20, n_hubs=3, seed=0):
+    """Synthetic multi-hub topology: n_hubs hubs connected in a line, with hosts distributed
+    round-robin across the hubs. Unlike the single-hub star (generate_scaled_topology), where
+    every host is exactly two hops from every other, host-to-host hop-count and latency now
+    vary (same-hub pairs are 2 hops apart, different-hub pairs more), giving genuine topology
+    and latency diversity for testing whether the findings hold beyond a uniform star.
+    Returns (hosts, primaries, graph)."""
+    if n_primaries >= n_hosts:
+        raise ValueError("n_primaries must be less than n_hosts (need spare backup-eligible hosts)")
+
+    hosts = ["w{}".format(i) for i in range(1, n_hosts + 1)]
+    primaries = hosts[:n_primaries]
+
+    graph = nx.Graph()
+    hubs = ["hub{}".format(k) for k in range(n_hubs)]
+    for a, b in zip(hubs, hubs[1:]):          # connect hubs in a line
+        graph.add_edge(a, b)
+    for i, host in enumerate(hosts):          # distribute hosts across hubs
+        graph.add_edge(hubs[i % n_hubs], host)
+
+    return hosts, primaries, graph
+
+
 def compute_hop_and_latency(graph, hosts, latency_per_hop_ms=1.5):
     """Returns {host_a: {host_b: {"hops": int, "latency_ms": float}}} for host_a != host_b."""
     distances = {}

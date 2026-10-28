@@ -33,6 +33,12 @@ import topology_features
 
 N_FEATURES_PER_HOST = 4  # health, capacity_frac, cpu_availability, storage_availability
 INVALID_ACTION_PENALTY = -10.0
+# Direct anti-concentration term: each additional primary already assigned to the
+# chosen backup subtracts this much from the reward. It is the reward-shaping lever
+# against load concentration, and rl_penalty_ablation.py sweeps its strength to
+# establish whether it delivers the intended benefit at scale. Setting it to 0
+# removes anti-concentration shaping entirely, leaving concentration discouraged
+# only implicitly through the health/capacity decay.
 OVERLOAD_PENALTY_PER_EXTRA_PRIMARY = 2.0
 
 
@@ -41,8 +47,13 @@ class BackupSelectionEnv(gym.Env):
     random FeatureContext realization. Action space is Discrete(n_hosts); the agent
     picks a host index for the "current" primary each step."""
 
-    def __init__(self, hosts, primaries, graph=None, weights=None, overrides=None):
+    def __init__(self, hosts, primaries, graph=None, weights=None, overrides=None,
+                 overload_penalty=None):
         super().__init__()
+        # Per-env override of the module default, so an ablation can train several
+        # strengths in one process without mutating global state.
+        self.overload_penalty = (OVERLOAD_PENALTY_PER_EXTRA_PRIMARY
+                                 if overload_penalty is None else overload_penalty)
         self.hosts = hosts
         self.primaries = primaries
         self.graph = graph
@@ -101,7 +112,7 @@ class BackupSelectionEnv(gym.Env):
 
             self.load_count[chosen_host] += 1
             if self.load_count[chosen_host] > 1:
-                reward -= OVERLOAD_PENALTY_PER_EXTRA_PRIMARY * (self.load_count[chosen_host] - 1)
+                reward -= self.overload_penalty * (self.load_count[chosen_host] - 1)
 
             backup_selector._apply_load_penalty(self.ctx.resources[chosen_host])
 
@@ -112,14 +123,15 @@ class BackupSelectionEnv(gym.Env):
 
 
 def train_ppo(hosts, primaries, graph=None, overrides=None, total_timesteps=50000, seed=0, verbose=0,
-              ent_coef=0.01, net_arch=None, n_steps=2048, batch_size=64):
+              ent_coef=0.01, net_arch=None, n_steps=2048, batch_size=64, overload_penalty=None):
     """ent_coef defaults to 0.01 (SB3's PPO default is 0.0). With no entropy bonus nothing
     stops the policy from collapsing onto a single action once it looks decent on average,
     which is what the 128-host model does at ent_coef=0.0 (see EXPERIMENTS.md Sec 4.6).
     net_arch defaults to [128, 128] (SB3's MlpPolicy default is [64, 64]), since larger
     action/observation spaces need more capacity to represent a policy conditioned on which
     of many one-hot primaries is active."""
-    env = BackupSelectionEnv(hosts, primaries, graph=graph, overrides=overrides)
+    env = BackupSelectionEnv(hosts, primaries, graph=graph, overrides=overrides,
+                             overload_penalty=overload_penalty)
     policy_kwargs = dict(net_arch=net_arch or [128, 128])
     model = PPO(
         "MlpPolicy", env, verbose=verbose, seed=seed,
@@ -209,6 +221,9 @@ def main():
     parser.add_argument("--n-degraded", type=int, default=0)
     parser.add_argument("--scale-seed", type=int, default=0)
     # PPO-specific hyperparameters.
+    parser.add_argument("--overload-penalty", type=float, default=None,
+                        help="reward subtracted per extra primary already on the chosen backup; "
+                             "0 disables anti-concentration shaping (default: module constant)")
     parser.add_argument("--ent-coef", type=float, default=0.01)
     parser.add_argument("--net-arch", type=int, nargs="+", default=[128, 128])
     parser.add_argument("--n-steps", type=int, default=2048)

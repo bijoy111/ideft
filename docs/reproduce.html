@@ -58,7 +58,7 @@ python3 rpc_contention_experiment.py --context-seeds 42 --trials 1 --calls 50 --
     --methods baseline heuristic</code></pre>
   <p>
     You should see the mapping each method picked, then a summary table of latency
-    numbers and a Mann-Whitney comparison. If that runs, your setup is ready. Everything
+    numbers and a paired run-level comparison. If that runs, your setup is ready. Everything
     below uses the same code with bigger settings.
   </p>
 
@@ -85,7 +85,7 @@ python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --call
 
   <h3>32 hosts → <a href="scaled32.html">results</a>, EXPERIMENTS.md §4.5, paper Table V</h3>
   <pre><code>rm -f results_rpc/rpc_contention_raw.csv
-python3 rpc_contention_experiment.py --context-seeds 1 2 3 --trials 2 --calls 150 --burst 8 \
+python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 \
     --methods concentrated random round_robin heuristic optimal rl \
     --n-hosts 32 --n-primaries 20 --n-degraded 4 --scale-seed 0 --rl-model rl_model_scaled32.zip</code></pre>
 
@@ -259,7 +259,7 @@ python3 throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration
   </p>
   <pre><code># DQN inside the RPC latency harness, alongside PPO
 rm -f results_rpc/rpc_contention_raw.csv
-python3 rpc_contention_experiment.py --context-seeds 1 2 3 --trials 2 --calls 150 --burst 8 \
+python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 \
     --methods heuristic optimal rl rl_dqn \
     --n-hosts 32 --n-primaries 20 --n-degraded 4 --scale-seed 0 \
     --rl-model rl_model_scaled32.zip --rl-dqn-model rl_model_dqn_scaled32_mitigated.zip

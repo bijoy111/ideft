@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>16 Hosts (Heterogeneous) — iDEFT: Intelligent Backup-Node Selection for DEFT</title>
+<title>16 Hosts (Core Result) — iDEFT: Intelligent Backup-Node Selection for DEFT</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -25,93 +25,88 @@
 </header>
 
 <div class="wrap">
-  <h1>Scaled + Heterogeneous: 16 Hosts</h1>
+  <h1>The Core Result: 16 Hosts</h1>
   <p class="lede">
-    A 16-host network (10 primaries, 6 hosts that can act as backups), where
-    <strong>2 of those 6 backups are made deliberately bad</strong> (health=0.05,
-    capacity ratio≈0.03, and an extra 50ms delay on every call). This is the test that
-    shows whether the smarter methods really do avoid known-bad hosts, and it is the main
-    result of this project.
+    10 primaries and 6 hosts that can act as backups, <strong>2 of them deliberately
+    degraded</strong>. This is the scenario the paper is actually about: does knowing
+    which hosts are bad change anything once hosts differ in quality?
   </p>
   <div class="pill-row">
-    <span class="pill">5 context seeds × 3 trials</span>
+    <span class="pill">XML-RPC: 5 seeds × 3 trials (15 runs)</span>
+    <span class="pill">gRPC: 5 seeds × 5 trials (25 runs)</span>
     <span class="pill">200 calls/primary, burst=10</span>
-    <span class="pill">n = 30,000 calls/method</span>
-    <span class="pill"><span class="mono">baseline</span> excluded (9-host only)</span>
+    <span class="pill">2 of 6 backups degraded</span>
   </div>
 
-  <div class="card good">
-    <strong>How often each method used a bad host (out of 10 choices per seed):</strong>
-    <span class="mono">concentrated</span>, <span class="mono">heuristic</span>,
-    <span class="mono">optimal</span>, and <span class="mono">rl</span> <strong>never</strong>
-    used one, in all 5 seeds. <span class="mono">round_robin</span> used one
-    <strong>2 times out of 10, in every seed</strong>, because it just goes round the pool
-    and has no way to know which hosts are bad. <span class="mono">random</span> varies
-    from 0 to 4 out of 10, depending on the seed.
+  <div class="card">
+    <strong>Two transports, and why that matters.</strong> Every method is run twice: once
+    over DEFT's shipped XML-RPC path, and once over gRPC with persistent HTTP/2 channels,
+    which is how production NFV systems carry state replication. Everything else is held
+    fixed, so the transport is a controlled variable. DEFT's backup is an HTTP/1.0
+    <span class="mono">SimpleXMLRPCServer</span> with a five-deep accept backlog, so every
+    call opens a fresh TCP connection; when that backlog overflows the latency tail lands
+    on the kernel's SYN-retransmission timer rather than on queueing delay. That makes p99
+    unusable on the XML-RPC arm — it reads either tens of milliseconds or about 1050 ms
+    depending only on whether a run's SYN-drop rate crosses 1% — so we report mean and
+    p95. The XML-RPC transport also inflates the measured placement effect by roughly
+    4.3×. See <a href="scaled16.html">the 16-host page</a> for the distribution comparison.
   </div>
 
-  <h2>Per-Call Latency</h2>
+  <h2>Per-Call Service Latency</h2>
   <table>
-    <thead><tr><th>Method</th><th>Mean (ms)</th><th>Median (ms)</th><th>p95 (ms)</th><th>p99 (ms)</th></tr></thead>
+    <thead><tr><th>Method</th><th>XML-RPC mean (ms)</th><th>gRPC mean (ms)</th><th>gRPC 95% CI</th><th>r</th><th>p (Holm)</th></tr></thead>
     <tbody>
-      <tr><td class="mono">concentrated</td><td>157.37</td><td>4.89</td><td>1029.37</td><td>3361.56</td></tr>
-      <tr><td class="mono">random</td><td>124.97</td><td>16.77</td><td>360.19</td><td>1069.84</td></tr>
-      <tr><td class="mono">round_robin</td><td>106.94</td><td>22.41</td><td>360.26</td><td>1040.29</td></tr>
-      <tr><td class="mono">heuristic</td><td>39.11</td><td>19.55</td><td>53.68</td><td>1050.06</td></tr>
-      <tr><td class="mono">optimal</td><td>37.25</td><td>21.46</td><td>54.44</td><td>1036.45</td></tr>
-      <tr><td class="mono">rl</td><td>37.71</td><td>21.47</td><td>56.97</td><td>1039.31</td></tr>
+      <tr><td class="mono">concentrated</td><td>175.36</td><td>77.97</td><td>[72.12, 83.99]</td><td>+1.000</td><td>&lt;0.0001 (significant)</td></tr>
+      <tr><td class="mono">random</td><td>145.00</td><td>31.45</td><td>[24.34, 39.47]</td><td>+0.655</td><td>0.0185 (significant)</td></tr>
+      <tr><td class="mono">round_robin</td><td>144.21</td><td>26.23</td><td>[24.08, 29.12]</td><td>+0.705</td><td>0.0104 (significant)</td></tr>
+      <tr><td class="mono">heuristic</td><td>98.35</td><td>17.88</td><td>[14.03, 22.76]</td><td>—</td><td>—</td></tr>
+      <tr><td class="mono">optimal</td><td>90.73</td><td>18.82</td><td>[14.30, 24.45]</td><td>-0.046</td><td>1.0000 (n.s.)</td></tr>
+      <tr><td class="mono">PPO</td><td>89.38</td><td>13.83</td><td>[12.57, 15.49]</td><td>-0.200</td><td>1.0000 (n.s.)</td></tr>
     </tbody>
   </table>
 
   <div class="chart">
-    <div class="chart-title">Mean latency (ms) — log-scaled bar widths</div>
-    <div class="bar-row"><span class="bar-label">concentrated</span><div class="bar-track"><div class="bar-fill m-concentrated" style="width:100%"></div></div><span class="bar-value">157.37</span></div>
-    <div class="bar-row"><span class="bar-label">random</span><div class="bar-track"><div class="bar-fill m-random" style="width:95%"></div></div><span class="bar-value">124.97</span></div>
-    <div class="bar-row"><span class="bar-label">round_robin</span><div class="bar-track"><div class="bar-fill m-round_robin" style="width:92%"></div></div><span class="bar-value">106.94</span></div>
-    <div class="bar-row"><span class="bar-label">heuristic</span><div class="bar-track"><div class="bar-fill m-heuristic" style="width:72%"></div></div><span class="bar-value">39.11</span></div>
-    <div class="bar-row"><span class="bar-label">optimal</span><div class="bar-track"><div class="bar-fill m-optimal" style="width:72%"></div></div><span class="bar-value">37.25</span></div>
-    <div class="bar-row"><span class="bar-label">rl</span><div class="bar-track"><div class="bar-fill m-rl" style="width:72%"></div></div><span class="bar-value">37.71</span></div>
+    <div class="chart-title">Mean service latency (ms), gRPC arm — log-scaled bar widths</div>
+    <div class="bar-row"><span class="bar-label">concentrated</span><div class="bar-track"><div class="bar-fill m-concentrated" style="width:100%"></div></div><span class="bar-value">77.97</span></div>
+    <div class="bar-row"><span class="bar-label">random</span><div class="bar-track"><div class="bar-fill m-random" style="width:63%"></div></div><span class="bar-value">31.45</span></div>
+    <div class="bar-row"><span class="bar-label">round_robin</span><div class="bar-track"><div class="bar-fill m-round_robin" style="width:56%"></div></div><span class="bar-value">26.23</span></div>
+    <div class="bar-row"><span class="bar-label">heuristic</span><div class="bar-track"><div class="bar-fill m-heuristic" style="width:40%"></div></div><span class="bar-value">17.88</span></div>
+    <div class="bar-row"><span class="bar-label">optimal</span><div class="bar-track"><div class="bar-fill m-optimal" style="width:42%"></div></div><span class="bar-value">18.82</span></div>
+    <div class="bar-row"><span class="bar-label">PPO</span><div class="bar-track"><div class="bar-fill m-rl" style="width:30%"></div></div><span class="bar-value">13.83</span></div>
   </div>
-  <p class="legend-note">Bar widths use a log scale, so the gap between round_robin/random and heuristic/optimal/rl looks smaller than it is. The real difference is about 3×.</p>
+  <p class="legend-note">Bar widths use a log scale so they fit on screen. Exact values are in the table above.</p>
 
   <h2>Statistical Comparison</h2>
-  <table>
-    <thead><tr><th>Comparison</th><th>r</th><th style="text-align:left">Reading</th></tr></thead>
-    <tbody>
-      <tr><td class="mono">round_robin vs heuristic</td><td>−0.1465</td><td style="text-align:left">small to medium: heuristic is clearly better</td></tr>
-      <tr><td class="mono">round_robin vs optimal</td><td>−0.1008</td><td style="text-align:left">small, but a real difference</td></tr>
-      <tr><td class="mono">heuristic vs optimal</td><td>+0.0586</td><td style="text-align:left">very small: heuristic is a little behind optimal</td></tr>
-      <tr><td class="mono">heuristic vs rl</td><td>+0.0673</td><td style="text-align:left">tiny: RL matches the heuristic</td></tr>
-      <tr><td class="mono">optimal vs rl</td><td>+0.0089</td><td style="text-align:left">too small to call: RL is level with the best possible</td></tr>
-      <tr><td class="mono">concentrated vs rest</td><td>0.47–0.56</td><td style="text-align:left">large: far worse than everything else</td></tr>
-    </tbody>
-  </table>
+  <p>
+    Statistics are run-level: one independent observation per (method, context seed,
+    trial), compared with a paired Wilcoxon signed-rank test and Holm-Bonferroni
+    correction across the family, with cluster-bootstrap confidence intervals that
+    resample runs rather than individual calls. Pooling individual RPC calls, as an
+    earlier version of this site did, treats thousands of correlated requests against one
+    server process as independent samples and drives p-values to zero without adding
+    evidence.
+  </p>
 
-  <h2>Mechanism Check: Latency vs. Backup Load</h2>
-  <p>All methods and seeds pooled together. The question: does sharing one backup between more primaries slow things down on its own, no matter which method caused the sharing?</p>
-  <table>
-    <thead><tr><th>Backup load</th><th>Mean (ms)</th><th>Median (ms)</th><th>p95 (ms)</th><th>p99 (ms)</th></tr></thead>
-    <tbody>
-      <tr><td>1</td><td>58.19</td><td>20.67</td><td>355.99</td><td>1038.28</td></tr>
-      <tr><td>2</td><td>49.88</td><td>13.35</td><td>49.22</td><td>1071.96</td></tr>
-      <tr><td>3</td><td>238.40</td><td>14.08</td><td>361.21</td><td>1390.65</td></tr>
-      <tr><td>9 (concentrated)</td><td>172.04</td><td>4.59</td><td>1036.05</td><td>3374.23</td></tr>
-    </tbody>
-  </table>
-  <p class="legend-note">Load 9 is <span class="mono">concentrated</span> putting 9 of its 10 primaries on one backup (the tenth is that backup's own primary, which cannot back up to itself). Average and p99 latency both jump, which fits the connection queue filling up on Python's single-threaded <span class="mono">SimpleXMLRPCServer</span> once enough calls arrive at one backup at the same time.</p>
+  <h2>The Two Transports Side by Side</h2>
+  <p>
+    Complementary CDF of per-call service latency, both transports, log–log. The XML-RPC
+    tail is a staircase of kernel timer quanta rather than a queueing curve: 3.20% of
+    calls land beyond 900 ms, against 0.013% under gRPC — a 240× difference in tail mass.
+    The maxima are 22,773 ms and 1,139 ms.
+  </p>
+  <p><img src="assets/fig_tail_transport.svg" alt="Complementary CDF of per-call service latency by transport" style="max-width:100%"></p>
 
   <div class="finding">
-    <strong>What this means:</strong> this test separates <em>knowing which host is
-    good</em> from simply spreading load. <span class="mono">round_robin</span> spreads
-    load as well as anything, but it cannot tell a good host from a bad one, so apart from
-    <span class="mono">random</span> it is the only method that keeps using bad hosts.
-    <span class="mono">heuristic</span>, <span class="mono">optimal</span>, and
-    <span class="mono">rl</span> avoid the bad hosts completely in every seed, and their
-    results are too close to tell apart. That the RL policy does this across every seed,
-    not just one, shows it learned the idea rather than memorising a single case. This is
-    the main result of the project: once hosts differ in quality, choosing a backup by its
-    features beats spreading load blindly, and the reason why is clear from the numbers.
-    Hosts differing in quality is the normal case in production.
+    <strong>What this means:</strong> once hosts differ in quality, feature-aware
+    selection wins, and it wins on both transports.
+    <span class="mono">heuristic</span>, <span class="mono">optimal</span> and
+    <span class="mono">PPO</span> never route a primary to a degraded host in any seed;
+    <span class="mono">round_robin</span> hits one on 2 of 10 assignments in every seed,
+    because it cycles blindly with no way to know which hosts are bad;
+    <span class="mono">random</span> is inconsistent, and its confidence interval is far
+    wider than anyone else's — random placement is not merely mediocre on average, it is
+    unstable. The three feature-aware methods are statistically indistinguishable from one
+    another, so the cheap deterministic heuristic matches the exact optimum.
   </div>
 
   <div class="scenario-nav">

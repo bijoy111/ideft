@@ -32,6 +32,7 @@ from exp_package.Two_phase_commit.backup_2pc import Backup
 
 import analysis
 import backup_selector
+import degradation
 import config
 import topology_features
 
@@ -83,16 +84,22 @@ def _serve_backup_grpc(ip, port, extra_delay_s=0.0, max_workers=None):
 
 
 def start_backup_servers(unique_backups, base_port, slow_hosts=None, slow_delay_s=0.05):
-    """One Backup XML-RPC server per unique backup host, each in its own OS
-    process on its own port. Hosts in `slow_hosts` get an artificial per-call delay
-    (simulating a genuinely degraded/overloaded machine). Returns ({backup_name:
-    port}, [processes])."""
-    slow_hosts = slow_hosts or set()
+    """One Backup server per unique backup host, each in its own OS process on its
+    own port. `slow_hosts` carries the artificial per-call delay that makes a
+    degraded host actually slower rather than merely lower-scoring. It may be a
+    mapping of host -> seconds (the realistic degradation model, where the delay
+    varies with failure kind and severity) or a plain set (the binary model, where
+    every degraded host gets the same `slow_delay_s`). Returns ({backup_name: port},
+    [processes])."""
+    slow_hosts = slow_hosts or {}
     ports = {}
     processes = []
     for i, backup_name in enumerate(sorted(unique_backups)):
         port = base_port + i
-        delay = slow_delay_s if backup_name in slow_hosts else 0.0
+        if isinstance(slow_hosts, dict):
+            delay = slow_hosts.get(backup_name, 0.0)
+        else:
+            delay = slow_delay_s if backup_name in slow_hosts else 0.0
         if TRANSPORT == "grpc":
             target, args = _serve_backup_grpc, ("127.0.0.1", port, delay, GRPC_MAX_WORKERS)
         else:
@@ -392,7 +399,8 @@ def run_experiment(context_seeds, trials, n_calls, burst_size, methods, order_se
         print("\n--- context_seed={} ---".format(context_seed))
         if slow_hosts:
             for name in methods:
-                n_slow_uses = sum(1 for b in mappings[name].values() if b in slow_hosts)
+                degraded_set = set(slow_hosts)
+                n_slow_uses = sum(1 for b in mappings[name].values() if b in degraded_set)
                 print("  {:<12} uses degraded host(s) {}/{} times, mapping: {}".format(
                     name, n_slow_uses, len(mappings[name]), mappings[name]))
         else:
@@ -439,7 +447,13 @@ if __name__ == "__main__":
     )
     parser.add_argument("--n-hosts", type=int, default=None, help="use a scaled synthetic topology instead of config.py's 9 hosts")
     parser.add_argument("--n-primaries", type=int, default=None)
-    parser.add_argument("--n-degraded", type=int, default=0, help="mark this many backup-eligible hosts as artificially degraded (low health/capacity)")
+    parser.add_argument("--n-degraded", type=int, default=0, help="mark this many backup-eligible hosts as artificially degraded")
+    parser.add_argument("--degradation-model", choices=["binary", "realistic"], default="binary",
+                        help="binary pins every degraded host to one extreme point (health 0.05, "
+                             "capacity ratio 0.03, +50ms), which makes them trivially separable "
+                             "from healthy hosts; realistic draws a continuous severity and one of "
+                             "five failure kinds per host, and gives healthy hosts a baseline "
+                             "utilisation so remaining capacity is a measurement rather than a flag")
     parser.add_argument("--scale-seed", type=int, default=0)
     parser.add_argument("--results-csv", default=None,
                         help="where to write this run's raw per-call records. Defaults to "
@@ -479,10 +493,11 @@ if __name__ == "__main__":
         if args.n_degraded > 0:
             backup_pool = [h for h in hosts if h not in primaries]
             degraded = backup_pool[:args.n_degraded]
-            # keep max_capacity in the normal range so the capacity ratio
-            # (capacity/max_capacity), not just the raw number, is also low for degraded hosts.
-            overrides = {h: {"health": 0.05, "capacity": 2, "max_capacity": 60} for h in degraded}
-            slow_hosts = set(degraded)
+            overrides, slow_hosts, profiles = degradation.build(
+                degraded, model=args.degradation_model, seed=args.scale_seed,
+                healthy_hosts=[h for h in backup_pool if h not in degraded])
+            print("degradation model: {} -- {}".format(
+                args.degradation_model, degradation.describe(profiles)))
 
     run_experiment(
         args.context_seeds, args.trials, args.calls, args.burst, args.methods,

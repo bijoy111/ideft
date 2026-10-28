@@ -97,6 +97,12 @@ class HostResourceState:
     health: float
     capacity: float
     max_capacity: float
+    # Added round-trip time attributable to the host and its network path, as an
+    # active RTT probe would observe it. Topology-derived hop latency cannot see
+    # this: a host behind a congested link is the same number of hops away as any
+    # other, so in a uniform-hop topology the hop and latency features carry no
+    # signal at all. This field is what makes such a host detectable.
+    observed_delay_ms: float = 0.0
 
 
 def generate_synthetic_resources(hosts, seed=None, overrides=None):
@@ -122,7 +128,17 @@ def generate_synthetic_resources(hosts, seed=None, overrides=None):
         )
 
         for field, value in overrides.get(host, {}).items():
-            setattr(state, field, value)
+            if field == "capacity_ratio":
+                # Expressed as a fraction of this host's own drawn max_capacity, so
+                # it can only be resolved here. Used by the realistic degradation
+                # model, where both healthy baseline utilisation and capacity
+                # exhaustion are relative quantities rather than absolute numbers.
+                state.capacity = max(1.0, round(state.max_capacity * value, 2))
+            elif not hasattr(state, field):
+                raise AttributeError(
+                    "unknown host resource field {!r} for host {}".format(field, host))
+            else:
+                setattr(state, field, value)
 
         resources[host] = state
 

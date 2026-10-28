@@ -52,8 +52,26 @@ def _normalize(values):
     return {host: (value - lo) / (hi - lo) for host, value in values.items()}
 
 
+# Topology-derived hop latency is a static property of the graph. A production
+# orchestrator also has measured RTT (the paper's telemetry mapping calls this
+# "active RTT probing"), which is the only signal that reveals a host whose
+# degradation lives in the network path rather than in its resource gauges.
+# Setting this False reproduces the topology-only scoring used in earlier results.
+USE_MEASURED_LATENCY = True
+
+
+def observed_latency(primary, candidate, ctx):
+    """Path latency as a probe would measure it: topology distance plus whatever
+    delay the candidate itself is currently adding."""
+    base = ctx.distances[primary][candidate]["latency_ms"]
+    if not USE_MEASURED_LATENCY:
+        return base
+    state = ctx.resources.get(candidate)
+    return base + getattr(state, "observed_delay_ms", 0.0)
+
+
 def score_candidates(primary, candidates, ctx, weights):
-    latencies = {c: ctx.distances[primary][c]["latency_ms"] for c in candidates}
+    latencies = {c: observed_latency(primary, c, ctx) for c in candidates}
     hops = {c: ctx.distances[primary][c]["hops"] for c in candidates}
     norm_latency = _normalize(latencies)
     norm_hops = _normalize(hops)

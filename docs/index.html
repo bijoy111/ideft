@@ -37,7 +37,7 @@
   <div class="pill-row">
     <span class="pill">Base system: DEFT (CNSM'23)</span>
     <span class="pill">4 topology scales: 9 / 16 / 32 / 128 hosts</span>
-    <span class="pill">Multi-seed, Mann-Whitney U + effect sizes</span>
+    <span class="pill">Run-level paired Wilcoxon + Holm correction</span>
     <span class="pill">Real, unmodified 2PC backup implementation</span>
   </div>
 
@@ -75,7 +75,7 @@
     </div>
     <div class="stat-card">
       <div class="num">7–10×</div>
-      <div class="label">worse average and tail latency for RL than the heuristic at 128 hosts, even after fixing its collapse (though RL's median is the best of any method)</div>
+      <div class="label">fewer distinct backups used by the learned policy than by the heuristic at 128 hosts, even after fixing its collapse</div>
     </div>
     <div class="stat-card">
       <div class="num">16×</div>
@@ -98,9 +98,11 @@
   </div>
 
   <figure class="fig">
-    <img src="assets/fig_latency_scale.svg" alt="Two line charts of per-call latency (mean and p99, log scale) against network size from 9 to 128 hosts. Heuristic and optimal stay flat; concentrated gets steadily worse; RL follows the smarter methods until 128 hosts, then jumps.">
+    <img src="assets/fig_latency_scale.svg" alt="Four line charts of per-call service latency against network size from 9 to 128 hosts, arranged as mean and p95 rows by XML-RPC and gRPC columns. The feature-aware methods stay low; concentrated gets steadily worse; the 128-host column is shaded as unreliable.">
     <figcaption>
-      Per-call latency against network size: (a) average, (b) p99, on log axes.
+      Per-call service latency against network size, by transport: mean (top) and p95
+      (bottom), XML-RPC (left) and gRPC (right), on log axes. The 128-host column is
+      shaded because a single machine cannot resolve latency at that scale.
       <span class="mono">heuristic</span> and <span class="mono">optimal</span> stay flat,
       <span class="mono">concentrated</span> gets steadily worse, and
       <span class="mono">rl</span> (shown as PPO in the chart) follows the smarter

@@ -1,0 +1,29 @@
+---------------------------------------------------------------------------------------------------
+Which scoring terms provide degraded-host avoidance?
+287 weight configurations x 5 seeds, realistic degradation.
+
+--- 32 hosts (4 degraded of 12 eligible) ---
+  80/286 configurations route at least one primary to a degraded host
+    weight(health  ) = 0 ->   0/66  of those configs hit a degraded host
+    weight(capacity) = 0 ->  12/66  of those configs hit a degraded host
+    weight(latency ) = 0 ->  55/66  of those configs hit a degraded host
+    weight(hops    ) = 0 ->  18/66  of those configs hit a degraded host
+    published default (0.35,0.35,0.20,0.10): 0 degraded assignments
+
+--- 128 hosts (16 degraded of 48 eligible) ---
+  111/286 configurations route at least one primary to a degraded host
+    weight(health  ) = 0 ->   0/66  of those configs hit a degraded host
+    weight(capacity) = 0 ->  35/66  of those configs hit a degraded host
+    weight(latency ) = 0 ->  55/66  of those configs hit a degraded host
+    weight(hops    ) = 0 ->  25/66  of those configs hit a degraded host
+    published default (0.35,0.35,0.20,0.10): 0 degraded assignments
+
+Reading: the latency term, evaluated against measured RTT, is what provides
+degraded-host avoidance. The health term is dispensable. This inverts the
+conclusion drawn under the binary degradation model, where every configuration
+avoided degraded hosts and the sweep could not discriminate at all.
+
+Caveat: in this model every degradation kind carries some latency signature,
+so measured RTT is close to a sufficient statistic here. A failure mode with
+no latency signature (a host that is currently fast but about to fail) would
+not be caught by it, and would need the health signal instead.

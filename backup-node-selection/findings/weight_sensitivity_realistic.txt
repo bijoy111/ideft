@@ -1,0 +1,17 @@
+---------------------------------------------------------------------------------------------------
+Weight-sensitivity sweep: 287 configurations x 4 topologies x 5 seeds
+
+=== TABLE: published default vs. best achievable (max load=1), 5-seed avg ===
+Scale          Default max load  Best max load  Default backups used  Max possible
+9-host (real)              1.40           1.00                  4.60             5
+16-host                    1.80           1.00                  8.80            10
+32-host                    2.00           1.00                 17.40            20
+128-host                   2.00           1.00                 69.40            80
+
+=== supporting claims ===
+  9-host (real)  configs-hitting-degraded=0/287  default_maxload=1.40  best_maxload=1.00  worst_maxload=4.00  default_backups=4.60/5  default_rank=151/287
+  16-host        configs-hitting-degraded=0/287  default_maxload=1.80  best_maxload=1.00  worst_maxload=9.00  default_backups=8.80/10  default_rank=153/287
+  32-host        configs-hitting-degraded=84/287  default_maxload=2.00  best_maxload=1.00  worst_maxload=19.00  default_backups=17.40/20  default_rank=134/287
+  128-host       configs-hitting-degraded=115/287  default_maxload=2.00  best_maxload=1.00  worst_maxload=79.00  default_backups=69.40/80  default_rank=129/287
+
+[output captured to findings/weight_sensitivity.txt]

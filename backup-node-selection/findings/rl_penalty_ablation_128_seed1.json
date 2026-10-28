@@ -1,0 +1,80 @@
+{
+  "config": {
+    "n_hosts": 128,
+    "n_primaries": 80,
+    "n_degraded": 16,
+    "degradation_model": "binary",
+    "penalties": [
+      0.0,
+      2.0,
+      10.0
+    ],
+    "timesteps": 400000,
+    "ent_coef": 0.02,
+    "net_arch": [
+      256,
+      256
+    ],
+    "train_seeds": [
+      1
+    ],
+    "eval_seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "out": "../findings/rl_penalty_ablation_128_seed1.json"
+  },
+  "results": [
+    {
+      "distinct_mean": 3.4,
+      "distinct_range": [
+        2,
+        5
+      ],
+      "peak_mean": 60.8,
+      "peak_range": [
+        53,
+        79
+      ],
+      "degraded_mean": 0.0,
+      "degraded_total": 0,
+      "penalty": 0.0,
+      "train_seed": 1
+    },
+    {
+      "distinct_mean": 14.0,
+      "distinct_range": [
+        7,
+        20
+      ],
+      "peak_mean": 45.2,
+      "peak_range": [
+        24,
+        66
+      ],
+      "degraded_mean": 0.0,
+      "degraded_total": 0,
+      "penalty": 2.0,
+      "train_seed": 1
+    },
+    {
+      "distinct_mean": 8.6,
+      "distinct_range": [
+        6,
+        10
+      ],
+      "peak_mean": 57.6,
+      "peak_range": [
+        35,
+        75
+      ],
+      "degraded_mean": 0.0,
+      "degraded_total": 0,
+      "penalty": 10.0,
+      "train_seed": 1
+    }
+  ]
+}

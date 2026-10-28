@@ -58,8 +58,16 @@ paired runs), and at 16 hosts by 31.8\% and 77.1\%. At homogeneous scale, where
 there is nothing to discriminate between candidates, both transports agree on a
 null to within 0.06\,ms. A well-designed deterministic heuristic method tracks the Hungarian-optimal
 bound closely at every scale tested, remaining statistically indistinguishable from it
-throughout. We run a systematic sensitivity analysis over the scoring weights and load-decay mechanics of this multi-criteria heuristic method. Its degraded-host-avoidance guarantee is robust across the entire weight space. Its load-balancing quality is driven almost entirely by one term, remaining capacity, so the published default is a principled, non-fragile choice rather than an arbitrary
-one. A learned RL policy (PPO) matches the feature-aware methods up to 32 hosts; at 128 hosts it avoids degraded hosts completely but load-balances less tightly than the heuristic. A cross-algorithm check with DQN shows the same concentration behavior at scale, and more sharply, under the same widened-exploration remedy, indicating the gap follows from the problem formulation rather than from one algorithm. We leave a fuller study of RL for backup-node selection in this setting, including reward shaping that directly penalizes load concentration, to future work. The two-transport comparison also yields a methodological result. Because DEFT's
+throughout. We run a systematic sensitivity analysis over the heuristic's scoring weights and
+load-decay mechanics, under two models of what it means for a host to be degraded. Under
+an all-or-nothing model, in which degraded hosts sit at an extreme on every feature at
+once, all 287 weight configurations avoid them, which tells us about the benchmark rather
+than the method. Under a harder model with continuous severity and five distinct failure
+kinds, 80 and 111 of 286 configurations fail at 32 and 128 hosts, and one kind defeats the
+published scoring function outright: a host degraded only in its network path reads
+healthier than average on every resource gauge. Scoring against measured round-trip time
+rather than topology-derived hop latency restores the guarantee, and reveals that the
+latency term, not health, is what buys degraded-host avoidance. A learned RL policy (PPO) matches the feature-aware methods up to 32 hosts; at 128 hosts it avoids degraded hosts completely but load-balances less tightly than the heuristic. A cross-algorithm check with DQN shows the same concentration behavior at scale, and more sharply, under the same widened-exploration remedy, indicating the gap follows from the problem formulation rather than from one algorithm. An ablation of the reward's anti-concentration term shows it delivers a real but modest benefit that saturates almost immediately, and does not close the gap to the untrained heuristic. The two-transport comparison also yields a methodological result. Because DEFT's
 backup is an HTTP/1.0 \texttt{SimpleXMLRPCServer} with a five-deep accept backlog,
 every replication call opens a fresh TCP connection and the latency tail collapses
 onto Linux's SYN-retransmission timer rather than onto queueing delay; under gRPC
@@ -174,6 +182,67 @@ DEFT~\cite{shahriyar2023deft} spans both strands: one distributed 2PC protocol h
 elastic scaling and fault tolerance together, with no central controller
 (unlike~\cite{gember2014opennf,rajagopalan2013split}). But it inherits the fault-tolerant systems' gap: backup assignment is a bookkeeping step in its Failure Detection Unit, not a studied decision.
 
+\begin{table}[t]
+\centering
+\caption{How prior NF state-management systems choose the target host. ``Mechanism''
+is what the system specifies for moving or replicating state; ``target selection'' is
+how the destination is chosen. Every system specifies the former in detail; none
+specifies the latter as a criteria-driven decision. The storage systems in the last
+two rows do, which is why we adopt their mechanism as a baseline family
+(\S\ref{sec:hrw}).}
+\label{tab:relatedwork}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{llll}
+\toprule
+System & Purpose & Mechanism & Target selection \\
+\midrule
+Split/Merge~\cite{rajagopalan2013split} & Elastic scaling & Split per-flow/global state & Controller-assigned; unspecified \\
+OpenNF~\cite{gember2014opennf} & Elastic scaling & Move/copy/share & Controller-assigned; unspecified \\
+StatelessNF~\cite{kablan2017stateless} & Scaling + FT & External state store & N/A (no per-NF target) \\
+S6~\cite{woo2018elastic} & Elastic scaling & Chord-like DHT & Hash of key, quality-unaware \\
+\midrule
+Pico Rep.~\cite{rajagopalan2013pico} & Fault tolerance & Frequent checkpointing & Backup assumed to exist \\
+FTMB~\cite{sherry2015rollback} & Fault tolerance & Checkpoint + replay & Backup assumed to exist \\
+REINFORCE~\cite{kulkarni2018reinforce} & Fault tolerance & Buffer at predecessor & Designated; no stated rule \\
+DEFT~\cite{shahriyar2023deft} & Scaling + FT & Distributed 2PC & Static map in Failure Detection Unit \\
+\midrule
+Cand-RL~\cite{santos2022reinforcement} & SFC placement & PPO & Criteria-driven, but for \emph{primaries} \\
+DDQN-VNFPA~\cite{pei2019optimal} & VNF placement & Double DQN & Criteria-driven, but for \emph{primaries} \\
+\midrule
+CRUSH~\cite{weil2006crush} & Storage replicas & Pseudo-random hash & Failure-domain and weight aware \\
+Dynamo~\cite{decandia2007dynamo} & Storage replicas & Consistent hashing & Capacity-weighted preference list \\
+\midrule
+\textbf{iDEFT} & \textbf{Fault tolerance} & \textbf{DEFT's 2PC, unmodified} & \textbf{Health, capacity, measured RTT, hops} \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\textbf{What the table shows, and the insight we draw from it.}
+Table~\ref{tab:relatedwork} separates two decisions that the NFV state-management
+literature consistently conflates: \emph{how} state reaches another host, and
+\emph{which} host it reaches. Every system in the first two groups specifies the
+mechanism in considerable detail, and none specifies the selection as anything more
+than an assumption, a controller's prerogative, or a static map. The RL-for-NFV work
+does make placement criteria-driven, but places \emph{primaries}: it decides where a
+function should run, not which already-running host should back it up. Distributed
+storage settled the analogous question long ago, and the last two rows show what a
+criteria-driven answer looks like.
+
+The insight behind our design follows from that gap rather than from any single
+technique. Backup selection is not primary placement with a different label: the
+candidate set is the set of hosts \emph{already running}, so the decision is
+constrained by the live resource state of machines that are simultaneously serving
+their own traffic, and it must be cheap enough to redo whenever the pool changes.
+That rules out the centralized optimizers used for primary placement as deployment
+candidates, which is why we use the Hungarian assignment only as a bound
+(\S\ref{sec:methods}). It also explains why a single coordinated greedy pass beats
+the decentralized weighted-hash schemes that storage systems rely on
+(\S\ref{sec:hrw}): hashing spreads load only statistically, whereas one pass with an
+inter-primary load penalty spreads it by construction, and a backup pool of tens of
+hosts is small enough that the coordination is affordable. The combination is
+deliberately conventional in its parts; what is new is treating the decision as one
+worth making at all, and establishing empirically what it is worth.
+
 \subsection{Reinforcement Learning for NFV Resource Management}
 
 A separate line of work applies reinforcement learning to NFV resource management,
@@ -233,8 +302,13 @@ as $\mathrm{cap}_{\max} \sim \mathcal{U}\{50,\dots,100\}$ (integer), with $\math
 initialised to $\mathrm{cap}_{\max}$; $\mathrm{health} \sim \mathcal{U}[0.5,1.0]$; and CPU
 and storage availability each $\sim \mathcal{U}[0.4,1.0]$; latency is
 $1.5\,\text{ms} \times \mathrm{hops}$. Degraded hosts in the heterogeneous scenarios
-(\S\ref{sec:methodology}) instead pin $\mathrm{health}=0.05$, $\mathrm{cap}=2$,
-$\mathrm{cap}_{\max}=60$ (capacity ratio $\approx 0.033$). Infrastructure hosts (client,
+(\S\ref{sec:methodology}) are constructed under one of two models
+(\S\ref{sec:weights}). The \emph{binary} model, used for the latency experiments and for
+all previously published results, pins $\mathrm{health}=0.05$, $\mathrm{cap}=2$,
+$\mathrm{cap}_{\max}=60$ (capacity ratio $\approx 0.033$). The \emph{realistic} model
+draws a continuous severity and one of five failure kinds per host, leaves the untouched
+features at their healthy draw, and gives healthy hosts a baseline utilisation so that
+remaining capacity is a continuous measurement rather than a flag. Infrastructure hosts (client,
 stamper) are never sampled as backups.
 
 \textbf{From synthetic features to real telemetry.} These four features are deliberately
@@ -856,13 +930,68 @@ policy conditioned on which of 80 one-hot-encoded primaries is active. Retrainin
 with entropy 0.02, a $[256,256]$ network and 1M timesteps widened the spread
 substantially, and both checkpoints ship.
 
-The residual gap is visible in the reward: the health and capacity terms label which
-hosts are bad and the network learns that signal, whereas concentration is
-discouraged only implicitly, through the health and capacity decay, and never by a
-direct anti-concentration term. Host-quality discrimination and load-balancing
-precision are therefore acquired at different rates as the action space grows.
-Reward shaping that penalizes concentration directly is a natural remedy; we did not
-attempt it here and leave it to future work (\S\ref{sec:conclusion}).
+\textbf{The reward's anti-concentration term, and what it is worth.} The reward
+already penalizes concentration directly: as \S\ref{sec:methods} states, a choice that
+makes host $c$ the $\ell$-th primary's backup is penalized by $-2(\ell-1)$. The
+question is therefore not whether to add such a term but whether the one present is
+sufficient, which Table~\ref{tab:rlablation} answers by sweeping its strength. Two
+training seeds per setting are used, since RL outcomes vary enough between seeds that a
+single run per setting is not evidence.
+
+The term does deliver its intended benefit, and how much it matters depends sharply on
+scale. At 32 hosts the effect is real but modest and saturates almost at once: removing it
+costs about three distinct backups, and restoring even a small penalty recovers most of
+what a large one achieves, so the published strength of $2$ sits on a flat part of the
+curve. At 128 hosts it is not optional. With the penalty removed the policy collapses onto
+$3.2$ distinct backups of 80 at a peak load of $55$, which is the degenerate behaviour
+\S\ref{sec:rl128} describes; with the published strength it reaches $13.7$. The term is
+thus doing substantial work at the scale where the policy is under the most pressure, and
+very little where it is not.
+
+What the term does \emph{not} do, at either scale, is close the gap to the deterministic
+heuristic, which reaches a wider spread at no training cost: 20 of 20 distinct backups at
+32 hosts against PPO's best of 18.0, and 74--76 of 80 at 128 hosts against PPO's 13.7. Host-quality discrimination and load-balancing precision are acquired at
+different rates as the action space grows, and a scalar penalty on the immediate reward
+does not change that: the agent is credited for concentration only at the step where it
+occurs, while the consequences accrue over the rest of the episode. A formulation that scores the assignment as a whole, rather than one primary at a time,
+is the more promising direction, and we leave it to future work
+(\S\ref{sec:conclusion}).
+
+The 128-host response is also \emph{non-monotone}, and this replicates across both
+training seeds: a penalty of $10$ is far worse than the published $2$ on either seed
+($5.9$ distinct backups against $13.7$) and barely better than no penalty at all. The
+magnitude varies between seeds ($3.2$ and $8.6$) while the direction does not, so we state
+the ordering and not the size. A plausible mechanism is that with 80 primaries sharing the
+pool some repetition is unavoidable, so at a large penalty the agent accumulates
+substantial negative reward it cannot avoid, which destabilizes value estimation. The
+practical reading is that this lever has a genuine optimum rather than a monotone
+response, and that tuning it is therefore another per-scale burden the deterministic
+heuristic does not carry.
+
+\begin{table}[t]
+\centering
+\caption{Ablation of the reward's anti-concentration penalty. PPO, evaluated on five
+resource draws per setting. 32 hosts: 150k timesteps, averaged over two training seeds.
+128 hosts: 400k timesteps, $[256,256]$ network, entropy $0.02$, also averaged over two
+training seeds. No setting routed a primary to a degraded host.}
+\label{tab:rlablation}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrrr}
+\toprule
+& \multicolumn{2}{c}{32 hosts (of 20)} & \multicolumn{2}{c}{128 hosts (of 80)} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Penalty & Distinct & Peak load & Distinct & Peak load \\
+\midrule
+$0$ (no shaping) & 15.1 & 2.6 & 3.2 & 55.4 \\
+$0.5$ & 17.3 & 2.1 & -- & -- \\
+$2$ (published) & 17.3 & 2.0 & \textbf{13.7} & \textbf{40.2} \\
+$5$ & \textbf{18.0} & 2.1 & -- & -- \\
+$10$ & 16.8 & 2.1 & 5.9 & 62.6 \\
+\midrule
+\texttt{heuristic} & \textbf{20.0} & \textbf{1--2} & \textbf{74--76} & \textbf{2} \\
+\bottomrule
+\end{tabular}}
+\end{table}
 
 \subsection{Cross-Algorithm Check: DQN}
 \label{sec:dqn}
@@ -934,95 +1063,114 @@ practical reading of \S\ref{sec:rl128}: the deterministic heuristic reaches a wi
 than either learned policy with no training, no per-scale tuning, and no exposure to this
 failure mode.
 
-\subsection{Heuristic Weight Sensitivity and Decay Calibration}
+\subsection{Degradation Realism, Weight Sensitivity, and What the Scoring Terms Buy}
 \label{sec:weights}
 
-\S\ref{sec:methods} fixes the multi-criteria heuristic's scoring weights at
+\S\ref{sec:methods} fixes the heuristic's scoring weights at
 $(w_h, w_k, w_\ell, w_d) = (0.35, 0.35, 0.20, 0.10)$ and its load-decay mechanics
 ($\mathrm{cap} \mathrel{-}= 20$; $\mathrm{health} \mathrel{*}= 0.95$) by intuition. To
-show these are principled rather than ad hoc, we run a systematic sensitivity sweep: 287
-weight configurations (286 points on a 0.1-step grid over the 4-simplex, plus the exact
-published default, which does not fall on that grid), each evaluated \emph{structurally}
-(degraded-host hit rate, maximum per-backup load, and distinct backups used) across
-the real 9-host DEFT topology and the synthetic 16/32/128-host topologies, 5 context-seed
-draws each. This sweep requires no RPC calls (it evaluates
-\texttt{backup\_selector.select\_backups} directly against each synthetic resource draw),
-so it is exact and reproducible rather than subject to RPC-timing noise.
+test whether those are principled, we sweep 287 weight configurations (286 points on a
+0.1-step grid over the 4-simplex, plus the published default, which does not fall on that
+grid) across four topologies with five context-seed draws each. The sweep is
+\emph{structural}: it evaluates the produced mapping directly, with no RPC calls, so it is
+exact and reproducible.
 
-\textbf{Degraded-host avoidance is essentially weight-independent.} All 287 configurations,
-at all four topologies (1{,}148 configuration-topology pairs total), achieved 0\%
-degraded-host usage, including the extreme case of weighting 100\% on hops alone. This
-is a direct consequence of how starkly the artificially-degraded hosts are constructed
-relative to normal ones (health 0.05 vs.\ 0.5--1.0; capacity fraction $\approx 0.033$
-vs.\ $\approx 0.4$--1.0): the gap is large enough that even a weight vector with zero net
-discriminative power still favors a non-degraded candidate on tie-break. The heuristic's
-degraded-host-avoidance guarantee is therefore robust to the exact weight choice, not a
-fragile artifact of the specific published weights.
+\textbf{How degraded hosts are constructed determines what the sweep can tell us.} Our
+first model marked a host degraded by pinning it to one extreme point: health $0.05$
+against a healthy draw of $U[0.5, 1.0]$, and a capacity ratio of $0.033$ against a healthy
+ratio of $1.0$. Degraded hosts were thus separated from healthy ones by an order of
+magnitude on \emph{both} scoring features at once, and every degraded host was identical.
+Under that model all 287 configurations at all four topologies achieved 0\% degraded-host
+usage, including a configuration placing 100\% of its weight on hop-count and therefore
+unable to see host quality at all. A result that holds even for a scoring function with no
+discriminative power is a property of the benchmark, not of the method, so we do not claim
+it.
 
-\textbf{Load-balancing quality is highly weight-sensitive, and its principal lever is the
-capacity decay term.} Across the sweep, maximum per-backup load ranges from perfect (max
-load of 1 primary/backup, achieved whenever the capacity weight is nonzero and
-health/latency/hops are near zero) to severe (up to 79 of 80 primaries sharing one backup
-at 128 hosts, when capacity and health weights are both zero). The capacity term,
-realised as the flat $-20$ decrement applied to a chosen backup's remaining capacity after
-each assignment, is the dominant load-balancing lever: even a small nonzero capacity
-weight alone reaches near-optimal balance at every scale tested. The health decay
-($\times 0.95$ per assignment) is a weaker lever toward the same end, and the latency and
-hops terms contribute essentially nothing to load-balancing in the topologies tested,
-since every backup-eligible host is exactly two hops from any primary via the shared hub
-and so normalizes to zero. This directly addresses whether the decay mechanics are
-arbitrary: they \emph{are} the mechanism by which load spreads across the pool, and the
-sweep shows the $-20$ capacity decrement specifically is what drives it.
+We therefore introduce a second, harder model. Severity is drawn continuously rather than
+pinned, so some hosts are genuinely marginal; degradation has five kinds
+(CPU starvation, failing health, capacity exhaustion, storage pressure, and link
+congestion), each driving a different subset of the features, so a selector reading only
+one signal no longer catches everything; degradation is partial, so a host can be slow but
+healthy or healthy but nearly full; and healthy hosts carry a baseline utilisation, so
+remaining capacity is a continuous measurement rather than a flag that only degraded hosts
+trip. The last point also addresses a formulation gap: previously every non-degraded host
+presented as completely idle regardless of how many primaries it already backed.
+
+\textbf{Under realistic degradation the sweep discriminates sharply, and one failure mode
+defeats the published scoring function.} At 32 and 128 hosts, 80 and 111 of 286
+configurations route at least one primary to a degraded host. The heuristic at its default
+weights went from $0.0$ to $0.8$ degraded assignments per run at 32 hosts. The cause is
+specific: the \texttt{link\_congested} kind adds 20\,ms to every call while reading
+\emph{above average} on health, capacity, CPU and storage, because its degradation lives in
+the network path rather than in any resource gauge. The two features that could reveal it,
+latency and hop-count, are derived from the topology graph, and in a uniform-hop star every
+backup-eligible host is exactly two hops from every primary, so both normalize to zero and
+carry no signal whatsoever.
+
+\textbf{Scoring against measured RTT restores the guarantee.} A production orchestrator
+does not have to infer path latency from hop-count; it has active RTT probing, which is
+precisely the telemetry \S\ref{sec:methods} maps the latency feature onto. Replacing the
+topology-derived latency term with measured round-trip time, which includes whatever delay
+the candidate is currently adding, returns degraded-host assignments to $0.0$ at 32 hosts
+and $0.1$ at 128. The single residual case is a host at severity $0.12$ adding $11.5$\,ms,
+which is genuinely marginal rather than a miss.
+
+\textbf{This inverts which scoring terms matter.} Table~\ref{tab:terms} reports, for each
+term, how often a configuration that zeroes it routes a primary to a degraded host. The
+latency term, evaluated against measured RTT, is what provides degraded-host avoidance:
+zeroing it causes 55 of 66 configurations to fail at both scales. Zeroing the health term
+causes \emph{none} to fail. Under the binary model this question had no answer at all,
+since every configuration passed. The published default survives with zero degraded
+assignments at every scale, but now for an identifiable reason, namely its non-zero latency
+weight, rather than because every configuration passes.
 
 \begin{table}[t]
 \centering
-\caption{Published default weights ($w_h{=}0.35$, $w_k{=}0.35$, $w_\ell{=}0.20$,
-$w_d{=}0.10$) vs.\ the best achievable (max load $=1$) at each scale, 5-seed average.}
-\label{tab:weights}
+\caption{Configurations (of 66 that zero the given term) routing at least one primary to a
+degraded host, realistic degradation, 5 seeds. Under the binary degradation model every
+entry is 0, and the sweep cannot distinguish between weight choices.}
+\label{tab:terms}
 \resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrr}
+\begin{tabular}{lrr}
 \toprule
-Scale & Default max load & Best max load & Default backups used & Max possible \\
+Term zeroed & 32 hosts & 128 hosts \\
 \midrule
-9-host (real) & 1.40 & 1.00 & 4.60 & 5 \\
-16-host & 1.40 & 1.00 & 9.40 & 10 \\
-32-host & 2.00 & 1.00 & 18.00 & 20 \\
-128-host & 2.00 & 1.00 & 74.80 & 80 \\
+$w_h$ (health) & 0/66 & 0/66 \\
+$w_k$ (capacity) & 12/66 & 35/66 \\
+$w_\ell$ (latency, measured RTT) & \textbf{55/66} & \textbf{55/66} \\
+$w_d$ (hop-count) & 18/66 & 25/66 \\
+\midrule
+\multicolumn{3}{l}{\emph{Any} configuration: 80/286 and 111/286 fail.} \\
+\multicolumn{3}{l}{Published default $(0.35,0.35,0.20,0.10)$: 0 and 0.} \\
 \bottomrule
 \end{tabular}}
 \end{table}
 
-\textbf{The published default is a principled, near-optimal choice}
-(Table~\ref{tab:weights}): at every scale it lands within one unit of the achievable
-max-load optimum and uses 90--94\% of the maximum possible distinct backups. Sorted by
-(degraded-rate, max-load), the default configuration ranks 151st--187th of the 287 grid
-points across scales, a position that looks middling only because so many configurations
-tie at the max-load-of-1 ceiling (any configuration with a nonzero capacity weight tends to
-reach it); the default is a small, practically immaterial distance from that ceiling, not
-meaningfully behind it. The honest limitation this sensitivity analysis surfaces is not
-that the published weights or decay constants are poorly chosen, but that two of the four
-terms (latency, hops) carry negligible practical weight in the uniform-hop synthetic
-topologies used here, a consequence of the RPC-isolation testbed (\S\ref{sec:threats})
-rather than of the scoring design itself, which would plausibly matter more on a real
-bandwidth-constrained, variable-latency network.
+One caveat bounds this. Every degradation kind in our model carries some latency
+signature, which is realistic (a degraded host does serve more slowly) but makes measured
+RTT close to a sufficient statistic in this benchmark. A failure mode with no latency
+signature, such as a host that is currently fast but about to fail, would defeat it and
+would need the health signal instead. The defensible claim is therefore not that latency
+is the only term worth having, but that a scoring function restricted to static resource
+gauges is blind to network-path degradation, and that the remedy is measured rather than
+inferred path latency.
 
-\textbf{The decay constants themselves are a characterized, well-behaved lever, not an ad
-hoc choice.} To address the load-decay mechanics directly, we additionally sweep both
-constants (the capacity decrement over $\{5,10,20,40,80\}$ and the health-decay factor over
-$\{0.80,0.90,0.95,0.99,1.00\}$) with the scoring weights fixed, 5 seeds per topology (100
-decrement$\times$decay$\times$topology cells). Two properties hold. First,
-\emph{degraded-host avoidance is entirely decay-independent}: 0 of the 100 cells routed any
-primary to a degraded host, confirming the safety guarantee comes from the scoring, not from
-decay tuning. Second, load-balancing is a \emph{smooth, monotone} function of both constants:
-holding the health decay at its published 0.95, raising the capacity decrement through
+\textbf{Load-balancing quality is governed by the capacity decay term.} Separately from
+host quality, maximum per-backup load ranges across the sweep from perfect (one
+primary per backup) to severe (79 of 80 primaries sharing one backup at 128 hosts, when
+capacity and health weights are both zero). The capacity term, realised as the flat $-20$
+decrement applied after each assignment, is the dominant lever: even a small non-zero
+capacity weight reaches near-optimal balance at every scale. The health decay
+($\times 0.95$) is a weaker lever toward the same end. Sweeping both decay constants (the
+decrement over $\{5,10,20,40,80\}$ and the health factor over
+$\{0.80,0.90,0.95,0.99,1.00\}$, 100 cells) shows load-balancing to be a smooth, monotone
+function of both: holding the health decay at $0.95$, raising the decrement through
 $5, 10, 20, 40, 80$ lowers mean maximum per-backup load through
-$2.60, 2.00, 2.00, 1.00, 1.00$ (identical at 32 and 128 hosts), and a stronger health decay
-moves it the same way. The published decrement of 20 is thus a deliberately conservative
-operating point, within one unit of the perfect-spread optimum, that leaves a small, bounded
-amount of load-balancing unclaimed rather than spreading maximally aggressively, which on a
-pool with finer non-degraded quality variation could trade host quality for balance. The
-published $(20, 0.95)$ is therefore a principled choice on a monotone response surface, not
-an arbitrary constant.
+$2.60, 2.00, 2.00, 1.00, 1.00$. The published decrement of 20 is thus a deliberately
+conservative operating point within one unit of the perfect-spread optimum, leaving a
+small bounded amount of load-balancing unclaimed rather than spreading maximally
+aggressively, which on a pool with finer quality variation could trade host quality for
+balance.
 
 \subsection{Decentralized Hash Baselines, a Fairer Round-Robin, and Topology Diversity}
 \label{sec:hrw}
@@ -1258,8 +1406,8 @@ relative) results.
 space is fixed to a given host count, so a differently-sized topology is served by its own
 trained model, and, as \S\ref{sec:rl128} shows, the exploration and network-capacity budget
 must grow with the action space (the defaults that suffice at 16 and 32 hosts require scaling
-up at 128). We report the resulting behavior and leave reward shaping against load
-concentration, and a broader study of RL for this problem, to future work. For
+up at 128). We report the resulting behavior, ablate the reward's anti-concentration
+term (\S\ref{sec:rl128}), and leave a broader study of RL for this problem to future work. For
 reproducibility, the reported RL numbers describe the specific released checkpoints;
 retraining under a different \texttt{stable-baselines3}/\texttt{PyTorch} version or host count yields a different but qualitatively similar policy. The same applies to DQN, which
 additionally required its own exploration widening at 32 hosts (\S\ref{sec:dqn}).
@@ -1334,14 +1482,20 @@ hosts and, at 128 hosts, avoids degraded hosts completely while its load-balanci
 is lower than the heuristic's at that scale. A cross-algorithm check with DQN
 reproduces that concentration behavior at scale, and more sharply, under the same
 widened-exploration remedy, which attributes the gap to the problem formulation rather than
-to one algorithm. We report this measured behavior and leave a
-fuller study of RL for backup-node selection in this setting, including reward shaping that
-directly penalizes load concentration, to future work. A systematic sensitivity analysis
+to one algorithm. We report this measured behavior, and ablate the reward's
+anti-concentration penalty: it helps, but its benefit saturates at a small strength and
+never reaches the untrained heuristic's spread, which points at the per-step credit
+assignment rather than at the penalty's magnitude. A systematic sensitivity analysis
 over the heuristic's scoring weights and decay mechanics further shows that its
-degraded-host-avoidance guarantee holds across the entire weight space tested, that its
-load-balancing quality is governed almost entirely by the remaining-capacity term (whose
-$-20$ decrement is the load-spreading mechanism), and that the published default weighting is a near-optimal, non-fragile choice, so the heuristic's calibration is principled, not
-ad hoc.
+load-balancing quality is governed by the remaining-capacity term (whose $-20$ decrement
+is the load-spreading mechanism), and that its degraded-host avoidance depends on how
+degradation is modelled. Against an all-or-nothing degraded host every weight
+configuration succeeds and the sweep is uninformative; against continuous, partial,
+multi-kind degradation the sweep discriminates sharply, and a host degraded only in its
+network path defeats a scoring function built on static resource gauges. Measured
+round-trip time, which a production orchestrator already collects, restores the guarantee.
+The published default weighting survives both models, but under the harder one it survives
+for an identifiable reason rather than because everything does.
 
 We also report a methodological result. Evaluating the same methods over two
 transports shows that DEFT's shipped XML-RPC path inflates the measured placement
@@ -1358,8 +1512,9 @@ only distributed hardware addresses the latter. We recommend that design, and tw
 independent replications per configuration, for anyone evaluating placement policies on
 a comparable harness.
 
-Future work includes: reward shaping that directly penalizes load concentration for the
-RL policy at large scale; validating these findings over a physical or emulated network
+Future work includes: an RL formulation that scores the assignment as a whole rather than
+one primary at a time, since the ablation shows a per-step concentration penalty saturates
+before reaching the heuristic's spread; validating these findings over a physical or emulated network
 path with genuine bandwidth constraints, and over a production-grade asynchronous
 transport (gRPC, RDMA) whose queueing behavior differs in kind from XML-RPC's; extending
 the multi-seed evaluation to vary topology structure, not just resource values; and a

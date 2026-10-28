@@ -24,6 +24,7 @@ from collections import defaultdict
 import config
 import topology_features
 import backup_selector
+import degradation
 from topology_features import INFEASIBLE_HOSTS
 
 DEFAULT = (0.35, 0.35, 0.20, 0.10)
@@ -49,8 +50,15 @@ def all_configs():
     return grid + [DEFAULT]
 
 
-def build_topologies():
-    """Returns list of (name, hosts, primaries, graph, overrides, degraded_set)."""
+def build_topologies(degradation_model="binary"):
+    """Returns list of (name, hosts, primaries, graph, overrides, degraded_set).
+
+    `degradation_model` selects how degraded hosts are constructed; see
+    degradation.py. Under "binary" every degraded host sits at one extreme point on
+    both scoring features at once, which is why the original sweep found that every
+    weight configuration avoids them. "realistic" draws a continuous severity and one
+    of several failure kinds, including kinds that are invisible to resource gauges.
+    """
     topos = []
 
     # Real 9-host DEFT topology, homogeneous (no engineered degradation).
@@ -67,7 +75,9 @@ def build_topologies():
         backup_pool = [h for h in hosts if h not in primaries]
         n_degraded = len(backup_pool) // 3
         degraded = set(backup_pool[:n_degraded])
-        overrides = {h: {"health": 0.05, "capacity": 2, "max_capacity": 60} for h in degraded}
+        overrides, _, _ = degradation.build(
+            sorted(degraded), model=degradation_model, seed=0,
+            healthy_hosts=[h for h in backup_pool if h not in degraded])
         topos.append((
             "{}-host".format(n_hosts), hosts, primaries, graph, overrides, degraded,
         ))
@@ -90,7 +100,7 @@ def run(n_seeds=5):
     run_logging.capture_to_findings("weight_sensitivity")
 
     configs = all_configs()
-    topos = build_topologies()
+    topos = build_topologies(args.degradation_model)
 
     print("Weight-sensitivity sweep: {} configurations x {} topologies x {} seeds\n".format(
         len(configs), len(topos), n_seeds))
@@ -162,5 +172,7 @@ def run(n_seeds=5):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--seeds", type=int, default=5)
+    ap.add_argument("--degradation-model", choices=["binary", "realistic"], default="binary",
+                    help="see degradation.py; 'binary' reproduces the published sweep")
     args = ap.parse_args()
     run(n_seeds=args.seeds)

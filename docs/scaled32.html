@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>32 Hosts (Scalability Trend) — iDEFT: Intelligent Backup-Node Selection for DEFT</title>
+<title>32 Hosts (Scalability) — iDEFT: Intelligent Backup-Node Selection for DEFT</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -25,88 +25,92 @@
 </header>
 
 <div class="wrap">
-  <h1>Scalability Trend: 32 Hosts</h1>
+  <h1>Scalability: 32 Hosts</h1>
   <p class="lede">
-    The same setup as 16 hosts, doubled (20 primaries, 12 hosts that can act as backups,
-    4 of them bad, same proportions). The question here: does the 16-host result still
-    hold when there are more hosts to choose from, or did it only work because the
-    network was small?
+    The same test at twice the size: 20 primaries, 12 backup-eligible hosts, 4 of them
+    degraded. Run at the <strong>same protocol as every other scale</strong>. An earlier
+    version of this experiment used a reduced one, which produced a misleading
+    order-of-magnitude improvement in p99 — see the note below.
   </p>
   <div class="pill-row">
-    <span class="pill">3 context seeds × 2 trials <em>(reduced — see note below)</em></span>
-    <span class="pill">150 calls/primary, burst=8</span>
-    <span class="pill">n = 18,000 calls/method</span>
+    <span class="pill">XML-RPC: 5 seeds × 3 trials (15 runs)</span>
+    <span class="pill">gRPC: 5 seeds × 5 trials (25 runs)</span>
+    <span class="pill">200 calls/primary, burst=10</span>
+    <span class="pill">4 of 12 backups degraded</span>
+  </div>
+
+  <div class="card">
+    <strong>Two transports, and why that matters.</strong> Every method is run twice: once
+    over DEFT's shipped XML-RPC path, and once over gRPC with persistent HTTP/2 channels,
+    which is how production NFV systems carry state replication. Everything else is held
+    fixed, so the transport is a controlled variable. DEFT's backup is an HTTP/1.0
+    <span class="mono">SimpleXMLRPCServer</span> with a five-deep accept backlog, so every
+    call opens a fresh TCP connection; when that backlog overflows the latency tail lands
+    on the kernel's SYN-retransmission timer rather than on queueing delay. That makes p99
+    unusable on the XML-RPC arm — it reads either tens of milliseconds or about 1050 ms
+    depending only on whether a run's SYN-drop rate crosses 1% — so we report mean and
+    p95. The XML-RPC transport also inflates the measured placement effect by roughly
+    4.3×. See <a href="scaled16.html">the 16-host page</a> for the distribution comparison.
   </div>
 
   <div class="card warn">
-    <strong>Fewer runs at this size:</strong> 3×2×150 calls with burst=8, instead of the
-    5×3×200 with burst=10 used at 16 and 128 hosts, to keep the run short enough on one
-    machine. The overall result is the same either way, but this page has less data behind
-    it than the others, so we say so rather than pretend they match. See
-    <a href="https://github.com/bijoy111/ideft/blob/main/backup-node-selection/EXPERIMENTS.md" target="_blank" rel="noopener">EXPERIMENTS.md §5</a>.
+    <strong>A correction.</strong> This scale was originally run with fewer calls and a
+    smaller burst than the others. On the XML-RPC arm that lowered concurrency enough to
+    push the SYN-drop rate just below 1%, so p99 fell beneath the kernel timer quantum and
+    appeared to improve by an order of magnitude relative to 16 and 128 hosts. It was an
+    artifact of the reduced protocol, not a property of the method. Re-run at the matched
+    protocol the same figure reads about 1060 ms, in line with every other scale.
   </div>
 
-  <div class="card good">
-    <strong>How often each method used a bad host (out of 20 choices per seed):</strong>
-    <span class="mono">concentrated</span>, <span class="mono">heuristic</span>,
-    <span class="mono">optimal</span>, and <span class="mono">rl</span> again
-    <strong>never</strong> used one, in any of the 3 seeds.
-    <span class="mono">round_robin</span> used one <strong>4 times out of 20, in every
-    seed</strong>, the same 20% rate as at 16 hosts. One important warning:
-    <span class="mono">round_robin_mapping()</span> never looks at host resources, so this
-    is <em>not</em> chance. It happens because Python sorts host names as text, not
-    numbers, and at this size that ordering lands on the bad hosts. The
-    <a href="scaled128.html">128-host page</a> shows the same accident going the other way,
-    down to 0%. So read that 20% as "out of anyone's control", not "reliable".
-  </div>
-
-  <h2>Per-Call Latency</h2>
+  <h2>Per-Call Service Latency</h2>
   <table>
-    <thead><tr><th>Method</th><th>Mean (ms)</th><th>Median (ms)</th><th>p95 (ms)</th><th>p99 (ms)</th></tr></thead>
+    <thead><tr><th>Method</th><th>XML-RPC mean (ms)</th><th>gRPC mean (ms)</th><th>gRPC 95% CI</th><th>r</th><th>p (Holm)</th></tr></thead>
     <tbody>
-      <tr><td class="mono">concentrated</td><td>210.35</td><td>4.28</td><td>1053.62</td><td>5538.62</td></tr>
-      <tr><td class="mono">random</td><td>91.00</td><td>24.49</td><td>358.65</td><td>1050.90</td></tr>
-      <tr><td class="mono">round_robin</td><td>98.97</td><td>28.78</td><td>359.29</td><td>363.41</td></tr>
-      <tr><td class="mono">heuristic</td><td>36.49</td><td>26.49</td><td>58.41</td><td>105.63</td></tr>
-      <tr><td class="mono">optimal</td><td>35.65</td><td>27.70</td><td>58.59</td><td>103.48</td></tr>
-      <tr><td class="mono">rl</td><td>36.41</td><td>25.86</td><td>54.58</td><td>211.59</td></tr>
+      <tr><td class="mono">concentrated</td><td>296.00</td><td>121.13</td><td>[116.06, 127.00]</td><td>+1.000</td><td>&lt;0.0001 (significant)</td></tr>
+      <tr><td class="mono">random</td><td>172.59</td><td>31.84</td><td>[23.14, 43.35]</td><td>+0.945</td><td>&lt;0.0001 (significant)</td></tr>
+      <tr><td class="mono">round_robin</td><td>163.39</td><td>28.62</td><td>[22.64, 39.73]</td><td>+0.994</td><td>&lt;0.0001 (significant)</td></tr>
+      <tr><td class="mono">heuristic</td><td>121.39</td><td>13.25</td><td>[12.15, 14.95]</td><td>—</td><td>—</td></tr>
+      <tr><td class="mono">optimal</td><td>123.29</td><td>19.15</td><td>[12.49, 30.49]</td><td>-0.022</td><td>1.0000 (n.s.)</td></tr>
+      <tr><td class="mono">PPO</td><td>130.38</td><td>13.22</td><td>[12.34, 14.33]</td><td>+0.126</td><td>1.0000 (n.s.)</td></tr>
     </tbody>
   </table>
 
   <div class="chart">
-    <div class="chart-title">p99 latency (ms) — log scale (the measure that separates the methods most clearly here)</div>
-    <div class="bar-row"><span class="bar-label">concentrated</span><div class="bar-track"><div class="bar-fill m-concentrated" style="width:100%"></div></div><span class="bar-value">5538.62</span></div>
-    <div class="bar-row"><span class="bar-label">random</span><div class="bar-track"><div class="bar-fill m-random" style="width:81%"></div></div><span class="bar-value">1050.90</span></div>
-    <div class="bar-row"><span class="bar-label">round_robin</span><div class="bar-track"><div class="bar-fill m-round_robin" style="width:68%"></div></div><span class="bar-value">363.41</span></div>
-    <div class="bar-row"><span class="bar-label">heuristic</span><div class="bar-track"><div class="bar-fill m-heuristic" style="width:54%"></div></div><span class="bar-value">105.63</span></div>
-    <div class="bar-row"><span class="bar-label">optimal</span><div class="bar-track"><div class="bar-fill m-optimal" style="width:54%"></div></div><span class="bar-value">103.48</span></div>
-    <div class="bar-row"><span class="bar-label">rl</span><div class="bar-track"><div class="bar-fill m-rl" style="width:62%"></div></div><span class="bar-value">211.59</span></div>
+    <div class="chart-title">Mean service latency (ms), gRPC arm — log-scaled bar widths</div>
+    <div class="bar-row"><span class="bar-label">concentrated</span><div class="bar-track"><div class="bar-fill m-concentrated" style="width:100%"></div></div><span class="bar-value">121.13</span></div>
+    <div class="bar-row"><span class="bar-label">random</span><div class="bar-track"><div class="bar-fill m-random" style="width:58%"></div></div><span class="bar-value">31.84</span></div>
+    <div class="bar-row"><span class="bar-label">round_robin</span><div class="bar-track"><div class="bar-fill m-round_robin" style="width:54%"></div></div><span class="bar-value">28.62</span></div>
+    <div class="bar-row"><span class="bar-label">heuristic</span><div class="bar-track"><div class="bar-fill m-heuristic" style="width:30%"></div></div><span class="bar-value">13.25</span></div>
+    <div class="bar-row"><span class="bar-label">optimal</span><div class="bar-track"><div class="bar-fill m-optimal" style="width:42%"></div></div><span class="bar-value">19.15</span></div>
+    <div class="bar-row"><span class="bar-label">PPO</span><div class="bar-track"><div class="bar-fill m-rl" style="width:30%"></div></div><span class="bar-value">13.22</span></div>
   </div>
-  <p class="legend-note">rl's mean (36.41ms) now matches heuristic/optimal (35.65–36.49ms); only its p99 tail (211.59ms) sits modestly above theirs (103–106ms) — a mild preview of the load-balancing-precision gap that becomes pronounced at 128 hosts.</p>
+  <p class="legend-note">Bar widths use a log scale so they fit on screen. Exact values are in the table above.</p>
 
   <h2>Statistical Comparison</h2>
-  <table>
-    <thead><tr><th>Comparison</th><th>r</th><th style="text-align:left">Reading</th></tr></thead>
-    <tbody>
-      <tr><td class="mono">round_robin vs heuristic</td><td>−0.1422</td><td style="text-align:left">small, and about the same as at 16 hosts</td></tr>
-      <tr><td class="mono">heuristic vs optimal vs rl (each pair)</td><td>−0.07 to +0.04</td><td style="text-align:left">all tiny: the three stay very close</td></tr>
-      <tr><td class="mono">concentrated vs rest</td><td>0.71–0.76</td><td style="text-align:left">large, and <em>bigger</em> than at 16 hosts (0.47–0.56)</td></tr>
-    </tbody>
-  </table>
+  <p>
+    Statistics are run-level: one independent observation per (method, context seed,
+    trial), compared with a paired Wilcoxon signed-rank test and Holm-Bonferroni
+    correction across the family, with cluster-bootstrap confidence intervals that
+    resample runs rather than individual calls. Pooling individual RPC calls, as an
+    earlier version of this site did, treats thousands of correlated requests against one
+    server process as independent samples and drives p-values to zero without adding
+    evidence.
+  </p>
 
   <div class="finding">
-    <strong>What this means:</strong> the main 16-host result still holds at twice the
-    size, so it was not just an effect of a small network. The one method that gets
-    relatively worse as the network grows is the naive worst case
-    (<span class="mono">concentrated</span>), which makes sense: putting more primaries on
-    a single backup means a longer queue at that backup. This is a real, if modest,
-    scaling result. The <a href="scaled128.html">128-host page</a> adds a third point,
-    eight times larger again.
+    <strong>What this means:</strong> the 16-host finding holds at twice the scale, and
+    more strongly. On the gRPC arm the heuristic beats
+    <span class="mono">round_robin</span> in effectively every one of 25 paired runs
+    (r = 0.994), and beats <span class="mono">random</span> with r = 0.945, while
+    <span class="mono">optimal</span> and <span class="mono">PPO</span> remain
+    indistinguishable from it. In mean terms the heuristic cuts service latency by 53.7%
+    against <span class="mono">round_robin</span> and 89.1% against
+    <span class="mono">concentrated</span>.
   </div>
 
   <div class="scenario-nav">
     <a href="scaled16.html">← 16 Hosts</a>
-    <a href="scaled128.html">Next: 128 Hosts — a breaking point and the RL story →</a>
+    <a href="scaled128.html">Next: 128 Hosts — where the single machine runs out →</a>
   </div>
 </div>
 </body>

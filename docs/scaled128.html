@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>128 Hosts (RL Collapse Story) — iDEFT: Intelligent Backup-Node Selection for DEFT</title>
+<title>128 Hosts (Structural) — iDEFT: Intelligent Backup-Node Selection for DEFT</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -25,154 +25,69 @@
 </header>
 
 <div class="wrap">
-  <h1>Scalability Trend Continued: 128 Hosts</h1>
+  <h1>128 Hosts: Where a Single Machine Runs Out</h1>
   <p class="lede">
-    The same setup again, 4× larger (80 primaries, 48 hosts that can act as backups, 16 of
-    them bad), with the <strong>same number of runs as the 16-host test</strong> rather
-    than a reduced one. This page is the longest because three new things showed up at
-    this size, not because a bigger network automatically means more to report.
+    80 primaries and 48 backup-eligible hosts, 16 of them degraded. At this size one
+    machine can no longer produce a trustworthy latency measurement, on either transport,
+    so <strong>we report no latency numbers here</strong> — only results computed from the
+    produced mapping, which do not depend on timing at all.
   </p>
   <div class="pill-row">
-    <span class="pill">5 context seeds × 3 trials</span>
+    <span class="pill">5 seeds × 3 trials (15 runs)</span>
     <span class="pill">200 calls/primary, burst=10</span>
-    <span class="pill">n = 240,000 calls/method</span>
+    <span class="pill">16 of 48 backups degraded</span>
+    <span class="pill">latency withdrawn</span>
   </div>
 
   <div class="card warn">
-    <strong>The test harness needed a fix first.</strong> It originally retried a failed
-    call 3 times, which assumed at worst about 10 primaries sharing one backup. With 80
-    primaries on one backup (<span class="mono">concentrated</span>), Python's
-    <span class="mono">SimpleXMLRPCServer</span> can only hold 5 waiting connections, and
-    calls ran out of retries and crashed the whole experiment. We raised it to 8 tries
-    with a growing, slightly randomised wait between them, and a call that still fails is
-    now recorded as a failure (counted as 10s) instead of stopping the run. A real
-    production client would need the same. This changes how the harness handles failures,
-    not the backup server being measured.
+    <strong>Why the latency numbers are withdrawn.</strong> 80 primaries at burst 10 is
+    800 client threads, and on the gRPC arm roughly 75 backup processes with eight workers
+    each add some 600 server threads — on 8 cores. Two independent executions of the
+    identical gRPC configuration differ by 4.8× on <span class="mono">optimal</span> and
+    6.1× on <span class="mono">PPO</span>, with confidence intervals spanning an order of
+    magnitude. That is the machine being measured, not the placement policy. An earlier
+    version of this page published those numbers; it should not have. Validating placement
+    at this scale needs genuinely distributed hardware with real NICs and switches, which
+    is the most important remaining work.
   </div>
 
-  <h2>Per-Call Latency</h2>
+  <div class="card">
+    <strong>What does survive.</strong> Two things. First, gross concentration:
+    <span class="mono">concentrated</span> is worse than every other method with r = 1.000
+    on both transports and in both executions, and on the XML-RPC arm it is the only
+    configuration where client retries contribute measurably at all — 3.53% of calls
+    retry, and 19.6 s of its 35.1 s wall-clock p99 is the client's own backoff sleep
+    rather than backup delay. Second, the structure of the mapping, below.
+  </div>
+
+  <h2>Distinct Backups Used (of 80)</h2>
+  <p>
+    Computed from the assignment, so this is exact and hardware-independent. It is the
+    quantity the 128-host scenario was built to test: whether a policy spreads 80 primaries
+    across the available pool or funnels them onto a few hosts.
+  </p>
   <table>
-    <thead><tr><th>Method</th><th>Mean (ms)</th><th>Median (ms)</th><th>p95 (ms)</th><th>p99 (ms)</th></tr></thead>
+    <thead><tr><th>Method</th><th>XML-RPC</th><th>gRPC</th></tr></thead>
     <tbody>
-      <tr><td class="mono">concentrated</td><td>772.41</td><td>4.05</td><td>3325.13</td><td>18971.94</td></tr>
-      <tr><td class="mono">random</td><td>101.54</td><td>32.20</td><td>357.33</td><td>1087.47</td></tr>
-      <tr><td class="mono">round_robin</td><td>48.13</td><td>30.95</td><td>69.15</td><td>1058.35</td></tr>
-      <tr><td class="mono">heuristic</td><td>47.92</td><td>30.97</td><td>67.57</td><td>1058.17</td></tr>
-      <tr><td class="mono">optimal</td><td>49.06</td><td>31.38</td><td>71.57</td><td>1057.86</td></tr>
-      <tr><td class="mono">rl</td><td>457.86</td><td>26.65</td><td>232.01</td><td>7178.12</td></tr>
+      <tr><td class="mono">concentrated</td><td>2–2</td><td>2–2</td></tr>
+      <tr><td class="mono">random</td><td>54–62</td><td>54–62</td></tr>
+      <tr><td class="mono">round_robin</td><td>80–80</td><td>80–80</td></tr>
+      <tr><td class="mono">heuristic</td><td>74–76</td><td>74–76</td></tr>
+      <tr><td class="mono">optimal</td><td>80–80</td><td>80–80</td></tr>
+      <tr><td class="mono">PPO</td><td>24–30</td><td>24–30</td></tr>
     </tbody>
   </table>
-
-  <div class="chart">
-    <div class="chart-title">Mean latency (ms) — log-scaled bar widths</div>
-    <div class="bar-row"><span class="bar-label">concentrated</span><div class="bar-track"><div class="bar-fill m-concentrated" style="width:100%"></div></div><span class="bar-value">772.41</span></div>
-    <div class="bar-row"><span class="bar-label">random</span><div class="bar-track"><div class="bar-fill m-random" style="width:69%"></div></div><span class="bar-value">101.54</span></div>
-    <div class="bar-row"><span class="bar-label">round_robin</span><div class="bar-track"><div class="bar-fill m-round_robin" style="width:58%"></div></div><span class="bar-value">48.13</span></div>
-    <div class="bar-row"><span class="bar-label">heuristic</span><div class="bar-track"><div class="bar-fill m-heuristic" style="width:58%"></div></div><span class="bar-value">47.92</span></div>
-    <div class="bar-row"><span class="bar-label">optimal</span><div class="bar-track"><div class="bar-fill m-optimal" style="width:59%"></div></div><span class="bar-value">49.06</span></div>
-    <div class="bar-row"><span class="bar-label">rl</span><div class="bar-track"><div class="bar-fill m-rl" style="width:92%"></div></div><span class="bar-value">457.86</span></div>
-  </div>
-  <p class="legend-note">rl here is the <em>fixed</em> policy (rl_model_scaled128_v3.zip) — ~7–10× worse than heuristic/optimal/round_robin <em>on the mean</em>, yet its median (26.65ms) is the lowest of any method: the penalty is entirely in the tail. See the RL story below.</p>
-
-  <h3>1. At this size, concentrated is close to failing outright</h3>
-  <p>
-    In the run we report, a batch of calls to the single backup shared by 79 other
-    primaries (concentrated, seed 2) used up all 8 retries and were counted as failures at
-    10s each. The other four seeds of the same setup finished every call. Either way, its
-    average latency stays more than ten times higher than every other method, and its p99
-    is about 19 seconds of real queueing delay. The fact that calls fail in one seed and
-    not in another, with nothing else changed, is part of the result: at this load,
-    concentrated is not just bad, it is <em>unpredictable</em>. With Python's default limit
-    of 5 waiting connections, DEFT's backup code cannot reliably serve about 79 primaries
-    sharing one backup, even when the client retries. That is a real limit of the
-    implementation, not something our test created.
-  </p>
-
-  <h3>2. Round-robin, heuristic and optimal are too close to tell apart here</h3>
-  <p>
-    At 128 hosts <span class="mono">round_robin</span> happens to pick
-    <strong>no</strong> bad hosts at all (the name-sorting accident described on the
-    <a href="scaled32.html">32-host page</a>), so it is not punished here for the very
-    thing this test is meant to measure. The three averages sit within about 2% of each
-    other (47.9, 48.1 and 49.1ms for heuristic, round_robin and optimal). Since all three
-    always produce the same mapping for a given network and seed, that small gap is just
-    timing noise, not a real difference in quality. This does not contradict the main
-    claim; it shows it clearly. Round-robin's result is out of anyone's control: it does
-    badly at 16 and 32 hosts and well at 128 purely because of how the names sort.
-    Heuristic and optimal avoid bad hosts <em>by design</em>, at any size, noise or not.
-  </p>
-
-  <h3>3. RL: an attempted fix, with partial success</h3>
-  <div class="card">
-    <p style="margin-top:0"><strong>First model</strong> (400k steps, default <span class="mono">ent_coef=0.0</span>, network <span class="mono">[64,64]</span>):
-    it <strong>nearly collapsed</strong>. Across the 5 seeds it used only
-    <strong>1 to 5 different backups</strong>, sending almost all 80 primaries to the same
-    host (<span class="mono">w101</span>) and hitting the same connection-queue failure as
-    <span class="mono">concentrated</span>. With no entropy bonus, nothing stops the policy
-    from settling on one choice early, once that choice looks good on average. Included as
-    <span class="mono">rl_model_scaled128_collapsed.zip</span>.</p>
-    <p><strong>Second try</strong>: <span class="mono">ent_coef=0.01</span>, network
-    <span class="mono">[128,128]</span>, 600k steps. Only a partial improvement, so we did
-    not include this one.</p>
-    <p style="margin-bottom:0"><strong>Final version</strong> (used in the table above):
-    <span class="mono">ent_coef=0.02</span>, network <span class="mono">[256,256]</span>,
-    bigger batches, 1M steps (<span class="mono">rl_model_scaled128_v3.zip</span>). This one
-    fixes <em>one</em> of the policy's two problems completely, and the other only partly.</p>
-  </div>
-
-  <div class="card good">
-    <p style="margin-top:0"><strong>Picking good hosts: fully fixed.</strong>
-    <strong>It never chose a bad host in any of the 5 seeds</strong> (0 out of 400), the
-    same as heuristic and optimal.</p>
-    <p style="margin-bottom:0"><strong>Spreading load: better, but not fixed.</strong> It
-    now uses <strong>24 to 30</strong> different backups for the 80 primaries, against the
-    heuristic's <strong>74 to 76</strong>. That is a big jump from the collapsed 1 to 5,
-    but in the tighter seeds it still sends <strong>as many as 28 of the 80 primaries to
-    one favourite host</strong> (the busiest backup holds between 9 and 28, depending on
-    the seed), while heuristic and optimal give each backup only 1 or 2. This crowding only
-    shows up in the slowest calls: rl's <em>median</em> latency (26.65ms) is actually the
-    best of any method in the table above.</p>
-  </div>
-
-  <figure class="fig narrow">
-    <img src="assets/fig_rl_spread.svg" alt="Bar chart: how many different backups the PPO policy uses across 80 primaries at 128 hosts, for the two included models. The collapsed first model uses 1 to 5 backups; the fixed one reaches 24 to 30, still below the heuristic's 74 to 76, shown as a dashed line.">
-    <figcaption>
-      How many different backups the PPO policy uses for the 80 primaries, for the first
-      collapsed model and the final one (whiskers show the range across 5 seeds). The fix
-      stops it choosing bad hosts completely, and raises the spread from 1–5 to 24–30
-      backups, but that is still well short of the heuristic, which puts the same 80
-      primaries on 74–76 backups with at most 2 on any one of them.
-      (Not included in the paper; generated by the same script.)
-    </figcaption>
-  </figure>
-
-  <div class="card">
-    <p style="margin-bottom:0">In the real test, this costs an average of 458ms and a p99
-    of 7178ms, roughly 7 to 10 times worse than heuristic, optimal and round-robin
-    <em>on the average and the slowest calls</em>, though rl's median is still the best of
-    any method. It is also far better than the first model, which crashed the test outright.</p>
-  </div>
 
   <div class="finding">
-    <strong>What we can say exactly:</strong> the network learned which hosts are good
-    <em>perfectly</em>, and learned to spread load only partly. The health and capacity
-    terms in the reward mark which hosts are bad, and the network picks that up completely.
-    But nothing in the reward directly punishes crowding, so a few hosts it has marked as
-    good end up taking far more than their share without the policy paying much for it.
-    The two skills are learned at very different speeds as the number of choices grows.
-    We report this as a clearly described, still-open limitation. The obvious next step is
-    to change the reward so it directly punishes crowding, which we did not try here.
+    <strong>What this means:</strong> the deterministic heuristic spreads 80 primaries
+    across nearly as many distinct backups, while the learned policy does not. PPO's
+    original checkpoint (library-default entropy, a [64,64] network) collapsed to 1–5
+    distinct backups out of 80; retraining with entropy 0.02, a [256,256] network and 1M
+    timesteps widened the spread substantially, and both checkpoints are published. The
+    residual gap traces to the reward: host quality is labelled explicitly by the health
+    and capacity terms, whereas concentration is discouraged by a direct but modest
+    penalty whose effect saturates quickly — see the ablation in the paper.
   </div>
-
-  <h2>Statistical Comparison</h2>
-  <table>
-    <thead><tr><th>Comparison</th><th>r</th><th style="text-align:left">Reading</th></tr></thead>
-    <tbody>
-      <tr><td class="mono">concentrated vs rest</td><td>0.66–0.77</td><td style="text-align:left">large, and clear in every comparison</td></tr>
-      <tr><td class="mono">round_robin vs heuristic/optimal</td><td>−0.00 to +0.02</td><td style="text-align:left">tiny; the same in practice (see above)</td></tr>
-      <tr><td class="mono">rl vs heuristic/optimal/round_robin</td><td>−0.17 to −0.18</td><td style="text-align:left">small to medium; rl is worse mostly on its slowest calls</td></tr>
-    </tbody>
-  </table>
 
   <div class="scenario-nav">
     <a href="scaled32.html">← 32 Hosts</a>

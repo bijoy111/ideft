@@ -1,0 +1,29 @@
+---------------------------------------------------------------------------------------------------
+RL anti-concentration penalty ablation
+  topology: 32 hosts, 20 primaries, 4 degraded (binary)
+  training: 150000 timesteps, ent_coef=0.01, net_arch=[128, 128], seeds=[0, 1]
+  evaluated structurally over 5 resource draws
+
+  the heuristic's reference spread for this topology is 20 distinct backups at peak load 1-2
+
+ penalty  trainsd  distinct backups       peak load      degraded
+     0.0       0     16.0  [15-17]      2.2  [2-3]        0.0/20
+     0.0       1     14.2  [13-16]      3.0  [2-4]        0.0/20
+     0.5       0     18.2  [17-19]      2.0  [2-2]        0.0/20
+     0.5       1     16.4  [15-17]      2.2  [2-3]        0.0/20
+     2.0       0     17.2  [17-18]      2.0  [2-2]        0.0/20
+     2.0       1     17.4  [16-18]      2.0  [2-2]        0.0/20
+     5.0       0     18.0  [17-19]      2.0  [2-2]        0.0/20
+     5.0       1     18.0  [17-19]      2.2  [2-3]        0.0/20
+    10.0       0     16.4  [15-17]      2.2  [2-3]        0.0/20
+    10.0       1     17.2  [16-18]      2.0  [2-2]        0.0/20
+
+Averaged over training seeds:
+ penalty  distinct backups     peak load      degraded
+     0.0              15.1           2.6          0.00
+     0.5              17.3           2.1          0.00
+     2.0              17.3           2.0          0.00
+     5.0              18.0           2.1          0.00
+    10.0              16.8           2.1          0.00
+
+wrote ../findings/rl_penalty_ablation_32.json

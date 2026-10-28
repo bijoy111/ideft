@@ -27,64 +27,77 @@
 <div class="wrap">
   <h1>Homogeneous Scale: 9 Hosts</h1>
   <p class="lede">
-    DEFT's real 9-host network, 5 primaries. Host resource values are drawn fresh for
-    each seed, and <strong>no host is made deliberately bad</strong>, so on average every
-    backup is as good as any other.
+    DEFT's real 9-host network, 5 primaries. Host resource values are drawn fresh for each
+    seed, and <strong>no host is made deliberately bad</strong>, so on average every backup
+    is as good as any other. This is the negative control: it shows the setup does not
+    manufacture an advantage for feature-aware selection where none should exist.
   </p>
   <div class="pill-row">
-    <span class="pill">5 context seeds × 3 trials</span>
+    <span class="pill">XML-RPC: 5 seeds × 3 trials (15 runs)</span>
+    <span class="pill">gRPC: 5 seeds × 5 trials (25 runs)</span>
     <span class="pill">200 calls/primary, burst=10</span>
-    <span class="pill">n = 15,000 calls/method</span>
   </div>
 
-  <h2>Per-Call Latency</h2>
+  <div class="card">
+    <strong>Two transports, and why that matters.</strong> Every method is run twice: once
+    over DEFT's shipped XML-RPC path, and once over gRPC with persistent HTTP/2 channels,
+    which is how production NFV systems carry state replication. Everything else is held
+    fixed, so the transport is a controlled variable. DEFT's backup is an HTTP/1.0
+    <span class="mono">SimpleXMLRPCServer</span> with a five-deep accept backlog, so every
+    call opens a fresh TCP connection; when that backlog overflows the latency tail lands
+    on the kernel's SYN-retransmission timer rather than on queueing delay. That makes p99
+    unusable on the XML-RPC arm — it reads either tens of milliseconds or about 1050 ms
+    depending only on whether a run's SYN-drop rate crosses 1% — so we report mean and
+    p95. The XML-RPC transport also inflates the measured placement effect by roughly
+    4.3×. See <a href="scaled16.html">the 16-host page</a> for the distribution comparison.
+  </div>
+
+  <h2>Per-Call Service Latency</h2>
   <table>
-    <thead><tr><th>Method</th><th>Mean (ms)</th><th>Median (ms)</th><th>p95 (ms)</th><th>p99 (ms)</th></tr></thead>
+    <thead><tr><th>Method</th><th>XML-RPC mean (ms)</th><th>gRPC mean (ms)</th><th>gRPC 95% CI</th><th>r</th><th>p (Holm)</th></tr></thead>
     <tbody>
-      <tr><td class="mono">baseline</td><td>57.33</td><td>10.67</td><td>41.24</td><td>1071.77</td></tr>
-      <tr><td class="mono">concentrated</td><td>94.99</td><td>6.81</td><td>221.69</td><td>3125.54</td></tr>
-      <tr><td class="mono">random</td><td>45.98</td><td>12.35</td><td>47.50</td><td>1063.38</td></tr>
-      <tr><td class="mono">round_robin</td><td>35.67</td><td>18.46</td><td>54.27</td><td>1035.42</td></tr>
-      <tr><td class="mono">heuristic</td><td>41.06</td><td>17.48</td><td>50.68</td><td>1054.36</td></tr>
-      <tr><td class="mono">optimal</td><td>37.00</td><td>19.63</td><td>56.03</td><td>1034.23</td></tr>
-      <tr><td class="mono">rl</td><td>36.20</td><td>18.88</td><td>54.47</td><td>1038.38</td></tr>
+      <tr><td class="mono">baseline</td><td>73.45</td><td>20.58</td><td>[17.55, 24.56]</td><td>+0.680</td><td>0.0243 (significant)</td></tr>
+      <tr><td class="mono">concentrated</td><td>107.42</td><td>32.60</td><td>[29.84, 35.77]</td><td>+1.000</td><td>&lt;0.0001 (significant)</td></tr>
+      <tr><td class="mono">random</td><td>58.70</td><td>16.04</td><td>[14.50, 17.75]</td><td>+0.329</td><td>0.7817 (n.s.)</td></tr>
+      <tr><td class="mono">round_robin</td><td>47.51</td><td>14.06</td><td>[12.22, 16.43]</td><td>-0.422</td><td>0.5010 (n.s.)</td></tr>
+      <tr><td class="mono">heuristic</td><td>51.10</td><td>14.72</td><td>[13.44, 16.18]</td><td>—</td><td>—</td></tr>
+      <tr><td class="mono">optimal</td><td>45.90</td><td>13.60</td><td>[12.50, 14.92]</td><td>-0.286</td><td>0.8799 (n.s.)</td></tr>
+      <tr><td class="mono">PPO</td><td>48.44</td><td>13.79</td><td>[12.06, 16.21]</td><td>-0.403</td><td>0.5010 (n.s.)</td></tr>
     </tbody>
   </table>
 
   <div class="chart">
-    <div class="chart-title">Mean latency (ms) — log-scaled bar widths</div>
-    <div class="bar-row"><span class="bar-label">baseline</span><div class="bar-track"><div class="bar-fill m-baseline" style="width:89%"></div></div><span class="bar-value">57.33</span></div>
-    <div class="bar-row"><span class="bar-label">concentrated</span><div class="bar-track"><div class="bar-fill m-concentrated" style="width:100%"></div></div><span class="bar-value">94.99</span></div>
-    <div class="bar-row"><span class="bar-label">random</span><div class="bar-track"><div class="bar-fill m-random" style="width:84%"></div></div><span class="bar-value">45.98</span></div>
-    <div class="bar-row"><span class="bar-label">round_robin</span><div class="bar-track"><div class="bar-fill m-round_robin" style="width:78%"></div></div><span class="bar-value">35.67</span></div>
-    <div class="bar-row"><span class="bar-label">heuristic</span><div class="bar-track"><div class="bar-fill m-heuristic" style="width:82%"></div></div><span class="bar-value">41.06</span></div>
-    <div class="bar-row"><span class="bar-label">optimal</span><div class="bar-track"><div class="bar-fill m-optimal" style="width:79%"></div></div><span class="bar-value">37.00</span></div>
-    <div class="bar-row"><span class="bar-label">rl</span><div class="bar-track"><div class="bar-fill m-rl" style="width:79%"></div></div><span class="bar-value">36.20</span></div>
+    <div class="chart-title">Mean service latency (ms), gRPC arm — log-scaled bar widths</div>
+    <div class="bar-row"><span class="bar-label">baseline</span><div class="bar-track"><div class="bar-fill m-baseline" style="width:63%"></div></div><span class="bar-value">20.58</span></div>
+    <div class="bar-row"><span class="bar-label">concentrated</span><div class="bar-track"><div class="bar-fill m-concentrated" style="width:100%"></div></div><span class="bar-value">32.60</span></div>
+    <div class="bar-row"><span class="bar-label">random</span><div class="bar-track"><div class="bar-fill m-random" style="width:43%"></div></div><span class="bar-value">16.04</span></div>
+    <div class="bar-row"><span class="bar-label">round_robin</span><div class="bar-track"><div class="bar-fill m-round_robin" style="width:33%"></div></div><span class="bar-value">14.06</span></div>
+    <div class="bar-row"><span class="bar-label">heuristic</span><div class="bar-track"><div class="bar-fill m-heuristic" style="width:36%"></div></div><span class="bar-value">14.72</span></div>
+    <div class="bar-row"><span class="bar-label">optimal</span><div class="bar-track"><div class="bar-fill m-optimal" style="width:30%"></div></div><span class="bar-value">13.60</span></div>
+    <div class="bar-row"><span class="bar-label">PPO</span><div class="bar-track"><div class="bar-fill m-rl" style="width:31%"></div></div><span class="bar-value">13.79</span></div>
   </div>
   <p class="legend-note">Bar widths use a log scale so they fit on screen. Exact values are in the table above.</p>
 
   <h2>Statistical Comparison</h2>
-  <p>Mann-Whitney U (two-sided) + rank-biserial effect size (|r| ≈ 0.1 / 0.3 / 0.5 ≈ small / medium / large):</p>
-  <table>
-    <thead><tr><th>Comparison</th><th>r</th><th>p-value</th><th style="text-align:left">Reading</th></tr></thead>
-    <tbody>
-      <tr><td class="mono">round_robin vs rl</td><td>+0.008</td><td>0.23</td><td style="text-align:left">no difference (the only pair we cannot call)</td></tr>
-      <tr><td class="mono">heuristic vs rl</td><td>+0.036</td><td>&lt;0.001</td><td style="text-align:left">the gap is real but far too small to matter</td></tr>
-      <tr><td class="mono">round_robin vs heuristic</td><td>−0.029</td><td>&lt;0.001</td><td style="text-align:left">real, but a small difference</td></tr>
-      <tr><td class="mono">baseline/concentrated vs rest</td><td>0.08–0.40</td><td>&lt;0.001</td><td style="text-align:left">small to medium: clearly worse</td></tr>
-    </tbody>
-  </table>
+  <p>
+    Statistics are run-level: one independent observation per (method, context seed,
+    trial), compared with a paired Wilcoxon signed-rank test and Holm-Bonferroni
+    correction across the family, with cluster-bootstrap confidence intervals that
+    resample runs rather than individual calls. Pooling individual RPC calls, as an
+    earlier version of this site did, treats thousands of correlated requests against one
+    server process as independent samples and drives p-values to zero without adding
+    evidence.
+  </p>
 
   <div class="finding">
-    <strong>What this means:</strong> at this small size, with every host about equally
-    good, any method that avoids piling primaries onto one backup does about as well as
-    any other. The smarter methods gain nothing over plain round-robin here. The real gap
-    is between the methods that pile up load
-    (<span class="mono">baseline</span>, <span class="mono">concentrated</span>) and
-    everything else. What drives the difference at this size is load sharing, not host
-    quality (see the backup-load check on
-    <a href="scaled16.html">the 16-host page</a>). Knowing which host is good only starts
-    to pay off once hosts actually differ.
+    <strong>What this means:</strong> where every host is about equally good, any method
+    that avoids piling primaries onto one backup does about as well as any other.
+    <span class="mono">round_robin</span>, <span class="mono">optimal</span>,
+    <span class="mono">PPO</span> and <span class="mono">random</span> are all
+    statistically indistinguishable from the heuristic, on both transports. Only the
+    policies that concentrate load (<span class="mono">concentrated</span>,
+    <span class="mono">baseline</span>) are clearly worse. Knowing which host is good only
+    starts to pay off once hosts actually differ — which is what the next page tests.
   </div>
 
   <div class="scenario-nav">

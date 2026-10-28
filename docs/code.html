@@ -97,7 +97,7 @@
     <!-- Stage 6: stats -->
     <rect class="box" x="170" y="542" width="520" height="64" rx="8"/>
     <text class="t" x="430" y="568" text-anchor="middle">summary statistics</text>
-    <text class="s" x="430" y="590" text-anchor="middle">Mann-Whitney U · rank-biserial effect sizes · bootstrap 95% CIs · per-load breakdown</text>
+    <text class="s" x="430" y="590" text-anchor="middle">paired Wilcoxon · Holm correction · cluster bootstrap · per-load breakdown</text>
   </svg>
 
   <div class="finding">
@@ -135,6 +135,44 @@
   </div>
 
   <div class="card file-card">
+    <h3><a href="https://github.com/bijoy111/ideft/blob/main/backup-node-selection/code/analysis.py" target="_blank" rel="noopener"><span class="mono">analysis.py</span></a></h3>
+    <div class="meta">Run-level statistics: paired Wilcoxon, Holm correction, cluster bootstrap</div>
+    <p>The independent observation is a <em>run</em> — one (method, context seed, trial)
+     execution — not an individual RPC call. Calls within a burst share a connection
+     sequence, a single-threaded server process and one resource realization, so pooling
+     them inflates the sample size without adding evidence. Each run is reduced to its own
+     statistics, and methods are compared by a paired Wilcoxon signed-rank test with
+     Holm-Bonferroni correction and cluster-bootstrap intervals that resample runs. Also
+     separates backup service time from client retry wait, and treats failed calls as
+     censored rather than imputing a sentinel latency.</p>
+  </div>
+
+  <div class="card file-card">
+    <h3><a href="https://github.com/bijoy111/ideft/blob/main/backup-node-selection/code/grpc_transport.py" target="_blank" rel="noopener"><span class="mono">grpc_transport.py</span></a></h3>
+    <div class="meta">The second transport: gRPC over HTTP/2 with persistent channels</div>
+    <p>Exposes exactly the method DEFT's XML-RPC backup exposes, so swapping transports
+     changes only how bytes reach the backup. One persistent channel per primary instead
+     of a connection per call, and a server thread pool instead of a single accept loop.
+     Select with <span class="mono">--transport grpc</span>;
+     <span class="mono">--grpc-workers 1</span> reproduces the XML-RPC backup's strict
+     serialization over HTTP/2, which separates the transport change from the concurrency
+     change.</p>
+  </div>
+
+  <div class="card file-card">
+    <h3><a href="https://github.com/bijoy111/ideft/blob/main/backup-node-selection/code/degradation.py" target="_blank" rel="noopener"><span class="mono">degradation.py</span></a></h3>
+    <div class="meta">What it means for a host to be degraded: two models</div>
+    <p>The <span class="mono">binary</span> model pins every degraded host to one extreme
+     point on both scoring features at once, which makes them trivially separable — under
+     it, every weight configuration avoids them, so the sensitivity sweep cannot
+     discriminate. The <span class="mono">realistic</span> model draws a continuous
+     severity and one of five failure kinds (CPU starvation, failing health, capacity
+     exhaustion, storage pressure, link congestion), leaves untouched features at their
+     healthy draw, and gives healthy hosts a baseline utilisation so remaining capacity is
+     a measurement rather than a flag.</p>
+  </div>
+
+  <div class="card file-card">
     <h3><a href="https://github.com/bijoy111/ideft/blob/main/backup-node-selection/code/rl_backup_selector.py" target="_blank" rel="noopener"><span class="mono">rl_backup_selector.py</span></a></h3>
     <div class="meta">The RL agents: gym environment, PPO and DQN training, inference</div>
     <p>One episode gives every primary a backup in turn, using a fresh set of host
@@ -158,7 +196,7 @@
     calls from each primary and records the time of every call to
     <span class="mono">results_rpc/rpc_contention_raw.csv</span>. The order the methods run
     in is shuffled each trial, so background load on the machine cannot favour any one of
-    them. It finishes with summary tables, Mann-Whitney tests, effect sizes, and a
+    them. It finishes with summary tables, paired run-level tests, effect sizes, and a
     latency-by-backup-load breakdown. Change the size with
     <span class="mono">--n-hosts --n-primaries --n-degraded --rl-model</span>.</p>
   </div>

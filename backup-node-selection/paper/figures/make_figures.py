@@ -1,13 +1,28 @@
 """Generate the three result figures for the backup-selection paper.
 
-Data is transcribed from Tables I, II, IV, V, VI and section V-F of paper.tex.
+Latency data is read directly from the archived per-call records in
+findings/raw/*.csv.gz via analysis.py, so the figures and the tables cannot drift
+apart and nothing is transcribed by hand. Selection-overhead data is parsed from
+findings/selection_overhead.txt.
+
+Figure 1 plots mean and p95. It previously plotted p99, which in this testbed is not
+a latency measurement: every RPC opens a fresh TCP connection against a listen(5)
+backlog, so the tail collapses onto Linux's SYN-retransmission timer. Across all
+method/scale combinations exactly zero calls land between 500 and 900 ms, and p99
+therefore reads either ~45 ms or ~1045 ms depending only on whether that run's
+SYN-drop rate crosses 1%. p95 sits below the quantum and discriminates properly.
+
 Each method keeps a fixed color across figures, with distinct markers/linestyles
 as a secondary encoding so the figures stay readable in grayscale.
 """
+import os
+import re
+import sys
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FixedLocator, NullFormatter, LogLocator
-import os
+import numpy as np
+from matplotlib.ticker import FixedLocator, NullFormatter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = HERE                                                        # backup-node-selection/paper/figures/
@@ -65,30 +80,71 @@ STYLE = {
 
 HOSTS = [9, 16, 32, 128]
 
-MEAN = {
-    "concentrated": [94.99, 157.37, 210.35, 772.41],
-    "random":       [45.98, 124.97,  91.00, 101.54],
-    "round-robin":  [35.67, 106.94,  98.97,  48.13],
-    "heuristic":    [41.06,  39.11,  36.49,  47.92],
-    "optimal":      [37.00,  37.25,  35.65,  49.06],
-    "PPO":          [36.20,  37.71,  36.41, 457.86],
-}
-P99 = {
-    "concentrated": [3125.54, 3361.56, 5538.62, 18971.94],
-    "random":       [1063.38, 1069.84, 1050.90,  1087.47],
-    "round-robin":  [1035.42, 1040.29,  363.41,  1058.35],
-    "heuristic":    [1054.36, 1050.06,  105.63,  1058.17],
-    "optimal":      [1034.23, 1036.45,  103.48,  1057.86],
-    "PPO":          [1038.38, 1039.31,  211.59,  7178.12],
-}
-OVERHEAD = {
-    "concentrated": [0.005, 0.013, 0.055,  0.731],
-    "random":       [0.021, 0.029, 0.084,  0.639],
-    "round-robin":  [0.004, 0.005, 0.015,  0.030],
-    "heuristic":    [0.055, 0.161, 0.646,  7.260],
-    "optimal":      [0.097, 0.208, 0.913,  8.943],
-    "PPO":          [1.81,  3.76, 11.29,  49.64],
-}
+sys.path.insert(0, os.path.normpath(os.path.join(HERE, "../../code")))
+import analysis  # noqa: E402
+
+ARCHIVE = os.path.normpath(os.path.join(HERE, "../../findings/raw/{}hosts.csv.gz"))
+OVERHEAD_TXT = os.path.normpath(os.path.join(HERE, "../../findings/selection_overhead.txt"))
+# Figure labels vs. the method names used in the data files.
+KEY = {"concentrated": "concentrated", "random": "random", "round-robin": "round_robin",
+       "heuristic": "heuristic", "optimal": "optimal", "PPO": "rl"}
+
+
+def load_latency():
+    """Per-run service-latency statistics per method per scale, plus bootstrap CIs.
+
+    Statistics are computed within each run and then averaged across runs, matching
+    the tables; CIs are cluster bootstraps over runs, so the error bars carry
+    between-run variance rather than treating correlated calls as independent.
+    """
+    mean, p95, lo, hi = ({m: [] for m in METHODS} for _ in range(4))
+    for hosts in HOSTS:
+        runs = analysis.summarize_runs(ARCHIVE.format(hosts), metric="service_ms")
+        for label in METHODS:
+            per_run = list(runs.get(KEY[label], {}).values())
+            if not per_run:
+                for d in (mean, p95, lo, hi):
+                    d[label].append(np.nan)
+                continue
+            means = [r["mean"] for r in per_run]
+            ci_lo, ci_hi = analysis.cluster_bootstrap_ci(means)
+            mean[label].append(float(np.mean(means)))
+            p95[label].append(float(np.mean([r["p95"] for r in per_run])))
+            lo[label].append(ci_lo)
+            hi[label].append(ci_hi)
+    return mean, p95, lo, hi
+
+
+def load_overhead():
+    """Parse mean selection time per method per scale from the overhead run."""
+    blocks = re.split(r"^--- ", open(OVERHEAD_TXT).read(), flags=re.M)[1:]
+    by_scale = {}
+    for block in blocks:
+        hosts = int(re.search(r"\((\d+) hosts", block).group(1))
+        by_scale[hosts] = {
+            m: float(v) for m, v in re.findall(r"^(\w+)\s+([\d.]+)", block, flags=re.M)}
+    return {label: [by_scale[h][KEY[label]] for h in HOSTS] for label in METHODS}
+
+
+def load_rl_spread():
+    """Distinct backups each policy used at 128 hosts, from the archived mappings."""
+    seen = {}
+    for row in analysis.iter_rows(ARCHIVE.format(128)):
+        if row["method"] != "rl":
+            continue
+        seen.setdefault((int(row["context_seed"]), int(row["trial"])), set()).add(row["backup"])
+    counts = [len(v) for v in seen.values()]
+    heur = {}
+    for row in analysis.iter_rows(ARCHIVE.format(128)):
+        if row["method"] != "heuristic":
+            continue
+        heur.setdefault((int(row["context_seed"]), int(row["trial"])), set()).add(row["backup"])
+    return (min(counts), max(counts),
+            min(len(v) for v in heur.values()), max(len(v) for v in heur.values()))
+
+
+MEAN, P95, CI_LO, CI_HI = load_latency()
+OVERHEAD = load_overhead()
 
 
 def strip(ax):
@@ -104,9 +160,14 @@ def host_axis(ax):
     ax.xaxis.set_minor_formatter(NullFormatter())
 
 
-def plot_series(ax, data):
+def plot_series(ax, data, lo=None, hi=None):
     for m in METHODS:
         s = STYLE[m]
+        if lo is not None:
+            err = [np.subtract(data[m], lo[m]), np.subtract(hi[m], data[m])]
+            ax.errorbar(HOSTS, data[m], yerr=err, color=s["color"], ecolor=s["color"],
+                        elinewidth=0.8, capsize=2, capthick=0.8, fmt="none",
+                        zorder=2, clip_on=False)
         ax.plot(HOSTS, data[m], color=s["color"], marker=s["marker"],
                 ls=s["ls"], lw=1.3, ms=4.2, markeredgecolor="white",
                 markeredgewidth=0.5, label=m, clip_on=False, zorder=3)
@@ -115,9 +176,9 @@ def plot_series(ax, data):
 # ================= Figure 1: latency vs scale (mean + p99) =================
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(3.45, 3.6), sharex=True,
                                gridspec_kw=dict(hspace=0.32))
-plot_series(ax1, MEAN)
-plot_series(ax2, P99)
-for ax, ttl in ((ax1, "(a) mean"), (ax2, "(b) p99")):
+plot_series(ax1, MEAN, CI_LO, CI_HI)
+plot_series(ax2, P95)
+for ax, ttl in ((ax1, "(a) mean, 95% CI"), (ax2, "(b) p95")):
     ax.set_yscale("log")
     strip(ax)
     ax.set_title(ttl, loc="left", color=INK, pad=3)
@@ -125,12 +186,10 @@ host_axis(ax2)
 ax1.set_ylabel("latency (ms)")
 ax2.set_ylabel("latency (ms)")
 ax2.set_xlabel("hosts")
-ax1.yaxis.set_major_locator(FixedLocator([30, 100, 300, 1000]))
-ax1.set_yticklabels(["30", "100", "300", "1000"])
-ax1.yaxis.set_minor_formatter(NullFormatter())
-ax2.yaxis.set_major_locator(FixedLocator([100, 1000, 10000]))
-ax2.set_yticklabels(["100", "1000", "10000"])
-ax2.yaxis.set_minor_formatter(NullFormatter())
+for ax in (ax1, ax2):
+    ax.yaxis.set_major_locator(FixedLocator([30, 100, 300, 1000, 3000]))
+    ax.set_yticklabels(["30", "100", "300", "1000", "3000"])
+    ax.yaxis.set_minor_formatter(NullFormatter())
 handles, labels = ax1.get_legend_handles_labels()
 fig.legend(handles, labels, ncol=3, loc="upper center",
            bbox_to_anchor=(0.54, 1.02), columnspacing=1.0,
@@ -161,9 +220,13 @@ plt.close(fig)
 # and the final fixed model (latency_128hosts.txt, per-seed 29,24,30,24,29);
 # heuristic reference measured from the same run (74-76 distinct, max load 2).
 configs = ["ent 0\n[64,64]\n400k steps", "ent 0.02\n[256,256]\n1M steps"]
-lo = [1, 24]
-hi = [5, 30]
-HEURISTIC_SPREAD = 74
+# The collapsed baseline checkpoint is not re-run here (it crashed the harness), so its
+# range stays as recorded in findings/collapse_check_128hosts.txt. The shipped model's
+# spread and the heuristic reference are measured from the current 128-host archive.
+RL_LO, RL_HI, HEUR_LO, HEUR_HI = load_rl_spread()
+lo = [1, RL_LO]
+hi = [5, RL_HI]
+HEURISTIC_SPREAD = HEUR_LO
 mid = [(a + b) / 2 for a, b in zip(lo, hi)]
 yerr = [[m - a for m, a in zip(mid, lo)], [b - m for m, b in zip(mid, hi)]]
 ramp = ["#86b6ef", "#104281"]  # ordinal blue ramp
@@ -174,7 +237,7 @@ bars = ax.bar(x, mid, width=0.5, color=ramp, zorder=3)
 ax.errorbar(x, mid, yerr=yerr, fmt="none", ecolor=INK2, elinewidth=0.9,
             capsize=3, capthick=0.9, zorder=4)
 ax.axhline(HEURISTIC_SPREAD, color=INK2, lw=0.9, ls=(0, (4, 2)), zorder=2)
-ax.text(0.5, HEURISTIC_SPREAD + 1.6, f"heuristic ({HEURISTIC_SPREAD}–{HEURISTIC_SPREAD + 2})",
+ax.text(0.5, HEURISTIC_SPREAD + 1.6, f"heuristic ({HEUR_LO}–{HEUR_HI})",
         ha="center", va="bottom", fontsize=6.8, color=INK2)
 for xi, (a, b) in enumerate(zip(lo, hi)):
     lbl = str(a) if a == b else f"{a}–{b}"

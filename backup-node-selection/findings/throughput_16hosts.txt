@@ -1,8 +1,4 @@
-# iDEFT findings: throughput_16hosts
-# command: throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration 3.0 --burst 10 --methods concentrated random round_robin heuristic optimal rl --n-hosts 16 --n-primaries 10 --n-degraded 2 --scale-seed 0 --rl-model rl_model_scaled.zip
-# generated: 2026-07-17 19:53:10 UTC
-# (reproducing this scenario overwrites this file)
-
+---------------------------------------------------------------------------------------------------
 
 --- context_seed=1 ---
   trial 1/3 done (order: ['optimal', 'round_robin', 'random', 'concentrated', 'rl', 'heuristic'])
@@ -32,28 +28,31 @@
 
 ===== SUMMARY across 5 context seeds x 3 trials (3.0s bursts, burst=10) =====
 (aggregate throughput/failure-rate per trial, summed/averaged across all primaries)
+(aggregate throughput per run; one run = one context_seed x trial)
 
 method         n_runs       mean_cps    mean_fail_pct           95% CI (cps)
-concentrated       15        1191.38           2.5749     [1140.51, 1253.40]
-random             15        1297.64           0.6224     [1245.58, 1353.27]
-round_robin        15        1287.96           0.2537     [1260.91, 1324.16]
-heuristic          15        1309.96           0.2850     [1263.69, 1364.05]
-optimal            15        1358.82           0.1550     [1321.58, 1408.29]
-rl                 15        1352.04           0.1681     [1317.33, 1397.89]
+concentrated       15         543.84           5.8206       [477.84, 616.58]
+random             15         688.84           1.2244       [626.53, 757.76]
+round_robin        15         733.49           0.4284       [677.93, 795.25]
+heuristic          15         752.64           0.4803       [689.98, 821.42]
+optimal            15         740.11           0.2642       [691.78, 790.83]
+rl                 15         780.96           0.3209       [721.91, 846.84]
 
-===== Pairwise Mann-Whitney U tests on per-trial aggregate throughput =====
-concentrated vs random       p=0.002463  r=+0.6533  significant (p<0.05)
-concentrated vs round_robin  p=0.000780  r=+0.7244  significant (p<0.05)
-concentrated vs heuristic    p=0.003691  r=+0.6267  significant (p<0.05)
-concentrated vs optimal      p=0.000308  r=+0.7778  significant (p<0.05)
-concentrated vs rl           p=0.000422  r=+0.7600  significant (p<0.05)
-random       vs round_robin  p=0.803420  r=-0.0578  not significant
-random       vs heuristic    p=0.618670  r=+0.1111  not significant
-random       vs optimal      p=0.051239  r=+0.4222  not significant
-random       vs rl           p=0.051239  r=+0.4222  not significant
-round_robin  vs heuristic    p=0.383733  r=+0.1911  not significant
-round_robin  vs optimal      p=0.003450  r=+0.6311  significant (p<0.05)
-round_robin  vs rl           p=0.002463  r=+0.6533  significant (p<0.05)
-heuristic    vs optimal      p=0.158465  r=+0.3067  not significant
-heuristic    vs rl           p=0.129996  r=+0.3289  not significant
-optimal      vs rl           p=0.787439  r=+0.0622  not significant
+===== Paired Wilcoxon signed-rank on per-run aggregate throughput =====
+Paired by (context_seed, trial); Holm-Bonferroni across the 15 comparisons.
+method A     vs method B     n=       d_median        r       p_raw      p_holm  
+concentrated vs random       n=15     -164.333   -0.983      0.0008      0.0080  significant
+concentrated vs round_robin  n=15     -206.333   -1.000      0.0001      0.0009  significant
+concentrated vs heuristic    n=15     -237.333   -0.950      0.0003      0.0037  significant
+concentrated vs optimal      n=15     -233.000   -0.900      0.0022      0.0194  significant
+concentrated vs rl           n=15     -240.667   -1.000      0.0001      0.0009  significant
+random       vs round_robin  n=15      -42.667   -0.750      0.0084      0.0585  n.s.
+random       vs heuristic    n=15      -65.667   -0.767      0.0067      0.0537  n.s.
+random       vs optimal      n=15      -83.000   -0.717      0.0125      0.0747  n.s.
+random       vs rl           n=15      -72.333   -0.983      0.0001      0.0016  significant
+round_robin  vs heuristic    n=15      -15.333   -0.400      0.1728      0.8638  n.s.
+round_robin  vs optimal      n=15      -26.667   -0.383      0.2078      0.8638  n.s.
+round_robin  vs rl           n=15      -36.667   -0.933      0.0004      0.0047  significant
+heuristic    vs optimal      n=15      -11.333   -0.267      0.3894      1.0000  n.s.
+heuristic    vs rl           n=15      -19.000   -0.217      0.4887      1.0000  n.s.
+optimal      vs rl           n=15       -7.667   -0.217      0.4887      1.0000  n.s.

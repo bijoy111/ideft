@@ -1,6 +1,6 @@
 # iDEFT findings: latency_9hosts
-# command: rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 --methods baseline concentrated random round_robin heuristic optimal rl
-# generated: 2026-07-17 16:33:56 UTC
+# command: rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 --methods baseline concentrated random round_robin heuristic optimal rl --rl-model rl_model.zip
+# generated: 2026-10-27 03:47:59 UTC
 # (reproducing this scenario overwrites this file)
 
 
@@ -65,46 +65,100 @@
   trial 3/3 done (order: ['round_robin', 'heuristic', 'optimal', 'random', 'baseline', 'rl', 'concentrated'])
 
 
-===== SUMMARY across 5 context seeds x 3 trials (200 calls/primary, burst=10) =====
+===== RUN SUMMARY: 5 context seeds x 3 trials (200 calls/primary, burst=10) =====
+Independent observations per method: 15 runs (5 seeds x 3 trials).
 
-method              n    mean_ms  median_ms     p95_ms     p99_ms           95% CI of mean
-baseline        15000    57.3280    10.6711    41.2425  1071.7726       [53.3147, 61.6085]
-concentrated    15000    94.9863     6.8127   221.6887  3125.5401      [87.6651, 102.8465]
-random          15000    45.9832    12.3517    47.4966  1063.3759       [42.9017, 49.0008]
-round_robin     15000    35.6735    18.4621    54.2718  1035.4170       [33.6789, 37.7882]
-heuristic       15000    41.0588    17.4812    50.6809  1054.3634       [38.6557, 43.4977]
-optimal         15000    36.9991    19.6343    56.0299  1034.2344       [35.0685, 39.0595]
-rl              15000    36.2036    18.8847    54.4658  1038.3774       [34.2247, 38.3056]
+===== Latency decomposition: backup service time vs. client retry wait =====
+wall_ms is what the previous harness reported as 'latency'. Any gap between
+wall and service is the client's own backoff sleep, not backup delay.
 
-===== Pairwise Mann-Whitney U tests + rank-biserial effect size =====
-(|r| ~0.1/0.3/0.5 ~ small/medium/large; p-values alone are near-meaningless at this n)
-baseline     vs concentrated p=0.000000  r=-0.1920  significant (p<0.05)
-baseline     vs random       p=0.000000  r=+0.0789  significant (p<0.05)
-baseline     vs round_robin  p=0.000000  r=+0.2383  significant (p<0.05)
-baseline     vs heuristic    p=0.000000  r=+0.2159  significant (p<0.05)
-baseline     vs optimal      p=0.000000  r=+0.2663  significant (p<0.05)
-baseline     vs rl           p=0.000000  r=+0.2456  significant (p<0.05)
-concentrated vs random       p=0.000000  r=+0.2566  significant (p<0.05)
-concentrated vs round_robin  p=0.000000  r=+0.3802  significant (p<0.05)
-concentrated vs heuristic    p=0.000000  r=+0.3680  significant (p<0.05)
-concentrated vs optimal      p=0.000000  r=+0.4027  significant (p<0.05)
-concentrated vs rl           p=0.000000  r=+0.3859  significant (p<0.05)
-random       vs round_robin  p=0.000000  r=+0.1584  significant (p<0.05)
-random       vs heuristic    p=0.000000  r=+0.1341  significant (p<0.05)
-random       vs optimal      p=0.000000  r=+0.1869  significant (p<0.05)
-random       vs rl           p=0.000000  r=+0.1657  significant (p<0.05)
-round_robin  vs heuristic    p=0.000019  r=-0.0285  significant (p<0.05)
-round_robin  vs optimal      p=0.000004  r=+0.0308  significant (p<0.05)
-round_robin  vs rl           p=0.228424  r=+0.0080  not significant
-heuristic    vs optimal      p=0.000000  r=+0.0593  significant (p<0.05)
-heuristic    vs rl           p=0.000000  r=+0.0364  significant (p<0.05)
-optimal      vs rl           p=0.000602  r=-0.0229  significant (p<0.05)
+method        service p99    retry p99     wall p99 wall-service  retried %
+heuristic         1057.20         0.02      1057.20         0.00       0.00
+random            1080.14         0.02      1080.14         0.01       0.00
+concentrated      3147.22         0.02      3147.26         0.04       0.01
+baseline          1091.46         0.02      1091.47         0.00       0.00
+optimal           1038.34         0.02      1038.35         0.01       0.00
+round_robin       1045.75         0.02      1045.75         0.00       0.00
+rl                1046.33         0.02      1046.33         0.00       0.00
 
-===== Latency broken down by backup_load (pooled across all methods/seeds) =====
-This isolates the real mechanism: does sharing a backup among more primaries
-increase latency, independent of which method produced that sharing pattern?
-  load        n    mean_ms  median_ms     p95_ms     p99_ms
-     1    70800    35.3534    17.9358    52.0728  1036.5159
-     2    13200    53.4359    10.2340    49.5706  1074.4837
-     3     9000    74.7657     8.1352   221.9554  1090.1987
-     4    12000   111.8521     6.1187  1018.5809  3140.9324
+===== Run-level summary: service latency =====
+One observation per (method, context_seed, trial). Latency statistics are
+computed within each run, then averaged across runs; CIs are cluster
+bootstraps over runs. Failed calls are censored (counted in failure rate,
+excluded from latency), not imputed as a sentinel value.
+
+method         runs    mean_ms  median_ms     p95_ms     p99_ms    fail_%         95% CI of mean
+heuristic        15      51.10      27.92      66.05    1052.26      0.00         [48.16, 54.19]
+random           15      58.70      21.35      55.39    1076.16      0.00         [55.86, 61.66]
+concentrated     15     107.42      10.04     558.47    3062.12      0.00       [100.80, 114.72]
+baseline         15      73.45      15.71      81.45    1490.21      0.00         [69.58, 77.74]
+optimal          15      45.90      31.88      67.64    1037.92      0.00         [44.38, 47.35]
+round_robin      15      47.51      33.36      70.20    1044.42      0.00         [46.05, 49.05]
+rl               15      48.44      33.43      70.68    1049.80      0.00         [45.45, 52.09]
+
+===== Paired Wilcoxon signed-rank on per-run mean (service latency) =====
+Paired by (context_seed, trial); Holm-Bonferroni across the 21 comparisons.
+r is the matched-pairs rank-biserial correlation: how consistently one
+method beats the other across runs, +1 or -1 meaning every run agrees.
+
+method A     vs method B     n=       d_median        r       p_raw      p_holm  
+heuristic    vs random       n=15       -7.882   -0.833      0.0026      0.0210  significant
+heuristic    vs concentrated n=15      -54.714   -1.000      0.0001      0.0013  significant
+heuristic    vs baseline     n=15      -22.153   -1.000      0.0001      0.0013  significant
+heuristic    vs optimal      n=15        4.944    0.733      0.0103      0.0615  n.s.
+heuristic    vs round_robin  n=15        2.084    0.517      0.0833      0.4163  n.s.
+heuristic    vs rl           n=15        2.830    0.417      0.1688      0.6753  n.s.
+random       vs concentrated n=15      -43.987   -1.000      0.0001      0.0013  significant
+random       vs baseline     n=15      -13.391   -1.000      0.0001      0.0013  significant
+random       vs optimal      n=15       12.054    1.000      0.0001      0.0013  significant
+random       vs round_robin  n=15        8.691    1.000      0.0001      0.0013  significant
+random       vs rl           n=15       12.357    0.783      0.0054      0.0376  significant
+concentrated vs baseline     n=15       32.469    0.983      0.0001      0.0013  significant
+concentrated vs optimal      n=15       59.658    1.000      0.0001      0.0013  significant
+concentrated vs round_robin  n=15       57.130    1.000      0.0001      0.0013  significant
+concentrated vs rl           n=15       60.502    1.000      0.0001      0.0013  significant
+baseline     vs optimal      n=15       25.186    1.000      0.0001      0.0013  significant
+baseline     vs round_robin  n=15       24.333    1.000      0.0001      0.0013  significant
+baseline     vs rl           n=15       24.792    1.000      0.0001      0.0013  significant
+optimal      vs round_robin  n=15       -1.511   -0.333      0.2769      0.8306  n.s.
+optimal      vs rl           n=15       -2.949   -0.283      0.3591      0.8306  n.s.
+round_robin  vs rl           n=15       -0.149    0.050      0.8904      0.8904  n.s.
+
+===== Paired Wilcoxon signed-rank on per-run p99 (service latency) =====
+Paired by (context_seed, trial); Holm-Bonferroni across the 21 comparisons.
+r is the matched-pairs rank-biserial correlation: how consistently one
+method beats the other across runs, +1 or -1 meaning every run agrees.
+
+method A     vs method B     n=       d_median        r       p_raw      p_holm  
+heuristic    vs random       n=15      -23.956   -0.933      0.0004      0.0043  significant
+heuristic    vs concentrated n=15    -2092.259   -1.000      0.0001      0.0013  significant
+heuristic    vs baseline     n=15      -42.750   -1.000      0.0001      0.0013  significant
+heuristic    vs optimal      n=15       11.698    0.767      0.0067      0.0403  significant
+heuristic    vs round_robin  n=15        9.882    0.433      0.1514      0.4822  n.s.
+heuristic    vs rl           n=15        6.136    0.133      0.6788      0.9774  n.s.
+random       vs concentrated n=15    -2072.666   -1.000      0.0001      0.0013  significant
+random       vs baseline     n=15      -16.144   -0.800      0.0043      0.0299  significant
+random       vs optimal      n=15       43.845    1.000      0.0001      0.0013  significant
+random       vs round_robin  n=15       32.365    0.950      0.0003      0.0034  significant
+random       vs rl           n=15       34.203    0.883      0.0012      0.0093  significant
+concentrated vs baseline     n=15     2059.554    0.933      0.0004      0.0043  significant
+concentrated vs optimal      n=15     2107.204    1.000      0.0001      0.0013  significant
+concentrated vs round_robin  n=15     2092.401    1.000      0.0001      0.0013  significant
+concentrated vs rl           n=15     2099.157    1.000      0.0001      0.0013  significant
+baseline     vs optimal      n=15       51.478    1.000      0.0001      0.0013  significant
+baseline     vs round_robin  n=15       47.508    1.000      0.0001      0.0013  significant
+baseline     vs rl           n=15       40.453    1.000      0.0001      0.0013  significant
+optimal      vs round_robin  n=15       -6.508   -0.467      0.1205      0.4822  n.s.
+optimal      vs rl           n=15      -17.880   -0.633      0.0302      0.1508  n.s.
+round_robin  vs rl           n=15      -10.605   -0.217      0.4887      0.9774  n.s.
+
+===== Service latency vs. backup load (one observation per run x backup) =====
+Does sharing a backup among more primaries raise latency, independent of
+which method produced the sharing? Aggregated per (run, backup) so that
+correlated calls against one loaded server count once, not thousands of times.
+
+  load n_units    mean_ms  median_ms         95% CI of mean
+     1     354      45.23      45.17         [44.60, 45.89]
+     2      33      68.07      68.78         [65.80, 70.35]
+     3      15      96.94      93.06        [90.51, 104.25]
+     4      15     126.20     124.20       [117.85, 135.44]

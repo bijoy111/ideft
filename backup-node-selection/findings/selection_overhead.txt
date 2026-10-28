@@ -1,41 +1,43 @@
-# iDEFT findings: selection_overhead
-# command: selection_overhead.py
-# generated: 2026-07-17 19:37:40 UTC
-# (reproducing this scenario overwrites this file)
-
+---------------------------------------------------------------------------------------------------
 
 --- homogeneous-9 (9 hosts, 5 primaries) ---
 method          mean_ms  median_ms     std_ms
-concentrated     0.0052     0.0048     0.0015
-random           0.0213     0.0189     0.0080
-round_robin      0.0044     0.0041     0.0009
-heuristic        0.0548     0.0437     0.0249
-optimal          0.0968     0.0868     0.0503
-rl               1.8121     1.6506     0.3469
+concentrated     0.0059     0.0051     0.0040
+random           0.0275     0.0252     0.0055
+round_robin      0.0049     0.0038     0.0045
+heuristic        0.0497     0.0482     0.0072
+optimal          0.0807     0.0674     0.0338
+rl               6.3447     4.4787     4.8856
+rl_dqn           1.4040     1.1696     0.5263
 
 --- scaled-16 (16 hosts, 10 primaries) ---
 method          mean_ms  median_ms     std_ms
-concentrated     0.0127     0.0114     0.0053
-random           0.0290     0.0264     0.0051
-round_robin      0.0053     0.0042     0.0019
-heuristic        0.1612     0.1434     0.0447
-optimal          0.2077     0.1716     0.0741
-rl               3.7561     3.6336     0.6484
+concentrated     0.0207     0.0183     0.0056
+random           0.0427     0.0388     0.0083
+round_robin      0.0068     0.0055     0.0027
+heuristic        0.1455     0.1370     0.0262
+optimal          0.2708     0.2443     0.0865
+rl               5.0653     4.6827     1.6700
+rl_dqn           6.2094     2.7986    14.8507
 
 --- scaled-32 (32 hosts, 20 primaries) ---
 method          mean_ms  median_ms     std_ms
-concentrated     0.0551     0.0467     0.0394
-random           0.0844     0.0797     0.0151
-round_robin      0.0154     0.0146     0.0036
-heuristic        0.6462     0.5503     0.2711
-optimal          0.9134     0.7828     0.3080
-rl              11.2892    10.7867     1.9501
+concentrated     0.0350     0.0347     0.0011
+random           0.0536     0.0530     0.0030
+round_robin      0.0085     0.0076     0.0043
+heuristic        0.5998     0.5063     0.2082
+optimal          0.8598     0.7966     0.2248
+rl              10.6055    10.8809     2.6050
+rl_dqn           6.2168     5.5647     2.2993
 
 --- scaled-128 (128 hosts, 80 primaries) ---
 method          mean_ms  median_ms     std_ms
-concentrated     0.7309     0.6522     0.2420
-random           0.6393     0.5936     0.1249
-round_robin      0.0304     0.0285     0.0053
-heuristic        7.2598     7.0865     0.8001
-optimal          8.9432     8.8272     1.0129
-rl              49.6401    46.1160    13.6696
+concentrated     0.6000     0.5645     0.0864
+random           0.5670     0.5430     0.0641
+round_robin      0.0551     0.0557     0.0102
+heuristic       10.2770     8.3673     7.2419
+optimal          9.9680     9.0936     2.5797
+rl              61.6359    51.7708    33.2611
+rl_dqn          40.0798    35.1013    21.3918
+8    33.2611
+rl_dqn          40.0798    35.1013    21.3918

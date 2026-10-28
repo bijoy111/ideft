@@ -6,3 +6,16 @@ venv/
 # raw per-call CSVs written by the experiment harnesses
 # (findings/ holds the summary output and IS committed)
 results_rpc/
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.bbl
+*.blg
+
+# Windows Zone.Identifier metadata
+*:Zone.Identifier
+
+# Raw per-call records (55 MB). Regenerate with the harness; the derived
+# per-run analyses in findings/analysis_*.txt are committed instead.
+backup-node-selection/findings/raw/

@@ -25,14 +25,13 @@ import xmlrpc.client
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
-from scipy import stats
 
+import analysis
 import backup_selector
 import config
 import topology_features
 from rpc_contention_experiment import (
-    DUMMY_STATE, METHODS, _rl_mapping, backup_load, bootstrap_ci,
-    rank_biserial_effect_size, start_backup_servers,
+    DUMMY_STATE, METHODS, _rl_mapping, backup_load, start_backup_servers,
 )
 
 RESULTS_DIR = "results_rpc"
@@ -138,8 +137,12 @@ def run_experiment(context_seeds, trials, duration_s, burst_size, methods, order
     method_fns["rl"] = lambda ctx, hosts, primaries: _rl_mapping(ctx, hosts, primaries, model_path=rl_model_path)
 
     order_rng = random_module.Random(order_seed)
-    all_throughput = {name: [] for name in methods}
-    all_failure_rate = {name: [] for name in methods}
+    # Keyed by (context_seed, trial) rather than appended to a flat list, so every
+    # method's runs can be matched up and compared with a paired test: each method is
+    # executed under the same seeds and trials, and pairing removes the between-run
+    # variance (background OS load, seed difficulty) that dominates at this sample size.
+    all_throughput = {name: {} for name in methods}
+    all_failure_rate = {name: {} for name in methods}
     base_port = 9501
 
     for context_seed in context_seeds:
@@ -162,8 +165,9 @@ def run_experiment(context_seeds, trials, duration_s, burst_size, methods, order
                 total_successes = sum(s for s, f in results_by_primary.values())
                 total_failures = sum(f for s, f in results_by_primary.values())
                 total_calls = total_successes + total_failures
-                all_throughput[name].append(total_successes / duration_s)
-                all_failure_rate[name].append((100.0 * total_failures / total_calls) if total_calls else 0.0)
+                all_throughput[name][(context_seed, trial)] = total_successes / duration_s
+                all_failure_rate[name][(context_seed, trial)] = (
+                    (100.0 * total_failures / total_calls) if total_calls else 0.0)
 
                 base_port += len(set(mapping.values())) + 1
             print("  trial {}/{} done (order: {})".format(trial + 1, trials, trial_order))
@@ -172,26 +176,43 @@ def run_experiment(context_seeds, trials, duration_s, burst_size, methods, order
     print("\n\n===== SUMMARY across {} context seeds x {} trials ({}s bursts, burst={}) =====".format(
         n_seeds, trials, duration_s, burst_size))
     print("(aggregate throughput/failure-rate per trial, summed/averaged across all primaries)")
+    print("(aggregate throughput per run; one run = one context_seed x trial)")
     print("\n{:<12} {:>8} {:>14} {:>16} {:>22}".format(
         "method", "n_runs", "mean_cps", "mean_fail_pct", "95% CI (cps)"))
     for name in methods:
-        vals = all_throughput[name]
-        arr = np.asarray(vals)
-        lo, hi = bootstrap_ci(vals)
-        fail_arr = np.asarray(all_failure_rate[name])
+        vals = list(all_throughput[name].values())
+        lo, hi = analysis.cluster_bootstrap_ci(vals)
         print("{:<12} {:>8} {:>14.2f} {:>16.4f} {:>22}".format(
-            name, len(vals), arr.mean(), fail_arr.mean(),
+            name, len(vals), float(np.mean(vals)),
+            float(np.mean(list(all_failure_rate[name].values()))),
             "[{:.2f}, {:.2f}]".format(lo, hi)))
 
-    print("\n===== Pairwise Mann-Whitney U tests on per-trial aggregate throughput =====")
-    method_list = list(methods)
-    for i in range(len(method_list)):
-        for j in range(i + 1, len(method_list)):
-            a, b = method_list[i], method_list[j]
-            u_stat, p_value = stats.mannwhitneyu(all_throughput[a], all_throughput[b], alternative="two-sided")
-            r = rank_biserial_effect_size(all_throughput[a], all_throughput[b], u_stat=u_stat)
-            sig = "significant (p<0.05)" if p_value < 0.05 else "not significant"
-            print("{:<12} vs {:<12} p={:.6f}  r={:+.4f}  {}".format(a, b, p_value, r, sig))
+    # Reuse the run-level machinery from analysis.py: paired Wilcoxon signed-rank with
+    # Holm-Bonferroni across the family, in place of an unpaired Mann-Whitney per pair
+    # with no correction. Throughput was already a per-run quantity, so the sample size
+    # does not change here; what changes is that the test now exploits the pairing and
+    # that the family-wise error rate is controlled across all comparisons.
+    runs = {name: {key: {"mean": value} for key, value in all_throughput[name].items()}
+            for name in methods}
+    comparisons = analysis.paired_comparisons(runs, metric="mean")
+    if comparisons:
+        n_pairs = comparisons[0]["n_pairs"]
+        print("\n===== Paired Wilcoxon signed-rank on per-run aggregate throughput =====")
+        print("Paired by (context_seed, trial); Holm-Bonferroni across the {} comparisons.".format(
+            len(comparisons)))
+        floor = analysis.min_attainable_p(n_pairs)
+        if floor > 0.01:
+            print("[power] with n={} pairs the smallest attainable two-sided p is {:.4f};".format(
+                n_pairs, floor))
+            print("        a non-significant result is weak evidence, not evidence of no effect.")
+        fmt = "{:<12} vs {:<12} n={:<3} {:>11} {:>8} {:>11} {:>11}  {}"
+        print(fmt.format("method A", "method B", "", "d_median", "r", "p_raw", "p_holm", ""))
+        for c in comparisons:
+            print(fmt.format(
+                c["a"], c["b"], c["n_pairs"],
+                "{:.3f}".format(c["median_diff"]), "{:.3f}".format(c["r"]),
+                "{:.4f}".format(c["p"]), "{:.4f}".format(c["p_holm"]),
+                "significant" if c["p_holm"] < 0.05 else "n.s."))
 
     return all_throughput, all_failure_rate
 

@@ -1,8 +1,4 @@
-# iDEFT findings: throughput_9hosts
-# command: throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration 3.0 --burst 10 --methods baseline concentrated random round_robin heuristic optimal rl
-# generated: 2026-07-17 19:38:15 UTC
-# (reproducing this scenario overwrites this file)
-
+---------------------------------------------------------------------------------------------------
 
 --- context_seed=1 ---
   trial 1/3 done (order: ['heuristic', 'random', 'concentrated', 'baseline', 'optimal', 'round_robin', 'rl'])
@@ -32,35 +28,38 @@
 
 ===== SUMMARY across 5 context seeds x 3 trials (3.0s bursts, burst=10) =====
 (aggregate throughput/failure-rate per trial, summed/averaged across all primaries)
+(aggregate throughput per run; one run = one context_seed x trial)
 
 method         n_runs       mean_cps    mean_fail_pct           95% CI (cps)
-baseline           15        1176.04           0.3816     [1144.80, 1206.05]
-concentrated       15        1158.07           0.6968     [1123.00, 1188.02]
-random             15        1180.53           0.2583     [1154.18, 1203.36]
-round_robin        15        1172.93           0.0592     [1159.47, 1186.89]
-heuristic          15        1197.29           0.1413     [1175.64, 1215.20]
-optimal            15        1159.16           0.0721     [1120.66, 1187.67]
-rl                 15        1175.13           0.0942     [1160.04, 1189.89]
+baseline           15         523.20           1.0206       [440.78, 617.89]
+concentrated       15         530.02           1.7805       [437.56, 634.27]
+random             15         520.53           0.7970       [436.37, 613.89]
+round_robin        15         547.09           0.2819       [442.24, 669.62]
+heuristic          15         570.67           0.4798       [473.06, 683.80]
+optimal            15         549.62           0.2273       [453.67, 661.73]
+rl                 15         541.69           0.3149       [461.73, 630.05]
 
-===== Pairwise Mann-Whitney U tests on per-trial aggregate throughput =====
-baseline     vs concentrated p=0.533738  r=-0.1378  not significant
-baseline     vs random       p=0.787439  r=+0.0622  not significant
-baseline     vs round_robin  p=0.678269  r=-0.0933  not significant
-baseline     vs heuristic    p=0.309474  r=+0.2222  not significant
-baseline     vs optimal      p=0.533829  r=-0.1378  not significant
-baseline     vs rl           p=0.787439  r=-0.0622  not significant
-concentrated vs random       p=0.350634  r=+0.2044  not significant
-concentrated vs round_robin  p=0.819506  r=+0.0533  not significant
-concentrated vs heuristic    p=0.071153  r=+0.3911  not significant
-concentrated vs optimal      p=1.000000  r=+0.0044  not significant
-concentrated vs rl           p=0.771551  r=+0.0667  not significant
-random       vs round_robin  p=0.198456  r=-0.2800  not significant
-random       vs heuristic    p=0.350634  r=+0.2044  not significant
-random       vs optimal      p=0.383733  r=-0.1911  not significant
-random       vs rl           p=0.430648  r=-0.1733  not significant
-round_robin  vs heuristic    p=0.029400  r=+0.4711  significant (p<0.05)
-round_robin  vs optimal      p=1.000000  r=-0.0044  not significant
-round_robin  vs rl           p=0.648167  r=+0.1022  not significant
-heuristic    vs optimal      p=0.046487  r=-0.4311  significant (p<0.05)
-heuristic    vs rl           p=0.038088  r=-0.4489  significant (p<0.05)
-optimal      vs rl           p=0.819526  r=+0.0533  not significant
+===== Paired Wilcoxon signed-rank on per-run aggregate throughput =====
+Paired by (context_seed, trial); Holm-Bonferroni across the 21 comparisons.
+method A     vs method B     n=       d_median        r       p_raw      p_holm  
+baseline     vs concentrated n=15        8.333    0.317      0.3028      1.0000  n.s.
+baseline     vs random       n=15        0.667    0.125      0.6701      1.0000  n.s.
+baseline     vs round_robin  n=15      -18.667   -0.350      0.2524      1.0000  n.s.
+baseline     vs heuristic    n=15      -27.667   -0.767      0.0067      0.1410  n.s.
+baseline     vs optimal      n=15      -13.000   -0.450      0.1354      1.0000  n.s.
+baseline     vs rl           n=15      -10.333   -0.183      0.5320      1.0000  n.s.
+concentrated vs random       n=15      -20.333   -0.350      0.2524      1.0000  n.s.
+concentrated vs round_robin  n=15      -33.667   -0.400      0.1876      1.0000  n.s.
+concentrated vs heuristic    n=15      -42.667   -0.767      0.0067      0.1410  n.s.
+concentrated vs optimal      n=15      -37.667   -0.750      0.0084      0.1589  n.s.
+concentrated vs rl           n=15      -23.333   -0.283      0.3591      1.0000  n.s.
+random       vs round_robin  n=15      -11.667   -0.317      0.3028      1.0000  n.s.
+random       vs heuristic    n=15      -26.667   -0.567      0.0554      0.9965  n.s.
+random       vs optimal      n=15      -17.333   -0.451      0.1520      1.0000  n.s.
+random       vs rl           n=15        3.667   -0.083      0.8040      1.0000  n.s.
+round_robin  vs heuristic    n=15       -5.667   -0.150      0.6387      1.0000  n.s.
+round_robin  vs optimal      n=15       -6.667    0.017      0.9780      1.0000  n.s.
+round_robin  vs rl           n=15       -1.000    0.142      0.6291      1.0000  n.s.
+heuristic    vs optimal      n=15       17.667    0.383      0.2078      1.0000  n.s.
+heuristic    vs rl           n=15       11.667    0.371      0.2209      1.0000  n.s.
+optimal      vs rl           n=15      -10.667    0.067      0.8202      1.0000  n.s.

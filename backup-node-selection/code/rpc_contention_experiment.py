@@ -21,17 +21,16 @@ import csv
 import multiprocessing
 import os
 import random as random_module
-import statistics
 import time
 import xmlrpc.client
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
-from scipy import stats
 
 from exp_package.Two_phase_commit.backup_2pc import Backup
 
+import analysis
 import backup_selector
 import config
 import topology_features
@@ -39,7 +38,8 @@ import topology_features
 DUMMY_STATE = {"10.0.0.1,10.0.0.2,1": 42}
 RESULTS_DIR = "results_rpc"
 RESULTS_CSV = "{}/rpc_contention_raw.csv".format(RESULTS_DIR)
-RESULTS_FIELDS = ["method", "context_seed", "trial", "primary", "backup", "backup_load", "latency_ms"]
+RESULTS_FIELDS = ["method", "context_seed", "trial", "primary", "backup", "backup_load",
+                  "service_ms", "retry_wait_ms", "wall_ms", "attempts", "succeeded"]
 
 
 def _make_update_state(extra_delay_s=0.0):
@@ -82,7 +82,44 @@ def start_backup_servers(unique_backups, base_port, slow_hosts=None, slow_delay_
 
 
 MAX_RETRY_ATTEMPTS = 8
-FAILED_CALL_PENALTY_MS = 10000.0
+
+# xmlrpc.client.ServerProxy applies no socket timeout, so a connection the server has
+# accepted but is not reading stalls the client forever. DEFT's backup is a
+# single-threaded SimpleXMLRPCServer, so one wedged connection blocks the accept loop
+# and every other client queues behind it indefinitely. At 128 hosts with 80 primaries
+# on one backup this deadlocked a run outright: over an 80 s observation the server's
+# CPU time stayed frozen at 8 s with 87 sockets in SYN-SENT, 20 established, and zero
+# forward progress. A production 2PC client would bound the wait and retry, so the
+# benchmark client does too. The timeout sits well above the largest genuine service
+# time observed anywhere in these experiments (7.2 s), so it bounds the deadlock
+# without censoring real slow calls. This changes the benchmark client only; the
+# backup server under test is still DEFT's own, unmodified.
+CALL_TIMEOUT_S = 20.0
+
+
+class _TimeoutTransport(xmlrpc.client.Transport):
+    """xmlrpc.client.Transport that applies a socket timeout to its connections."""
+
+    def __init__(self, timeout=None):
+        super().__init__()
+        # Resolved at call time, not bound as a default at definition time, so
+        # CALL_TIMEOUT_S stays overridable by tests and callers.
+        self._timeout = timeout
+
+    def make_connection(self, host):
+        conn = super().make_connection(host)
+        conn.timeout = CALL_TIMEOUT_S if self._timeout is None else self._timeout
+        return conn
+
+
+def make_proxy(port):
+    return xmlrpc.client.ServerProxy(
+        "http://127.0.0.1:{}".format(port), transport=_TimeoutTransport())
+
+# A call that never succeeds is recorded as censored (succeeded=False) and contributes
+# only to the failure rate. The previous harness imputed a 10,000 ms sentinel into the
+# latency sample instead, which silently contaminated every percentile computed from it:
+# a p99 above that sentinel could not be distinguished from a p99 made of sentinels.
 
 
 def replicate_burst(port, n_calls, burst_size):
@@ -97,48 +134,67 @@ def replicate_burst(port, n_calls, burst_size):
     run, so heavy contention shows up as elevated latency and a nonzero failure count."""
 
     def worker(n_calls_for_this_worker):
-        proxy = xmlrpc.client.ServerProxy("http://127.0.0.1:{}".format(port))
-        latencies = []
+        proxy = make_proxy(port)
+        records = []
         failures = 0
         for _ in range(n_calls_for_this_worker):
-            start = time.perf_counter()
-            succeeded = False
+            call_start = time.perf_counter()
+            service_s = None
+            attempts = 0
             for attempt in range(MAX_RETRY_ATTEMPTS):
+                attempts += 1
+                attempt_start = time.perf_counter()
                 try:
                     proxy.update_state(DUMMY_STATE)
-                    succeeded = True
+                    # Time the successful attempt alone. This is the backup's real
+                    # service + queueing delay; it is the only quantity here that is a
+                    # property of the server under test.
+                    service_s = time.perf_counter() - attempt_start
                     break
                 except (ConnectionResetError, ConnectionRefusedError, OSError):
                     if attempt == MAX_RETRY_ATTEMPTS - 1:
                         break
                     backoff = min(0.05 * (2 ** attempt), 1.0) + random_module.uniform(0, 0.02)
                     time.sleep(backoff)
-                    proxy = xmlrpc.client.ServerProxy("http://127.0.0.1:{}".format(port))
-            if succeeded:
-                latencies.append((time.perf_counter() - start) * 1000)
-            else:
+                    proxy = make_proxy(port)
+            wall_s = time.perf_counter() - call_start
+            if service_s is None:
                 failures += 1
-                latencies.append(FAILED_CALL_PENALTY_MS)
-        return latencies, failures
+                records.append({
+                    "service_ms": "", "retry_wait_ms": wall_s * 1000,
+                    "wall_ms": wall_s * 1000, "attempts": attempts, "succeeded": False,
+                })
+            else:
+                # Everything outside the successful attempt is failed attempts plus this
+                # client's own exponential-backoff sleep: a property of the retry policy,
+                # not of the backup. Keeping it fused into one number (as the previous
+                # timer, started outside the retry loop, did) attributes the client's
+                # sleep constants to backup queueing delay.
+                records.append({
+                    "service_ms": service_s * 1000,
+                    "retry_wait_ms": (wall_s - service_s) * 1000,
+                    "wall_ms": wall_s * 1000, "attempts": attempts, "succeeded": True,
+                })
+        return records, failures
 
     calls_per_worker = [n_calls // burst_size] * burst_size
     for i in range(n_calls % burst_size):
         calls_per_worker[i] += 1
 
-    all_latencies = []
+    all_records = []
     total_failures = 0
     with ThreadPoolExecutor(max_workers=burst_size) as executor:
         futures = [executor.submit(worker, c) for c in calls_per_worker if c > 0]
         for future in futures:
-            latencies, failures = future.result()
-            all_latencies.extend(latencies)
+            records, failures = future.result()
+            all_records.extend(records)
             total_failures += failures
 
     if total_failures:
         print("  [warning] {} call(s) failed after {} retries against port {}".format(
             total_failures, MAX_RETRY_ATTEMPTS, port))
 
-    return all_latencies
+    return all_records
 
 
 def backup_load(mapping):
@@ -154,14 +210,14 @@ def run_trial(mapping, base_port, n_calls, burst_size, slow_hosts=None):
     time.sleep(0.3)  # let server processes finish starting up and binding
 
     try:
-        latencies_by_primary = {}
+        records_by_primary = {}
         with ThreadPoolExecutor(max_workers=len(mapping)) as primary_pool:
             futures = {
                 primary: primary_pool.submit(replicate_burst, ports[backup], n_calls, burst_size)
                 for primary, backup in mapping.items()
             }
             for primary, future in futures.items():
-                latencies_by_primary[primary] = future.result()
+                records_by_primary[primary] = future.result()
     finally:
         for proc in processes:
             proc.terminate()
@@ -169,10 +225,22 @@ def run_trial(mapping, base_port, n_calls, burst_size, slow_hosts=None):
             proc.join()
         time.sleep(0.2)  # let the OS fully release ports/sockets before the next method
 
-    return latencies_by_primary
+    return records_by_primary
 
 
-def record_raw(method, context_seed, trial, mapping, latencies_by_primary):
+def reset_raw_csv():
+    """Start each experiment invocation from an empty raw file.
+
+    The previous version appended forever and then read the whole file back for its
+    load-breakdown table, so that table silently pooled calls from earlier runs at
+    other scales and other harness versions.
+    """
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    with open(RESULTS_CSV, "w", newline="") as f:
+        csv.DictWriter(f, fieldnames=RESULTS_FIELDS).writeheader()
+
+
+def record_raw(method, context_seed, trial, mapping, records_by_primary):
     load = backup_load(mapping)
     os.makedirs(RESULTS_DIR, exist_ok=True)
     write_header = not os.path.exists(RESULTS_CSV)
@@ -180,19 +248,20 @@ def record_raw(method, context_seed, trial, mapping, latencies_by_primary):
         writer = csv.DictWriter(f, fieldnames=RESULTS_FIELDS)
         if write_header:
             writer.writeheader()
-        for primary, latencies in latencies_by_primary.items():
+        for primary, records in records_by_primary.items():
             backup = mapping[primary]
             n_sharing = len(load[backup])
-            for latency in latencies:
-                writer.writerow({
+            for rec in records:
+                row = {
                     "method": method,
                     "context_seed": context_seed,
                     "trial": trial,
                     "primary": primary,
                     "backup": backup,
                     "backup_load": n_sharing,
-                    "latency_ms": latency,
-                })
+                }
+                row.update(rec)
+                writer.writerow(row)
 
 
 _rl_model_cache = {}
@@ -229,27 +298,10 @@ METHODS = {
 }
 
 
-def bootstrap_ci(values, n_resamples=5000, ci=0.95, seed=0):
-    rng = np.random.default_rng(seed)
-    values = np.asarray(values)
-    means = np.empty(n_resamples)
-    for i in range(n_resamples):
-        sample = rng.choice(values, size=len(values), replace=True)
-        means[i] = sample.mean()
-    lo = np.percentile(means, (1 - ci) / 2 * 100)
-    hi = np.percentile(means, (1 + ci) / 2 * 100)
-    return lo, hi
-
-
-def rank_biserial_effect_size(a, b, u_stat=None):
-    """Effect size companion to Mann-Whitney U: rank-biserial correlation r in
-    [-1, 1]. |r| ~0.1/0.3/0.5 are conventionally small/medium/large. With large n,
-    p-values are almost always significant regardless of practical magnitude, so r is
-    the number to read for whether a difference matters."""
-    n1, n2 = len(a), len(b)
-    if u_stat is None:
-        u_stat, _ = stats.mannwhitneyu(a, b, alternative="two-sided")
-    return 1 - (2 * u_stat) / (n1 * n2)
+# Statistics live in analysis.py. They operate on runs -- one (method, context_seed,
+# trial) execution -- rather than on individual calls. Pooling calls treated thousands
+# of correlated requests against one server process as independent samples, which drove
+# p-values to zero without adding evidence; see analysis.py's module docstring.
 
 
 def run_experiment(context_seeds, trials, n_calls, burst_size, methods, order_seed=0,
@@ -267,7 +319,7 @@ def run_experiment(context_seeds, trials, n_calls, burst_size, methods, order_se
     method_fns["rl"] = lambda ctx, hosts, primaries: _rl_mapping(ctx, hosts, primaries, model_path=rl_model_path, algorithm="ppo")
     method_fns["rl_dqn"] = lambda ctx, hosts, primaries: _rl_dqn_mapping(ctx, hosts, primaries, model_path=rl_dqn_model_path)
 
-    all_latencies = {name: [] for name in methods}
+    reset_raw_csv()
     base_port = 9001
     order_rng = random_module.Random(order_seed)
 
@@ -297,55 +349,23 @@ def run_experiment(context_seeds, trials, n_calls, burst_size, methods, order_se
 
             for name in trial_order:
                 mapping = mappings[name]
-                latencies_by_primary = run_trial(mapping, base_port, n_calls, burst_size, slow_hosts=slow_hosts)
-                record_raw(name, context_seed, trial, mapping, latencies_by_primary)
-                for vals in latencies_by_primary.values():
-                    all_latencies[name].extend(vals)
+                records_by_primary = run_trial(mapping, base_port, n_calls, burst_size, slow_hosts=slow_hosts)
+                record_raw(name, context_seed, trial, mapping, records_by_primary)
                 base_port += len(set(mapping.values())) + 1
             print("  trial {}/{} done (order: {})".format(trial + 1, trials, trial_order))
 
     n_seeds = len(context_seeds)
-    print("\n\n===== SUMMARY across {} context seeds x {} trials ({} calls/primary, burst={}) =====".format(
+    print("\n\n===== RUN SUMMARY: {} context seeds x {} trials ({} calls/primary, burst={}) =====".format(
         n_seeds, trials, n_calls, burst_size))
+    print("Independent observations per method: {} runs ({} seeds x {} trials).".format(
+        n_seeds * trials, n_seeds, trials))
 
-    print("\n{:<12} {:>8} {:>10} {:>10} {:>10} {:>10} {:>24}".format(
-        "method", "n", "mean_ms", "median_ms", "p95_ms", "p99_ms", "95% CI of mean"))
-    for name in methods:
-        vals = all_latencies[name]
-        arr = np.asarray(vals)
-        lo, hi = bootstrap_ci(vals)
-        print("{:<12} {:>8} {:>10.4f} {:>10.4f} {:>10.4f} {:>10.4f} {:>24}".format(
-            name, len(vals), arr.mean(), np.median(arr),
-            np.percentile(arr, 95), np.percentile(arr, 99),
-            "[{:.4f}, {:.4f}]".format(lo, hi),
-        ))
+    # Pass the path, not a materialised list: at 128 hosts this file holds on the
+    # order of a million call records.
+    analysis.print_decomposition(RESULTS_CSV)
+    analysis.print_report(RESULTS_CSV, metric="service_ms", title="service latency")
 
-    print("\n===== Pairwise Mann-Whitney U tests + rank-biserial effect size =====")
-    print("(|r| ~0.1/0.3/0.5 ~ small/medium/large; p-values alone are near-meaningless at this n)")
-    method_list = list(methods)
-    for i in range(len(method_list)):
-        for j in range(i + 1, len(method_list)):
-            a, b = method_list[i], method_list[j]
-            u_stat, p_value = stats.mannwhitneyu(all_latencies[a], all_latencies[b], alternative="two-sided")
-            r = rank_biserial_effect_size(all_latencies[a], all_latencies[b], u_stat=u_stat)
-            sig = "significant (p<0.05)" if p_value < 0.05 else "not significant"
-            print("{:<12} vs {:<12} p={:.6f}  r={:+.4f}  {}".format(a, b, p_value, r, sig))
-
-    print("\n===== Latency broken down by backup_load (pooled across all methods/seeds) =====")
-    print("This isolates the real mechanism: does sharing a backup among more primaries")
-    print("increase latency, independent of which method produced that sharing pattern?")
-    by_load = defaultdict(list)
-    raw_rows = list(csv.DictReader(open(RESULTS_CSV)))
-    for row in raw_rows:
-        by_load[int(row["backup_load"])].append(float(row["latency_ms"]))
-    print("{:>6} {:>8} {:>10} {:>10} {:>10} {:>10}".format("load", "n", "mean_ms", "median_ms", "p95_ms", "p99_ms"))
-    for load in sorted(by_load):
-        arr = np.asarray(by_load[load])
-        print("{:>6} {:>8} {:>10.4f} {:>10.4f} {:>10.4f} {:>10.4f}".format(
-            load, len(arr), arr.mean(), np.median(arr), np.percentile(arr, 95), np.percentile(arr, 99)
-        ))
-
-    return all_latencies
+    return RESULTS_CSV
 
 
 if __name__ == "__main__":

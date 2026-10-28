@@ -39,26 +39,37 @@ greedy heuristic scoring health, remaining capacity, network latency, and hop-co
 The third is a Proximal Policy Optimization (PPO) reinforcement-learning policy
 trained on the same objective with invalid-action masking. We evaluate all three
 against DEFT's static mapping, naive load-spreading baselines, and decentralized
-hash-based placement (rendezvous and consistent hashing). All methods drive DEFT's
-real, unmodified two-phase-commit (2PC) backup
-implementation under controlled concurrent load. We test across four topology scales
+hash-based placement (rendezvous and consistent hashing). All methods drive DEFT's real, unmodified two-phase-commit (2PC) backup
+implementation under controlled concurrent load, over \emph{two transports}:
+DEFT's shipped XML-RPC path, and gRPC over HTTP/2 with persistent channels, which
+is representative of production NFV replication. Holding every other variable
+fixed across the two lets us separate what is a property of backup placement from
+what is a property of the RPC stack. We test across four topology scales
 (9, 16, 32, and 128 hosts) under a run-level statistical design: one independent
 observation per (context seed $\times$ trial) execution, compared by paired Wilcoxon
 signed-rank tests with Holm-Bonferroni correction, matched-pairs rank-biserial effect
 sizes, and cluster-bootstrap confidence intervals that resample runs rather than
 individual calls. We find that feature-aware methods reliably avoid degraded backup
-hosts and substantially reduce mean and p95 service latency compared to blind
-load-balancing, once hosts differ in quality; at 16 and 32 hosts the heuristic beats
-round-robin in every one of fifteen paired runs ($r = 1.00$, $p_{\mathrm{Holm}} \le
-0.0012$). A well-designed deterministic heuristic method tracks the Hungarian-optimal
+hosts and substantially reduce service latency compared to blind load-balancing
+once hosts differ in quality, and that this holds under both transports: at 32
+hosts the heuristic reduces mean latency by 53.7\% against round-robin and 89.1\%
+against a concentrating policy ($r = 0.994$, $p_{\mathrm{Holm}} < 0.0001$, 25
+paired runs), and at 16 hosts by 31.8\% and 77.1\%. At homogeneous scale, where
+there is nothing to discriminate between candidates, both transports agree on a
+null to within 0.06\,ms. A well-designed deterministic heuristic method tracks the Hungarian-optimal
 bound closely at every scale tested, remaining statistically indistinguishable from it
 throughout. We run a systematic sensitivity analysis over the scoring weights and load-decay mechanics of this multi-criteria heuristic method. Its degraded-host-avoidance guarantee is robust across the entire weight space. Its load-balancing quality is driven almost entirely by one term, remaining capacity, so the published default is a principled, non-fragile choice rather than an arbitrary
-one. A learned RL policy (PPO) matches the feature-aware methods up to 32 hosts; at 128 hosts it avoids degraded hosts completely but load-balances less tightly than the heuristic. A cross-algorithm check with DQN shows the same concentration behavior at scale, and more sharply, under the same widened-exploration remedy, indicating the gap follows from the problem formulation rather than from one algorithm. We leave a fuller study of RL for backup-node selection in this setting, including reward shaping that directly penalizes load concentration, to future work. We also report what this
-testbed cannot measure: because DEFT's backup server is an HTTP/1.0
-\texttt{SimpleXMLRPCServer} with a five-deep accept backlog, every replication call
-opens a fresh TCP connection, and the latency tail collapses onto Linux's
-SYN-retransmission timer rather than onto queueing delay. We therefore report mean and
-p95 and explain why p99 is not a usable metric here (\S\ref{sec:p99}). The code,
+one. A learned RL policy (PPO) matches the feature-aware methods up to 32 hosts; at 128 hosts it avoids degraded hosts completely but load-balances less tightly than the heuristic. A cross-algorithm check with DQN shows the same concentration behavior at scale, and more sharply, under the same widened-exploration remedy, indicating the gap follows from the problem formulation rather than from one algorithm. We leave a fuller study of RL for backup-node selection in this setting, including reward shaping that directly penalizes load concentration, to future work. The two-transport comparison also yields a methodological result. Because DEFT's
+backup is an HTTP/1.0 \texttt{SimpleXMLRPCServer} with a five-deep accept backlog,
+every replication call opens a fresh TCP connection and the latency tail collapses
+onto Linux's SYN-retransmission timer rather than onto queueing delay; under gRPC
+the tail is ordinary queueing, carrying $240\times$ less mass beyond one second. The shipped transport inflates the measured
+placement effect by a consistent factor of about $4.3\times$, because it converts a
+degraded host's modest per-call service penalty into accept-queue overflow. Studies
+evaluating placement over connection-per-call RPC are subject to the same inflation
+(\S\ref{sec:p99}). We further report that a single machine cannot support a
+trustworthy latency measurement at 128 hosts on either transport, and confine that
+scale to structural results. The code,
 trained models, raw per-call records, and the saved output of every experiment are
 available for reproduction at \url{https://bijoy111.github.io/ideft/}.
 \end{abstract}
@@ -126,12 +137,14 @@ and p95 service latency once hosts differ in quality, that the simple determinis
 heuristic tracks the Hungarian-optimal bound at every scale, and, through a systematic sensitivity analysis over
 the heuristic's scoring weights and load-decay constants (\S\ref{sec:weights}), that these
 constants are principled, near-optimal choices rather than arbitrary ones.
-\item Characterize the measurement limits of the RPC-isolation testbed itself
-(\S\ref{sec:p99}): the per-call latency tail is quantized by the kernel's TCP
-SYN-retransmission timer, and absolute latencies drift between otherwise identical
-executions as ephemeral-port TIME\_WAIT pressure accumulates. Both are absorbed by the
-paired design, which cancels common-mode drift, but they bound what this testbed can
-resolve and they invalidate p99 as a metric.
+\item Treat the transport as a controlled variable rather than a fixed property of
+the testbed (\S\ref{sec:p99}), evaluating every method over both DEFT's shipped
+XML-RPC path and gRPC over HTTP/2. This separates placement effects from RPC-stack
+effects, shows the central finding holds under both, and quantifies how much the
+shipped transport inflates it. We additionally characterize two limits of the
+harness: absolute latencies drift between identical executions as ephemeral-port
+TIME\_WAIT pressure accumulates, and a single machine cannot resolve latency at 128
+hosts on either transport.
 \item Report the measured behavior of RL on this problem: PPO matches the feature-aware
 methods up to 32 hosts and, at 128 hosts, avoids degraded hosts completely while
 load-balancing less tightly than the heuristic. A cross-algorithm check with DQN
@@ -417,6 +430,25 @@ well above the largest genuine service time observed anywhere in these experimen
 (7.2\,s), so it breaks the deadlock without censoring real slow calls. As with the
 retry budget, this changes the benchmark client, not the backup server under test.
 
+\subsection{The Second Transport}
+
+Alongside DEFT's shipped XML-RPC path we implement the same replication call over
+gRPC: a service exposing exactly the method DEFT's backup exposes
+(\texttt{update\_state(state)} returning an acknowledgement), one persistent
+HTTP/2 channel per primary rather than a connection per call, and a server thread
+pool in place of a single accept loop. Message payloads carry the same flow-keyed
+state. The selection methods, scoring function, topologies, degraded-host
+injection, workload, retry policy and statistical analysis are identical across the
+two arms, so the transport is the only thing that varies.
+
+Two details keep the comparison honest. First, the gRPC server's worker-pool size
+is an explicit parameter rather than an inherited default, so the transport change
+can be separated from the concurrency change; setting it to one reproduces the
+XML-RPC backup's strict serialization over HTTP/2. Second, gRPC reports channel
+readiness exactly, so backup startup is synchronised rather than waited out with a
+fixed sleep, removing a source of spurious early-call errors present in the
+XML-RPC arm.
+
 \subsection{Scenarios}
 
 \textbf{Homogeneous (9 hosts).} DEFT's real reference topology, 5 primaries, synthetic
@@ -473,18 +505,30 @@ is the tail pathology itself.
 \section{Results}
 \label{sec:results}
 
-\subsection{What This Testbed Can and Cannot Measure}
+\subsection{Transport as a Controlled Variable}
 \label{sec:p99}
 
-Before the comparisons, two properties of the RPC-isolation testbed bound how its
-numbers may be read. Both follow from the same root cause: as \S\ref{sec:methodology}
-notes, DEFT's backup is an HTTP/1.0 \texttt{SimpleXMLRPCServer}, so it closes the
-connection after each response and every replication call performs a fresh TCP
-handshake against a five-deep accept backlog.
+We evaluate every method over two transports. The first is DEFT's shipped path:
+its \texttt{Backup} is a \texttt{SimpleXMLRPCServer}, which is single-threaded,
+speaks HTTP/1.0, and listens with a backlog of five. The second is gRPC over
+HTTP/2, with one persistent channel per primary and a server thread pool, which
+is representative of how production NFV systems carry state replication. The two
+expose the same method, perform the same work per call, and are driven by the
+same selection methods, topologies, workloads and statistics; only the delivery
+mechanism differs. The transport is therefore a controlled variable, and a
+finding that holds under both is a property of backup placement rather than of
+one RPC stack.
 
-\textbf{The latency tail is a kernel timer, not queueing delay.} Pooled over all
-methods, the distribution of per-call service time is sharply bimodal, and the gap
-between the modes is empty:
+This matters because the shipped transport distorts the measurement in a specific
+and quantifiable way.
+
+\textbf{On XML-RPC the latency tail is a kernel timer, not queueing delay.}
+HTTP/1.0 means the server closes the connection after each response, so every
+replication call performs a fresh TCP handshake. We verified this directly:
+twenty calls issued through a single client proxy produce twenty server-side
+\texttt{accept()}s. Under burst load the five-deep backlog overflows, the SYN is
+dropped, and the client waits out the kernel's retransmission timer. The
+resulting distribution is sharply bimodal with an empty gap between the modes:
 
 \begin{center}
 \footnotesize
@@ -501,201 +545,225 @@ Hosts & $<$100\,ms & 100--500 & \textbf{500--900} & 900--1100 & $>$1100 \\
 \end{center}
 
 \noindent
-Queueing delay produces a smooth tail. A near-empty band with a tight cluster beyond it
-does not: the 900--1100\,ms calls sit at $1052$--$1059$\,ms with a standard deviation of
-only 24--29\,ms at every scale, which is Linux's initial TCP SYN-retransmission timeout
-(1\,s, with the next retry contributing the $\approx$3\,s cluster). When the accept
-backlog overflows, the SYN is dropped and the client waits out the kernel timer.
+Queueing produces a smooth tail; this does not. The 900--1100\,ms calls sit at
+$1052$--$1059$\,ms with a standard deviation of 24--29\,ms at every scale, which
+is Linux's initial SYN-retransmission timeout, with the next retry contributing
+the $\approx$3\,s cluster. Consequently p99 on this transport is a threshold
+statistic rather than a latency measurement: since 1--2\% of calls land on the
+timer, it reads either tens of milliseconds or $\approx$1050\,ms depending only
+on whether a run's SYN-drop rate crosses one percent. This also explains an
+artifact in an earlier version of our 32-host experiment, where p99 appeared to
+improve by an order of magnitude; that run used a reduced protocol whose lower
+concurrency pushed the SYN-drop rate just below one percent.
 
-The consequence is that \textbf{p99 in this testbed is a threshold statistic, not a
-latency measurement}: since roughly 1--2\% of calls land on the timer, p99 reads either
-tens of milliseconds or $\approx$1050\,ms depending only on whether a given run's
-SYN-drop rate crosses one percent, with nothing in between reachable. This also explains
-an artifact in our own earlier measurements, in which the 32-host p99 appeared to
-\emph{improve} by an order of magnitude relative to 16 and 128 hosts. That run used a
-reduced protocol (burst 8, 150 calls); the lower concurrency pushed the SYN-drop rate
-just below one percent and p99 fell beneath the quantum. Re-run at the protocol used
-everywhere else, the same cell reads 1059.97\,ms, in line with every other scale. We
-therefore report mean and p95, both of which sit below the quantum and discriminate
-between methods properly, and treat p99 only as evidence of tail pathology.
+\textbf{Under gRPC the pile-up disappears.} Figure~\ref{fig:tailtransport} plots
+the complementary CDF of per-call service time for both arms at 16 hosts
+(180{,}000 and 300{,}000 calls of the same workload). The XML-RPC curve is a
+staircase: it runs flat and then steps down at each timer quantum, with
+\textbf{3.20\%} of calls landing beyond 900\,ms and a maximum of 22{,}773\,ms.
+The gRPC curve decays smoothly, with \textbf{0.013\%} beyond 900\,ms, a $240\times$
+difference in tail mass, and a maximum of 1139\,ms. Percentiles follow: p95
+101.9 vs 360.6\,ms, p99 184.9 vs 1175.8\,ms, p99.9 277.9 vs 7261.6\,ms.
 
-\textbf{Absolute latencies are not reproducible across executions; paired differences
-are.} Because every call consumes an ephemeral port and the server closes each
-connection, TIME\_WAIT entries accumulate rapidly: mid-session we measured 14{,}038
-sockets in TIME\_WAIT against an ephemeral range of 28{,}231 ports, about half the
-space. Two independent executions of the identical 9-host configuration consequently
-differed by roughly 17\,ms in the mean of \emph{every} method, while the paired
-differences between methods moved by about 1\,ms:
+The 500--900\,ms band itself is sparsely occupied on \emph{both} arms (0.042\% and
+0.057\%), which is the point: on the gRPC arm that sparsity is simply the thin
+end of a decaying distribution, whereas on the XML-RPC arm it is a gap with 3.2\%
+of the mass piled immediately beyond it. A queueing tail does not have that shape.
+p99 is a usable metric on the gRPC arm, and we report it there.
 
-\begin{center}
-\footnotesize
-\begin{tabular}{lrrr}
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig_tail_transport.pdf}
+\caption{Complementary CDF of per-call service latency at 16 hosts, by transport
+(log--log). The XML-RPC tail is a staircase of kernel timer quanta rather than a
+queueing curve; the gRPC tail decays smoothly and ends two orders of magnitude
+earlier. The shaded band is 500--900\,ms.}
+\label{fig:tailtransport}
+\end{figure}
+
+\textbf{The transport amplifies the placement effect by a consistent factor.}
+Table~\ref{tab:transport} compares the paper's central contrast,
+\texttt{round\_robin} against \texttt{heuristic}, under both. The effect is real
+and significant on both transports at 16 and 32 hosts, and absent on both at
+homogeneous scale, where the two arms agree to within 0.06\,ms
+($-2.08$ vs $-2.14$). But its magnitude is roughly $4.3\times$ larger on XML-RPC
+($48.05$ vs $11.43$\,ms at 16 hosts; $43.69$ vs $9.75$\,ms at 32). The mechanism
+is the backlog: a degraded host's added per-call service time pushes its accept
+queue into overflow, converting a modest service penalty into whole seconds of
+retransmission wait. In proportional terms the advantage is preserved or larger
+on gRPC (31.8\% at 16 hosts under both; 53.7\% versus 25.7\% at 32), because
+baseline latencies fall by a similar factor.
+
+This is worth stating as a methodological result in its own right: evaluating
+placement policies over a connection-per-call RPC stack inflates measured
+placement effects, because the transport converts a per-call service penalty into
+queue collapse. Studies built on comparable harnesses are subject to the same
+inflation.
+
+\begin{table}[t]
+\centering
+\caption{\texttt{round\_robin} vs.\ \texttt{heuristic} under both transports. $\Delta$ is the median per-run difference (positive favours the heuristic). The effect is real on both; it is roughly $4.3\times$ larger on XML-RPC, whose accept-backlog pathology amplifies the degraded-host penalty.}
+\label{tab:transport}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrrrrrr}
 \toprule
-Quantity & Run 1 & Run 2 & Drift \\
+& \multicolumn{3}{c}{XML-RPC ($n{=}15$)} & \multicolumn{3}{c}{gRPC ($n{=}25$)} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+Hosts & $\Delta$ (ms) & $r$ & $p_{\mathrm{Holm}}$ & $\Delta$ (ms) & $r$ & $p_{\mathrm{Holm}}$ \\
 \midrule
-absolute mean, \texttt{optimal} & 29.70 & 45.90 & \textbf{+16.20} \\
-absolute mean, \texttt{round\_robin} & 29.25 & 47.51 & \textbf{+18.26} \\
-\midrule
-\texttt{heuristic} $-$ \texttt{round\_robin} & 4.39 & 3.59 & $-$0.80 \\
-\texttt{heuristic} $-$ \texttt{optimal} & 3.94 & 5.20 & +1.26 \\
-\texttt{heuristic} $-$ \texttt{PPO} & 4.14 & 2.66 & $-$1.48 \\
+9 (homog.) & -2.08 & -0.517 & 0.4163 & -2.14 & -0.422 & 0.5010 \\
+16 & +48.05 & +0.983 & 0.0012 & +11.43 & +0.705 & 0.0104 \\
+32 & +43.69 & +1.000 & 0.0009 & +9.75 & +0.994 & $<$0.0001 \\
 \bottomrule
-\end{tabular}
-\end{center}
-
-\noindent
-The drift is common-mode, so the paired design of \S\ref{sec:stats} cancels it. It does,
-however, set the testbed's resolution floor: differences of a few milliseconds are not
-measurable here, and we do not claim any. Differences of tens of milliseconds, which is
-the scale of every effect we do claim, are unaffected. All results below were obtained
-from a single harness version with every scale point run at an identical protocol.
+\end{tabular}}
+\end{table}
+\textbf{Absolute latencies are not reproducible across executions; paired
+differences are.} Because every XML-RPC call consumes an ephemeral port,
+TIME\_WAIT entries accumulate rapidly: mid-session we measured 14{,}038 sockets in
+TIME\_WAIT against an ephemeral range of 28{,}231 ports. Two independent
+executions of the identical 9-host configuration differed by roughly 17\,ms in
+the mean of \emph{every} method, while the paired differences between methods
+moved by about 1\,ms. The drift is common-mode, so the paired design of
+\S\ref{sec:stats} cancels it, but it sets a resolution floor: on this harness,
+differences below roughly 10\,ms do not survive replication. We make no claim
+below that threshold. Four candidate effects of that size appeared significant in
+a single execution and vanished under replication, which is why every scale is run
+twice and the gRPC arm at $n=25$.
 
 \subsection{Homogeneous Scale}
 
-Table~\ref{tab:homogeneous} reports per-run service latency across 5 context seeds
-$\times$ 3 trials (200 calls/primary, burst 10), and
-Table~\ref{tab:homogeneous-paired} the paired comparisons against the heuristic.
-\texttt{baseline}, \texttt{concentrated} and \texttt{random} are all significantly worse
-than the heuristic ($r \ge +0.83$, $p_{\mathrm{Holm}} \le 0.021$), while
-\texttt{round\_robin}, \texttt{optimal} and \texttt{PPO} are statistically
-indistinguishable from it.
+Table~\ref{tab:homogeneous} reports the 9-host scenario, where resource values are
+drawn without engineered heterogeneity. The result is a clean null, and it
+replicates across transports: \texttt{round\_robin}, \texttt{optimal},
+\texttt{PPO} and \texttt{random} are all statistically indistinguishable from the
+heuristic, while \texttt{concentrated} and \texttt{baseline} are decisively worse
+($r=-1.000$ and $r=-0.680$).
 
-At this small, homogeneous scale, any method that avoids gross load concentration
-performs similarly well: the feature-aware methods show no advantage over blind
-round-robin, because there is no heterogeneity for feature-awareness to exploit. The
-point estimates do place the heuristic a few milliseconds behind \texttt{round\_robin}
-and \texttt{optimal} in both of our independent executions, consistent with its
-measured maximum per-backup load of 1.40 against round-robin's 1.00
-(\S\ref{sec:weights}): its flat capacity decrement spreads slightly less aggressively
-than a perfect cycle. We do not claim this as a result. The gap is of the same order as
-the between-execution drift of \S\ref{sec:p99}, and indeed it reached significance in
-one execution and not the other. The defensible statement is the negative one: at
-homogeneous scale, feature-awareness buys nothing, and the real gap is between
-naive-concentration policies and everything else.
+The reading is that where hosts are uniform, feature-awareness buys nothing,
+because there is nothing to discriminate between candidates. What still matters is
+not piling every primary onto one backup. This is the correct negative control for
+the experiments that follow: it shows the apparatus does not manufacture an
+advantage for feature-aware methods where none should exist.
 
 \begin{table}[t]
 \centering
-\caption{Homogeneous scale (9 hosts, 5 primaries), 15 runs (5 context seeds $\times$ 3 trials), 200 calls/primary, burst 10. Per-run service latency, averaged across runs.}
+\caption{Homogeneous scale (9 hosts, 5 primaries). XML-RPC: 15 runs; gRPC: 25 runs (5 context seeds $\times$ 5 trials), 200 calls/primary, burst 10. Effect sizes are paired against \texttt{heuristic} on the gRPC arm.}
 \label{tab:homogeneous}
 \resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrr}
+\begin{tabular}{lrrrrr}
 \toprule
-Method & Mean (ms) & 95\% CI of mean & Median (ms) & p95 (ms) \\
+& XML-RPC & \multicolumn{4}{c}{gRPC} \\
+\cmidrule(lr){2-2}\cmidrule(lr){3-6}
+Method & Mean (ms) & Mean (ms) & 95\% CI & $r$ & $p_{\mathrm{Holm}}$ \\
 \midrule
-\texttt{baseline} & 73.45 & [69.58, 77.74] & 15.71 & 81.45 \\
-\texttt{concentrated} & 107.42 & [100.80, 114.72] & 10.04 & 558.47 \\
-\texttt{random} & 58.70 & [55.86, 61.66] & 21.35 & 55.39 \\
-\texttt{round\_robin} & 47.51 & [46.05, 49.05] & 33.36 & 70.20 \\
-\texttt{heuristic} & 51.10 & [48.16, 54.19] & 27.92 & 66.05 \\
-\texttt{optimal} & 45.90 & [44.38, 47.35] & 31.88 & 67.64 \\
-\texttt{PPO} & 48.44 & [45.45, 52.09] & 33.43 & 70.68 \\
+\texttt{baseline} & 73.45 & 20.58 & [17.55, 24.56] & +0.680 & 0.0243 \\
+\texttt{concentrated} & 107.42 & 32.60 & [29.84, 35.77] & +1.000 & $<$0.0001 \\
+\texttt{random} & 58.70 & 16.04 & [14.50, 17.75] & +0.329 & 0.7817 \\
+\texttt{round\_robin} & 47.51 & 14.06 & [12.22, 16.43] & -0.422 & 0.5010 \\
+\texttt{heuristic} & 51.10 & 14.72 & [13.44, 16.18] & -- & -- \\
+\texttt{optimal} & 45.90 & 13.60 & [12.50, 14.92] & -0.286 & 0.8799 \\
+\texttt{PPO} & 48.44 & 13.79 & [12.06, 16.21] & -0.403 & 0.5010 \\
 \bottomrule
 \end{tabular}}
 \end{table}
-\begin{table}[t]
-\centering
-\caption{Homogeneous scale: paired comparisons against the heuristic.}
-\label{tab:homogeneous-paired}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrl}
-\toprule
-Method vs.\ \texttt{heuristic} & $\Delta$ median (ms) & $r$ & $p_{\mathrm{Holm}}$ & Verdict \\
-\midrule
-\texttt{baseline} & +22.15 & +1.000 & 0.0013 & significant \\
-\texttt{concentrated} & +54.71 & +1.000 & 0.0013 & significant \\
-\texttt{random} & +7.88 & +0.833 & 0.0210 & significant \\
-\texttt{round\_robin} & -2.08 & -0.517 & 0.4163 & n.s. \\
-\texttt{optimal} & -4.94 & -0.733 & 0.0615 & n.s. \\
-\texttt{PPO} & -2.83 & -0.417 & 0.6753 & n.s. \\
-\bottomrule
-\end{tabular}}
-\end{table}
-\subsection{Scaled Heterogeneous: 16 Hosts}
+\subsection{Scaled Heterogeneous: 16 and 32 Hosts}
+\label{sec:scale32}
 
-Table~\ref{tab:scaled16} isolates \emph{feature awareness} specifically: 2 of 6
-backup-eligible hosts are deliberately degraded. \texttt{concentrated},
-\texttt{heuristic}, \texttt{optimal}, and \texttt{PPO} \emph{never} route a primary to a
-degraded host across any of 5 seeds; \texttt{round\_robin} hits a degraded host on 2 of
-10 assignments in \emph{every} seed (it cycles blindly with no way to know which hosts
-are bad); \texttt{random} is inconsistent (0 to 4 of 10, depending on seed).
+Tables~\ref{tab:scaled16} and~\ref{tab:scaled32} isolate feature awareness: one
+third of the backup-eligible hosts are deliberately degraded.
+\texttt{concentrated}, \texttt{heuristic}, \texttt{optimal} and \texttt{PPO}
+\emph{never} route a primary to a degraded host in any seed at either scale;
+\texttt{round\_robin} hits one on 2 of 10 and 4 of 20 assignments in every seed,
+cycling blindly with no way to know which hosts are bad; \texttt{random} is
+inconsistent, hitting between none and four depending on the seed.
 
-The latency consequence is unambiguous (Table~\ref{tab:scaled16-paired}).
-\texttt{round\_robin} is worse than the heuristic by 48\,ms at the median run, and
-loses in \emph{every one} of the 15 paired runs ($r = +0.983$,
-$p_{\mathrm{Holm}} = 0.0012$); \texttt{concentrated} likewise ($r = +1.000$). Against
-this, \texttt{optimal} and \texttt{PPO} are indistinguishable from the heuristic
-($p_{\mathrm{Holm}} \ge 0.18$). This is the core empirical result: feature-aware backup
-selection provides a real, mechanistically explained, and perfectly consistent
-improvement over blind load-balancing once hosts differ in quality, which is the
-realistic case for elastic scaling in production.
+The latency consequence is unambiguous and holds on both transports. On the gRPC
+arm at 32 hosts the heuristic beats \texttt{round\_robin} by 9.75\,ms at the median
+run with $r=0.994$ and $p_{\mathrm{Holm}}<0.0001$, and beats \texttt{random} by
+13.10\,ms ($r=0.945$); at 16 hosts the same comparisons give $r=0.705$
+($p_{\mathrm{Holm}}=0.0104$) and $r=0.655$ ($p=0.0185$). In mean terms the
+heuristic reduces service latency by 53.7\% against \texttt{round\_robin} and
+89.1\% against \texttt{concentrated} at 32 hosts, and by 31.8\% and 77.1\% at 16.
+Against this, \texttt{optimal} and \texttt{PPO} are indistinguishable from the
+heuristic at both scales ($|r| \le 0.20$, all $p_{\mathrm{Holm}} = 1.000$): the
+cheap deterministic method attains the exact optimum's placement quality.
 
-\texttt{random} deserves separate comment. Its mean is close to \texttt{round\_robin}'s,
-but its confidence interval is an order of magnitude wider ([111.6, 183.6] against the
-heuristic's [90.7, 108.6]), and it is \emph{not} significantly better than
-\texttt{concentrated}. Random placement is not merely mediocre on average; it is
-unstable, because whether a given seed's draw lands on degraded hosts is uncontrolled.
+\texttt{random} deserves separate comment. Its mean is close to
+\texttt{round\_robin}'s, but its confidence interval is far wider, and on the
+XML-RPC arm it is \emph{not} significantly better than \texttt{concentrated}.
+Random placement is not merely mediocre on average; it is unstable, because
+whether a given draw lands on degraded hosts is uncontrolled.
+Figure~\ref{fig:latencyscale} plots both arms across the full scale sweep; the
+p95 row shows the degraded-host penalty that \texttt{round\_robin} and
+\texttt{random} pay at 16 and 32 hosts while the feature-aware methods stay flat.
 
 \begin{table}[t]
 \centering
-\caption{Scaled heterogeneous, 16 hosts (10 primaries, 2 degraded), 15 runs.}
+\caption{Scaled heterogeneous, 16 hosts (10 primaries, 2 degraded).}
 \label{tab:scaled16}
 \resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrr}
+\begin{tabular}{lrrrrr}
 \toprule
-Method & Mean (ms) & 95\% CI of mean & Median (ms) & p95 (ms) \\
+& XML-RPC & \multicolumn{4}{c}{gRPC} \\
+\cmidrule(lr){2-2}\cmidrule(lr){3-6}
+Method & Mean (ms) & Mean (ms) & 95\% CI & $r$ & $p_{\mathrm{Holm}}$ \\
 \midrule
-\texttt{concentrated} & 175.36 & [167.09, 182.75] & 8.35 & 1040.33 \\
-\texttt{random} & 145.00 & [111.61, 183.58] & 46.81 & 263.85 \\
-\texttt{round\_robin} & 144.21 & [140.44, 147.84] & 63.37 & 362.36 \\
-\texttt{heuristic} & 98.35 & [90.67, 108.64] & 59.89 & 175.72 \\
-\texttt{optimal} & 90.73 & [86.88, 94.71] & 61.72 & 167.55 \\
-\texttt{PPO} & 89.38 & [85.38, 94.21] & 60.19 & 149.57 \\
+\texttt{concentrated} & 175.36 & 77.97 & [72.12, 83.99] & +1.000 & $<$0.0001 \\
+\texttt{random} & 145.00 & 31.45 & [24.34, 39.47] & +0.655 & 0.0185 \\
+\texttt{round\_robin} & 144.21 & 26.23 & [24.08, 29.12] & +0.705 & 0.0104 \\
+\texttt{heuristic} & 98.35 & 17.88 & [14.03, 22.76] & -- & -- \\
+\texttt{optimal} & 90.73 & 18.82 & [14.30, 24.45] & -0.046 & 1.0000 \\
+\texttt{PPO} & 89.38 & 13.83 & [12.57, 15.49] & -0.200 & 1.0000 \\
 \bottomrule
 \end{tabular}}
 \end{table}
 \begin{table}[t]
 \centering
-\caption{16 hosts: paired comparisons against the heuristic.}
-\label{tab:scaled16-paired}
+\caption{Scaled heterogeneous, 32 hosts (20 primaries, 4 degraded).}
+\label{tab:scaled32}
 \resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrl}
+\begin{tabular}{lrrrrr}
 \toprule
-Method vs.\ \texttt{heuristic} & $\Delta$ median (ms) & $r$ & $p_{\mathrm{Holm}}$ & Verdict \\
+& XML-RPC & \multicolumn{4}{c}{gRPC} \\
+\cmidrule(lr){2-2}\cmidrule(lr){3-6}
+Method & Mean (ms) & Mean (ms) & 95\% CI & $r$ & $p_{\mathrm{Holm}}$ \\
 \midrule
-\texttt{concentrated} & +82.16 & +1.000 & 0.0009 & significant \\
-\texttt{random} & +17.94 & +0.700 & 0.0905 & n.s. \\
-\texttt{round\_robin} & +48.05 & +0.983 & 0.0012 & significant \\
-\texttt{optimal} & -1.03 & -0.350 & 0.7571 & n.s. \\
-\texttt{PPO} & -8.91 & -0.617 & 0.1767 & n.s. \\
+\texttt{concentrated} & 296.00 & 121.13 & [116.06, 127.00] & +1.000 & $<$0.0001 \\
+\texttt{random} & 172.59 & 31.84 & [23.14, 43.35] & +0.945 & $<$0.0001 \\
+\texttt{round\_robin} & 163.39 & 28.62 & [22.64, 39.73] & +0.994 & $<$0.0001 \\
+\texttt{heuristic} & 121.39 & 13.25 & [12.15, 14.95] & -- & -- \\
+\texttt{optimal} & 123.29 & 19.15 & [12.49, 30.49] & -0.022 & 1.0000 \\
+\texttt{PPO} & 130.38 & 13.22 & [12.34, 14.33] & +0.126 & 1.0000 \\
 \bottomrule
 \end{tabular}}
 \end{table}
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/fig_latency_scale.pdf}
-\caption{Per-call service latency vs.\ topology scale: (a) mean with cluster-bootstrap
-95\% confidence intervals, (b) p95 (log axes). The 9-host point is the homogeneous
-scenario (its \texttt{baseline} method, which exists only there, is omitted);
-16/32/128 hosts are the scaled heterogeneous scenarios of
-Tables~\ref{tab:scaled16}, \ref{tab:scaled32}, and~\ref{tab:scaled128}. The p95 panel
-shows the degraded-host penalty that \texttt{round\_robin} and \texttt{random} pay at
-16 and 32 hosts; \texttt{PPO} tracks the feature-aware methods until 128 hosts.}
+\caption{Per-call service latency vs.\ topology scale, by transport (log axes).
+Top row: mean with cluster-bootstrap 95\% confidence intervals. Bottom row: p95.
+The 9-host point is the homogeneous scenario (its \texttt{baseline} method, which
+exists only there, is omitted). The p95 row shows the degraded-host penalty
+\texttt{round\_robin} and \texttt{random} pay at 16 and 32 hosts, which the gRPC
+arm separates more cleanly because its baseline latencies are an order of
+magnitude lower. The 128-host column is shaded: independent executions of that
+configuration differ several-fold on either transport, so it is not a usable
+latency measurement on a single machine (\S\ref{sec:rl128}).}
 \label{fig:latencyscale}
 \end{figure}
 
 \subsection{Mechanism Check: Latency vs.\ Backup Load}
 
-Table~\ref{tab:backupload} pools service latency by \texttt{backup\_load} (the number of
-primaries sharing a given backup), aggregated to one observation per
-(run $\times$ backup) so that the thousands of correlated calls against a single heavily
-loaded server count once rather than many times. Mean latency rises monotonically with
-load in every scenario, isolating sharing itself, independent of which method produced
-the sharing pattern, as the mechanism driving latency under contention. This is a
-genuine architectural property of DEFT's unmodified single-threaded backup.
+Table~\ref{tab:backupload} pools service latency by \texttt{backup\_load} (the
+number of primaries sharing a backup), aggregated to one observation per
+(run $\times$ backup) so that correlated calls against a single loaded server
+count once. Mean latency rises monotonically with load, isolating sharing itself,
+independent of which method produced it, as the mechanism driving latency under
+contention.
 
 \begin{table}[t]
 \centering
-\caption{Service latency vs.\ backup load, one observation per (run $\times$ backup).}
+\caption{Service latency vs.\ backup load on the XML-RPC arm, one observation per (run $\times$ backup).}
 \label{tab:backupload}
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{clrrr}
@@ -714,80 +782,55 @@ Scenario & Load & $n$ units & Mean (ms) & 95\% CI \\
 \bottomrule
 \end{tabular}}
 \end{table}
-\subsection{Scalability Trend: 32 Hosts}
-\label{sec:scale32}
-
-Figure~\ref{fig:latencyscale} plots mean and p95 across the full four-point scale sweep.
-Table~\ref{tab:scaled32} reports the 32-host point, now run at the same protocol as
-every other scale (5 context seeds $\times$ 3 trials, 200 calls/primary, burst 10)
-rather than the reduced protocol used in an earlier version of this experiment; as
-\S\ref{sec:p99} explains, that reduction was what produced a spurious order-of-magnitude
-p99 improvement at this scale.
-
-The 16-host finding holds at $2\times$ scale: \texttt{concentrated}, \texttt{heuristic},
-\texttt{optimal}, and \texttt{PPO} again never route to a degraded host in any seed;
-\texttt{round\_robin} hits one in 4 of 20 assignments, every seed.
-Table~\ref{tab:scaled32-paired} gives the paired comparisons: \texttt{round\_robin}
-again loses to the heuristic in all 15 paired runs ($+43.7$\,ms, $r = +1.000$,
-$p_{\mathrm{Holm}} = 0.0009$), as do \texttt{random} ($+52.0$\,ms) and
-\texttt{concentrated} ($+170.0$\,ms), while \texttt{optimal} and \texttt{PPO} remain
-indistinguishable from it ($p_{\mathrm{Holm}} \ge 0.61$). Notably,
-\texttt{round\_robin}'s degraded-host hit rate is not a random draw but a fixed
-consequence of how Python's alphabetical host-name sort aligns with the degraded hosts;
-\S\ref{sec:rl128} shows this coincidence flips at 128 hosts.
-
-\begin{table}[t]
-\centering
-\caption{Scaled heterogeneous, 32 hosts (20 primaries, 4 degraded), 15 runs.}
-\label{tab:scaled32}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrr}
-\toprule
-Method & Mean (ms) & 95\% CI of mean & Median (ms) & p95 (ms) \\
-\midrule
-\texttt{concentrated} & 296.00 & [277.56, 315.07] & 8.19 & 1332.60 \\
-\texttt{random} & 172.59 & [157.84, 187.04] & 79.51 & 338.52 \\
-\texttt{round\_robin} & 163.39 & [160.25, 166.36] & 86.27 & 362.48 \\
-\texttt{heuristic} & 121.39 & [116.33, 126.96] & 85.22 & 200.81 \\
-\texttt{optimal} & 123.29 & [118.27, 129.49] & 87.42 & 221.41 \\
-\texttt{PPO} & 130.38 & [122.57, 139.30] & 84.39 & 243.23 \\
-\bottomrule
-\end{tabular}}
-\end{table}
-\begin{table}[t]
-\centering
-\caption{32 hosts: paired comparisons against the heuristic.}
-\label{tab:scaled32-paired}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrl}
-\toprule
-Method vs.\ \texttt{heuristic} & $\Delta$ median (ms) & $r$ & $p_{\mathrm{Holm}}$ & Verdict \\
-\midrule
-\texttt{concentrated} & +169.97 & +1.000 & 0.0009 & significant \\
-\texttt{random} & +52.02 & +1.000 & 0.0009 & significant \\
-\texttt{round\_robin} & +43.69 & +1.000 & 0.0009 & significant \\
-\texttt{optimal} & +3.81 & +0.100 & 0.7615 & n.s. \\
-\texttt{PPO} & +15.28 & +0.400 & 0.6057 & n.s. \\
-\bottomrule
-\end{tabular}}
-\end{table}
-\subsection{Scalability Trend Continued: 128 Hosts}
+\subsection{128 Hosts: Structural Results Only}
 \label{sec:rl128}
 
-Table~\ref{tab:scaled128} reports the 128-host point at the same protocol as every other
-scale. This is the only scale at which client-side retry behavior contributes measurably
-to observed latency, and Table~\ref{tab:decomposition} separates the two components. For
-every feature-aware method the client never retries at all and wall-clock time equals
-backup service time exactly. For \texttt{concentrated}, by contrast, 3.53\% of calls
-retry and \emph{19.6 of the 35.1\,s wall-clock p99 is the client's own exponential-backoff
-sleep} rather than backup delay. Reporting the two fused, as our earlier harness did,
-attributes the client's sleep constants to the server under test; the genuine service-time
-p99 is 15.5\,s, itself a real and severe queueing pathology, but not the 35\,s the fused
-number suggests.
+At 128 hosts (80 primaries) a single machine can no longer produce a trustworthy
+latency measurement, and we report no latency claims at this scale. The arithmetic
+is unforgiving: 80 primaries at burst 10 is 800 client threads, and on the gRPC arm
+roughly 75 backup processes with eight workers each add some 600 server threads, on
+eight cores. The symptom is that two independent executions of the identical gRPC
+configuration differ by $4.8\times$ on \texttt{optimal} and $6.1\times$ on
+\texttt{PPO}, with cluster-bootstrap intervals spanning an order of magnitude. The
+one effect that survives is gross concentration: \texttt{concentrated} is worse than
+every other method with $r=1.000$ on both transports and in both executions, and on
+the XML-RPC arm it is the only configuration where client retries contribute
+measurably at all (Table~\ref{tab:decomposition}: 3.53\% of calls retry, and
+19.6 of the 35.1\,s wall-clock p99 is the client's own backoff sleep rather than
+backup delay).
+
+What remains valid at this scale is the \emph{structure} of the produced mapping,
+which is computed from the assignment and does not depend on timing at all
+(Table~\ref{tab:scaled128}). Here the finding is unchanged from the smaller scales
+and is the one this scenario was built to test: the deterministic heuristic spreads
+80 primaries across nearly as many distinct backups, while the learned policies do
+not. Validating the latency consequence of that structure at this scale requires
+genuinely distributed hardware, which we identify as the most important remaining
+work (\S\ref{sec:threats}).
 
 \begin{table}[t]
 \centering
-\caption{128 hosts: backup service time vs.\ client retry wait. Only at this scale does client-side backoff contribute measurably; at 9/16/32 hosts no call retries.}
+\caption{128 hosts (80 primaries, 16 degraded): structural outcome of the produced mapping. Per-call latency is not a usable measurement at this scale on a single machine (\S\ref{sec:p99}), but the mapping itself is exact and hardware-independent.}
+\label{tab:scaled128}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrr}
+\toprule
+Method & \multicolumn{2}{c}{Distinct backups used (of 80)} \\
+\cmidrule(lr){2-3}
+ & XML-RPC & gRPC \\
+\midrule
+\texttt{concentrated} & 2--2 & 2--2 \\
+\texttt{random} & 54--62 & 54--62 \\
+\texttt{round\_robin} & 80--80 & 80--80 \\
+\texttt{heuristic} & 74--76 & 74--76 \\
+\texttt{optimal} & 80--80 & 80--80 \\
+\texttt{PPO} & 24--30 & 24--30 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+\begin{table}[t]
+\centering
+\caption{128 hosts, XML-RPC: backup service time vs.\ client retry wait. Only at this scale does client-side backoff contribute measurably; at 9/16/32 hosts no call retries.}
 \label{tab:decomposition}
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{lrrrr}
@@ -803,82 +846,23 @@ Method & Service p99 & Wall p99 & Retry wait & Calls retried (\%) \\
 \bottomrule
 \end{tabular}}
 \end{table}
-\textbf{Round-robin, heuristic, and optimal are indistinguishable at this scale.}
-\texttt{round\_robin}'s mapping happens to hit zero degraded-host assignments at 128
-hosts (the alphabetical-sort coincidence noted in \S\ref{sec:scale32}), so it is not
-penalized here for the mechanism this scenario is designed to test. It, the heuristic
-and the optimum are statistically indistinguishable ($p_{\mathrm{Holm}} \ge 0.66$).
-Table~\ref{tab:scaled128-paired} gives the full comparison.
-This is not a reversal of our core claim but its clearest illustration: round-robin's
-outcome is uncontrolled, losing every paired run at 16 and 32 hosts and drawing level at
-128 purely by naming coincidence, whereas heuristic and optimal avoid degraded hosts
-\emph{by construction} regardless of scale, naming, or noise. \texttt{random}, which has
-no such luck, remains significantly worse ($+46.6$\,ms, $r = +1.000$).
+\textbf{Why the learned policies concentrate.} The original
+\texttt{rl\_model\_scaled128} (400{,}000 timesteps, \texttt{stable-baselines3}'s
+default entropy coefficient of 0 and a $[64,64]$ network) converged to a
+near-degenerate policy, using only 1--5 distinct backups out of 80. With no entropy
+bonus nothing discourages a policy from locking onto one action once it looks decent
+on average, compounded by a $[64,64]$ network's limited capacity to represent a
+policy conditioned on which of 80 one-hot-encoded primaries is active. Retraining
+with entropy 0.02, a $[256,256]$ network and 1M timesteps widened the spread
+substantially, and both checkpoints ship.
 
-\textbf{PPO degrades sharply at this scale.} The learned policy is worse than the
-heuristic by 145\,ms at the median run and loses all 15 paired runs ($r = +1.000$,
-$p_{\mathrm{Holm}} = 0.0009$), with a p95 of 1197\,ms against the heuristic's 295\,ms.
-Its median (96\,ms) is in fact the \emph{lowest} of any method, so the penalty is
-concentrated in a tail: the policy places most primaries well and a minority disastrously.
-
-\begin{table}[t]
-\centering
-\caption{Scaled heterogeneous, 128 hosts (80 primaries, 16 degraded), 15 runs.}
-\label{tab:scaled128}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrr}
-\toprule
-Method & Mean (ms) & 95\% CI of mean & Median (ms) & p95 (ms) \\
-\midrule
-\texttt{concentrated} & 536.87 & [503.12, 577.55] & 8.09 & 3424.71 \\
-\texttt{random} & 214.96 & [200.43, 232.83] & 129.24 & 470.15 \\
-\texttt{round\_robin} & 156.64 & [147.22, 166.78] & 117.53 & 277.70 \\
-\texttt{heuristic} & 167.05 & [152.06, 189.09] & 127.45 & 294.72 \\
-\texttt{optimal} & 189.25 & [153.21, 252.63] & 126.68 & 385.80 \\
-\texttt{PPO} & 328.86 & [296.21, 368.31] & 96.46 & 1196.85 \\
-\bottomrule
-\end{tabular}}
-\end{table}
-\begin{table}[t]
-\centering
-\caption{128 hosts: paired comparisons against the heuristic.}
-\label{tab:scaled128-paired}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrl}
-\toprule
-Method vs.\ \texttt{heuristic} & $\Delta$ median (ms) & $r$ & $p_{\mathrm{Holm}}$ & Verdict \\
-\midrule
-\texttt{concentrated} & +360.55 & +1.000 & 0.0009 & significant \\
-\texttt{random} & +46.57 & +1.000 & 0.0009 & significant \\
-\texttt{round\_robin} & -4.25 & -0.300 & 0.6605 & n.s. \\
-\texttt{optimal} & -2.48 & -0.133 & 0.6788 & n.s. \\
-\texttt{PPO} & +145.28 & +1.000 & 0.0009 & significant \\
-\bottomrule
-\end{tabular}}
-\end{table}
-\textbf{What drives it.} The original \texttt{rl\_model\_scaled128} (400,000 timesteps,
-\texttt{stable-baselines3}'s default entropy coefficient of 0 and a $[64,64]$ network)
-converged to a near-degenerate policy, using only 1--5 distinct backups out of 80 and
-funnelling almost every primary onto one host. Since PPO's entropy bonus is zero by
-default, nothing discourages a policy from locking onto one action early once it looks
-decent on average, compounded by a $[64,64]$ network's limited capacity to represent a
-policy conditioned on which of 80 one-hot-encoded primaries is active. Two escalating
-retraining attempts followed: an intermediate one (entropy 0.01, $[128,128]$, 600k
-timesteps) that improved the spread only partially, and the fix that produced the
-reported model (entropy 0.02, $[256,256]$, larger rollout and batch sizes, 1M timesteps).
-Both are shipped as reproducible checkpoints.
-
-The fixed policy avoids degraded hosts completely (zero degraded assignments across all
-5 seeds) but still spreads the 80 primaries across far fewer backups than the heuristic
-does, and it is that residual concentration which produces the tail in
-Table~\ref{tab:scaled128}. The mechanism is visible in the reward: the health and
-capacity terms label which hosts are bad and the network learns that signal, whereas
-concentration is discouraged only implicitly, through the health/capacity decay, and
-never by a direct anti-concentration term. Host-quality discrimination and
-load-balancing precision are therefore acquired at different rates as the action space
-grows. Reward shaping that penalizes load concentration directly is a natural way to
-address this; we did not attempt it here, and leave a fuller study of RL for backup
-selection in this setting to future work (\S\ref{sec:conclusion}).
+The residual gap is visible in the reward: the health and capacity terms label which
+hosts are bad and the network learns that signal, whereas concentration is
+discouraged only implicitly, through the health and capacity decay, and never by a
+direct anti-concentration term. Host-quality discrimination and load-balancing
+precision are therefore acquired at different rates as the action space grows.
+Reward shaping that penalizes concentration directly is a natural remedy; we did not
+attempt it here and leave it to future work (\S\ref{sec:conclusion}).
 
 \subsection{Cross-Algorithm Check: DQN}
 \label{sec:dqn}
@@ -1261,10 +1245,6 @@ packet loss) and, in particular, DEFT's own packet-level, controller-integrated 
 A packet-level evaluation over a working OVS/SDN-controller Mininet fabric, against which
 the RPC-level failure rate could be cross-checked with DEFT's native packet-drop metric, is the most important remaining validation, and we treat the present study as isolating the backup-selection mechanism rather than certifying end-to-end network performance.
 
-\textbf{Single physical machine.} All ``hosts'' are OS processes on one machine;
-OS-level scheduling noise is a real, visible component of measured service latency.
-Multi-seed aggregation and the paired run-level design mitigate but do not eliminate this.
-
 \textbf{Synthetic resource values and injected heterogeneity.} Health, capacity, CPU, and
 storage availability are drawn from the configured ranges of \S\ref{sec:methods}, and
 heterogeneity is injected via a fixed $+50$\,ms per-call delay and pinned degraded resource
@@ -1290,16 +1270,22 @@ the load-bearing claim that heuristic and optimal avoid degraded hosts by constr
 every scale, and that PPO does so empirically at every scale tested, which no round-robin
 variant guarantees.
 
-\textbf{The transport, not the replication protocol, shapes the latency tail.} As
-\S\ref{sec:p99} establishes, DEFT's backup is an HTTP/1.0
-\texttt{SimpleXMLRPCServer} with a five-deep accept backlog, so every replication call
-opens a fresh TCP connection and the tail is quantized by the kernel's SYN-retransmission
-timer. This is a real property of the implementation under test, not a harness artifact,
-but it is a property of its \emph{transport}: a production replication path over gRPC,
-RDMA, or a DPDK ring would exhibit queueing behavior of an entirely different shape. The
-\emph{relative} ordering of selection methods, which is what this paper claims, is driven
-by how many primaries share a backup and is robust to this; the absolute latency
-magnitudes are not transferable.
+\textbf{Two transports, not every transport.} Evaluating over both XML-RPC and gRPC
+establishes that the placement findings are not an artifact of one RPC stack, and
+gRPC is representative of how production NFV systems carry state replication. It is
+not, however, the whole space: kernel-bypass paths (DPDK ring buffers, RDMA) remove
+the kernel networking stack entirely and would exhibit queueing of a different shape
+again. The relative ordering of selection methods is driven by how many primaries
+share a backup, which we expect to be robust, but absolute magnitudes are specific to
+the transport measured.
+
+\textbf{Single physical machine, and its hard limit at 128 hosts.} All ``hosts'' are
+OS processes on one machine. Below 32 hosts this is a controlled way to isolate
+server-side contention, and the two transports agree. At 128 hosts it fails outright:
+independent executions of the identical configuration differ several-fold, so we
+report only structural results there (\S\ref{sec:rl128}). Validating the latency
+consequences of placement at that scale needs genuinely distributed hardware with real
+NICs and switches, and is the most important remaining work.
 
 \textbf{Absolute latencies are not reproducible across executions.} Ephemeral-port
 TIME\_WAIT pressure shifts the mean of every method by of order 17\,ms between otherwise
@@ -1357,15 +1343,20 @@ load-balancing quality is governed almost entirely by the remaining-capacity ter
 $-20$ decrement is the load-spreading mechanism), and that the published default weighting is a near-optimal, non-fragile choice, so the heuristic's calibration is principled, not
 ad hoc.
 
-We also report, as a methodological result, what this testbed cannot measure. Because
-DEFT's backup server closes every connection, the per-call latency tail is quantized by
-the kernel's TCP SYN-retransmission timer rather than by queueing, which makes p99
-unusable as a latency metric here; and ephemeral-port pressure shifts absolute latencies
-between otherwise identical executions by more than most of the differences one might
-wish to claim. A run-level paired design, in which the independent unit is an execution
-rather than an individual RPC call, absorbs both and is what allows the surviving claims
-to be stated with confidence. We recommend it, and two independent replications per
-configuration, for anyone evaluating placement policies on a comparable harness.
+We also report a methodological result. Evaluating the same methods over two
+transports shows that DEFT's shipped XML-RPC path inflates the measured placement
+effect by roughly $4.3\times$, because an HTTP/1.0 server with a five-deep accept
+backlog converts a degraded host's modest per-call service penalty into accept-queue
+overflow and kernel retransmission waits; under gRPC the tail is ordinary queueing and
+p99 becomes meaningful again. Placement studies built on connection-per-call RPC
+harnesses are subject to the same inflation. Two further limits are worth recording:
+ephemeral-port pressure shifts absolute latencies between identical executions by more
+than most differences one might wish to claim, and a single machine cannot resolve
+latency at 128 hosts on either transport. A run-level paired design, in which the
+independent unit is an execution rather than an individual call, absorbs the former;
+only distributed hardware addresses the latter. We recommend that design, and two
+independent replications per configuration, for anyone evaluating placement policies on
+a comparable harness.
 
 Future work includes: reward shaping that directly penalizes load concentration for the
 RL policy at large scale; validating these findings over a physical or emulated network

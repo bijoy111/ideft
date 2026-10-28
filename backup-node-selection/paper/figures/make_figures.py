@@ -83,7 +83,7 @@ HOSTS = [9, 16, 32, 128]
 sys.path.insert(0, os.path.normpath(os.path.join(HERE, "../../code")))
 import analysis  # noqa: E402
 
-ARCHIVE = os.path.normpath(os.path.join(HERE, "../../findings/raw/{}hosts.csv.gz"))
+ARCHIVE = os.path.normpath(os.path.join(HERE, "../../findings/raw/{}.csv.gz"))
 OVERHEAD_TXT = os.path.normpath(os.path.join(HERE, "../../findings/selection_overhead.txt"))
 # Figure labels vs. the method names used in the data files.
 KEY = {"concentrated": "concentrated", "random": "random", "round-robin": "round_robin",
@@ -99,7 +99,7 @@ def load_latency():
     """
     mean, p95, lo, hi = ({m: [] for m in METHODS} for _ in range(4))
     for hosts in HOSTS:
-        runs = analysis.summarize_runs(ARCHIVE.format(hosts), metric="service_ms")
+        runs = analysis.summarize_runs(ARCHIVE.format("{}hosts".format(hosts)), metric="service_ms")
         for label in METHODS:
             per_run = list(runs.get(KEY[label], {}).values())
             if not per_run:
@@ -129,13 +129,13 @@ def load_overhead():
 def load_rl_spread():
     """Distinct backups each policy used at 128 hosts, from the archived mappings."""
     seen = {}
-    for row in analysis.iter_rows(ARCHIVE.format(128)):
+    for row in analysis.iter_rows(ARCHIVE.format("128hosts")):
         if row["method"] != "rl":
             continue
         seen.setdefault((int(row["context_seed"]), int(row["trial"])), set()).add(row["backup"])
     counts = [len(v) for v in seen.values()]
     heur = {}
-    for row in analysis.iter_rows(ARCHIVE.format(128)):
+    for row in analysis.iter_rows(ARCHIVE.format("128hosts")):
         if row["method"] != "heuristic":
             continue
         heur.setdefault((int(row["context_seed"]), int(row["trial"])), set()).add(row["backup"])
@@ -143,7 +143,49 @@ def load_rl_spread():
             min(len(v) for v in heur.values()), max(len(v) for v in heur.values()))
 
 
+def load_latency_grpc():
+    """Same per-run reduction for the gRPC arm.
+
+    Uses the n=25 archives at 9/16/32 hosts, matching the tables. The 128-host
+    point is loaded but drawn as excluded: two independent executions of that
+    configuration differ several-fold, so it is not a usable latency measurement
+    on a single machine, on either transport.
+    """
+    tags = {9: "9hosts_grpc_n25", 16: "16hosts_grpc_n25",
+            32: "32hosts_grpc_n25", 128: "128hosts_grpc"}
+    mean, p95, lo, hi = ({m: [] for m in METHODS} for _ in range(4))
+    for hosts in HOSTS:
+        runs = analysis.summarize_runs(ARCHIVE.format(tags[hosts]), metric="service_ms")
+        for label in METHODS:
+            per_run = list(runs.get(KEY[label], {}).values())
+            if not per_run:
+                for d in (mean, p95, lo, hi):
+                    d[label].append(np.nan)
+                continue
+            means = [r["mean"] for r in per_run]
+            ci_lo, ci_hi = analysis.cluster_bootstrap_ci(means)
+            mean[label].append(float(np.mean(means)))
+            p95[label].append(float(np.mean([r["p95"] for r in per_run])))
+            lo[label].append(ci_lo)
+            hi[label].append(ci_hi)
+    return mean, p95, lo, hi
+
+
+def load_calls(tag, methods=None):
+    """All successful per-call service times from one archive, for the CCDF."""
+    path = ARCHIVE.format(tag)
+    out = []
+    for row in analysis.iter_rows(path):
+        if row["succeeded"] != "True" or row["service_ms"] == "":
+            continue
+        if methods and row["method"] not in methods:
+            continue
+        out.append(float(row["service_ms"]))
+    return np.asarray(out)
+
+
 MEAN, P95, CI_LO, CI_HI = load_latency()
+GMEAN, GP95, GCI_LO, GCI_HI = load_latency_grpc()
 OVERHEAD = load_overhead()
 
 
@@ -173,29 +215,91 @@ def plot_series(ax, data, lo=None, hi=None):
                 markeredgewidth=0.5, label=m, clip_on=False, zorder=3)
 
 
-# ================= Figure 1: latency vs scale (mean + p99) =================
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(3.45, 3.6), sharex=True,
-                               gridspec_kw=dict(hspace=0.32))
-plot_series(ax1, MEAN, CI_LO, CI_HI)
-plot_series(ax2, P95)
-for ax, ttl in ((ax1, "(a) mean, 95% CI"), (ax2, "(b) p95")):
-    ax.set_yscale("log")
-    strip(ax)
-    ax.set_title(ttl, loc="left", color=INK, pad=3)
-host_axis(ax2)
-ax1.set_ylabel("latency (ms)")
-ax2.set_ylabel("latency (ms)")
-ax2.set_xlabel("hosts")
-for ax in (ax1, ax2):
-    ax.yaxis.set_major_locator(FixedLocator([30, 100, 300, 1000, 3000]))
-    ax.set_yticklabels(["30", "100", "300", "1000", "3000"])
-    ax.yaxis.set_minor_formatter(NullFormatter())
-handles, labels = ax1.get_legend_handles_labels()
+# ============ Figure 1: latency vs scale, both transports ============
+# Columns are transports, rows are metrics, so the eye compares like with like.
+# The 128-host column is shaded on both panels: two independent executions of the
+# identical configuration differ several-fold there, so it is not a usable latency
+# measurement on a single machine. It is drawn rather than dropped so the reader
+# can see the regime where the harness stops being trustworthy.
+EXCLUDED_FROM = 64  # shade everything to the right of this host count
+
+fig, axes = plt.subplots(2, 2, figsize=(3.45, 3.5), sharex=True, sharey="row",
+                         gridspec_kw=dict(hspace=0.30, wspace=0.12))
+for col, (data, p95data, lo, hi, ttl) in enumerate([
+        (MEAN, P95, CI_LO, CI_HI, "XML-RPC"),
+        (GMEAN, GP95, GCI_LO, GCI_HI, "gRPC")]):
+    for row, series in enumerate([data, p95data]):
+        ax = axes[row][col]
+        plot_series(ax, series, lo if row == 0 else None, hi if row == 0 else None)
+        ax.set_yscale("log")
+        strip(ax)
+        ax.axvspan(EXCLUDED_FROM, 200, color=GRID, alpha=0.55, lw=0, zorder=0)
+        if row == 0:
+            ax.set_title(ttl, loc="left", color=INK, pad=3, fontsize=7.5)
+        ax.yaxis.set_major_locator(FixedLocator([10, 30, 100, 300, 1000]))
+        ax.set_yticklabels(["10", "30", "100", "300", "1000"])
+        ax.yaxis.set_minor_formatter(NullFormatter())
+        host_axis(ax)
+axes[0][0].set_ylabel("mean (ms)")
+axes[1][0].set_ylabel("p95 (ms)")
+for ax in axes[1]:
+    ax.set_xlabel("hosts")
+# Label the shaded 128-host column once, at the top of the upper-right panel, so
+# it cannot collide with the curves or with the x-axis.
+axes[0][1].text(110, 700, "not reliable", fontsize=5.8, color=MUTED,
+                va="top", ha="center")
+handles, labels = axes[0][0].get_legend_handles_labels()
 fig.legend(handles, labels, ncol=3, loc="upper center",
-           bbox_to_anchor=(0.54, 1.02), columnspacing=1.0,
+           bbox_to_anchor=(0.54, 1.06), columnspacing=1.0,
            handlelength=1.9, handletextpad=0.5)
 fig.savefig(f"{OUT}/fig_latency_scale.pdf")
 fig.savefig(f"{WEB}/fig_latency_scale.svg")
+plt.close(fig)
+
+# ============ Figure 2: tail shape by transport (the CCDF) ============
+# The headline methodological claim made visible. On XML-RPC the tail is not a
+# queueing curve: it runs flat and then steps onto the kernel's SYN-retransmission
+# timer, leaving the 500-900 ms band essentially unoccupied. Under gRPC the same
+# workload produces an ordinary, smoothly decaying tail that ends two orders of
+# magnitude earlier.
+def ccdf(values):
+    v = np.sort(values)
+    return v, 1.0 - np.arange(len(v)) / float(len(v))
+
+fig, ax = plt.subplots(figsize=(3.45, 2.1))
+# Both arms at 16 hosts; the gRPC arm is the n=25 set used in the tables, so the
+# figure and the tables describe the same runs.
+for tag, lbl, colour, ls in [("16hosts", "XML-RPC", "#2a78d6", "-"),
+                             ("16hosts_grpc_n25", "gRPC", "#008300", "-")]:
+    x, y = ccdf(load_calls(tag))
+    ax.plot(x, y, color=colour, ls=ls, lw=1.4, label=lbl, zorder=3)
+# Mark the band that queueing would fill and the timer that fills it instead.
+ax.axvspan(500, 900, color="#e8cfcf", alpha=0.5, lw=0, zorder=1)
+ax.axvline(1000, color=INK2, lw=0.8, ls=(0, (3, 2)), zorder=2)
+# "1 s" sits on the rule above the axes; the band is labelled inside itself,
+# rotated, so neither can collide with the other or with the curves.
+ax.text(1000, 1.25, "1 s", fontsize=6.2, color=INK2, va="bottom", ha="center")
+# The band is not empty in absolute terms on either arm (~0.05% of calls on
+# both). What distinguishes them is what sits just beyond it: XML-RPC piles 3.2%
+# of calls onto the timer quanta past 900 ms, gRPC 0.013% -- a 240x difference.
+ax.text(670, 1.3e-5, "0.04% / 0.06%", fontsize=5.4, color="#8a4b4b",
+        rotation=90, va="bottom", ha="center")
+# The staircase is the finding; label it where there is room.
+ax.annotate("each step is one kernel\ntimer quantum: 3.2% of calls\nbeyond 1 s vs 0.013%",
+            xy=(3100, 8.5e-3), xytext=(1250, 0.33), fontsize=5.6, color=INK2,
+            ha="left", va="center",
+            arrowprops=dict(arrowstyle="->", lw=0.6, color=MUTED,
+                            shrinkA=0, shrinkB=2))
+ax.set_xscale("log")
+ax.set_yscale("log")
+ax.set_xlim(1, 4e4)
+ax.set_ylim(1e-5, 1.05)
+ax.set_xlabel("per-call service latency (ms)")
+ax.set_ylabel("P(latency > x)")
+strip(ax)
+ax.legend(loc="lower left", handlelength=1.9, handletextpad=0.5)
+fig.savefig(f"{OUT}/fig_tail_transport.pdf")
+fig.savefig(f"{WEB}/fig_tail_transport.svg")
 plt.close(fig)
 
 # ================= Figure 2: selection overhead =================

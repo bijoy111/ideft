@@ -331,3 +331,86 @@ retry-exhaustion failures, where the original harness crashed outright.
 | 32-host: optimal better than heuristic | **Withdrawn** -- did not replicate, sign flipped |
 | p99 as a latency metric | **Invalid** -- threshold statistic, zero calls in the 500-900 ms band |
 | Absolute latency values | **Not reproducible** -- ~17 ms common-mode drift from TIME_WAIT |
+
+---
+
+## Fix 5 — the transport was never a controlled variable
+
+All three reviewers questioned whether the measured contention was a property of
+NFV replication or of Python's XML-RPC. It was largely the latter, and the only way
+to show that is to vary the transport while holding everything else fixed.
+
+`grpc_transport.py` adds a second arm: the same `update_state(state)` call over
+gRPC/HTTP/2, one persistent channel per primary instead of a connection per call,
+and a server thread pool instead of a single accept loop. Selection methods,
+scoring, topologies, degraded-host injection, workload, retry policy and statistics
+are identical across arms. Select with `--transport {xmlrpc,grpc}`; `--grpc-workers 1`
+reproduces the XML-RPC backup's strict serialization over HTTP/2, separating the
+transport change from the concurrency change.
+
+### The pathology is entirely a transport artifact
+
+16-host scenario, 180,000 XML-RPC calls vs 16,000 gRPC calls of the same workload:
+
+| | XML-RPC | gRPC |
+| --- | --- | --- |
+| p50 | 49.95 ms | **11.58 ms** |
+| p95 | 360.57 ms | **88.70 ms** |
+| p99 | 1175.83 ms | **105.14 ms** |
+| p99.9 | 7261.61 ms | **126.86 ms** |
+| max | 22773.07 ms | **156.43 ms** |
+| calls on the SYN-retransmit timer | 1.549% (n=2789, sd 24 ms) | **0** |
+| calls > 1100 ms | 1.650% | **0** |
+
+p99 is a usable metric on the gRPC arm.
+
+### The findings hold on both transports
+
+`round_robin` vs `heuristic`, median per-run difference (positive favours the heuristic):
+
+| hosts | XML-RPC (n=15) | gRPC (n=25) |
+| --- | --- | --- |
+| 9 (homogeneous) | -2.08, r=-0.517, p=0.4163 | **-2.14**, r=-0.422, p=0.5010 |
+| 16 | +48.05, r=+0.983, p=0.0012 | +11.43, r=+0.705, p=0.0104 |
+| 32 | +43.69, r=+1.000, p=0.0009 | +9.75, r=+0.994, p<0.0001 |
+
+The homogeneous null agrees to 0.06 ms across two different RPC stacks and
+independent executions.
+
+### The shipped transport inflates the effect ~4.3x
+
+48.05/11.43 = 4.2x and 43.69/9.75 = 4.5x. A degraded host's modest per-call service
+penalty pushes its five-deep accept queue into overflow, converting it into whole
+seconds of kernel retransmission wait. In *proportional* terms the advantage is
+preserved or larger on gRPC (31.8% at 16 hosts on both; 53.7% vs 25.7% at 32),
+because baseline latencies fall by a similar factor.
+
+Generalizable claim: evaluating placement policies over a connection-per-call RPC
+stack inflates measured placement effects.
+
+### 128 hosts is not measurable on one machine
+
+80 primaries x burst 10 = 800 client threads, plus ~75 backup processes x 8 gRPC
+workers = ~600 server threads, on 8 cores. Two independent executions of the
+identical gRPC configuration:
+
+| method | run 1 | run 2 | ratio |
+| --- | --- | --- | --- |
+| optimal | 60.97 | 12.65 | **4.8x** |
+| rl (PPO) | 105.48 | 17.18 | **6.1x** |
+| round_robin | 45.79 | 78.21 | 1.7x |
+| heuristic | 21.95 | 24.36 | 1.1x |
+| concentrated | 561.33 | 518.08 | 1.1x |
+
+Only gross concentration survives (r=1.000 on both transports, both executions).
+The paper reports structural results only at this scale. Real distributed hardware
+is required to validate latency there.
+
+### Effects that did not survive replication
+
+Four candidate effects reached significance in a single execution and vanished on
+re-running: the 9-host heuristic disadvantage, the 32-host optimal-beats-heuristic
+result, 9-host heuristic-vs-random on gRPC at n=15, and 16-host
+round_robin-vs-heuristic at n=15 (which then *did* hold at n=25). The harness
+resolution floor is about 10 ms; no claim below it is made. Two independent
+replications per configuration is the working standard.

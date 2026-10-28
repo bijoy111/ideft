@@ -6,3 +6,9 @@ scipy==1.15.3
 gymnasium==1.3.0
 stable_baselines3==2.9.0
 torch==2.12.1
+
+# gRPC transport (rpc_contention_experiment.py --transport grpc).
+# grpcio-tools is only needed to regenerate stubs from replication.proto;
+# the generated *_pb2*.py files are committed.
+grpcio==1.85.0
+grpcio-tools==1.85.0

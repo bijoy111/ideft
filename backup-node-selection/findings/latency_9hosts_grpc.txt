@@ -1,0 +1,39 @@
+# iDEFT findings: latency_9hosts_grpc
+# command: rpc_contention_experiment.py --transport grpc --grpc-workers 1 --context-seeds 1 --trials 1 --calls 20 --burst 4 --methods heuristic
+# generated: 2026-10-28 08:13:40 UTC
+# (reproducing this scenario overwrites this file)
+
+transport: grpc (server workers: 1)
+
+--- context_seed=1 ---
+  heuristic    mapping: {'h1': 'h3', 'h2': 'h7', 'h3': 'h2', 'h5': 'h3', 'h7': 'h5'}
+  trial 1/1 done (order: ['heuristic'])
+
+
+===== RUN SUMMARY: 1 context seeds x 1 trials (20 calls/primary, burst=4) =====
+Independent observations per method: 1 runs (1 seeds x 1 trials).
+
+===== Latency decomposition: backup service time vs. client retry wait =====
+wall_ms is what the previous harness reported as 'latency'. Any gap between
+wall and service is the client's own backoff sleep, not backup delay.
+
+method        service p99    retry p99     wall p99 wall-service  retried %
+heuristic            8.83         0.01         8.83         0.00       0.00
+
+===== Run-level summary: service latency =====
+One observation per (method, context_seed, trial). Latency statistics are
+computed within each run, then averaged across runs; CIs are cluster
+bootstraps over runs. Failed calls are censored (counted in failure rate,
+excluded from latency), not imputed as a sentinel value.
+
+method         runs    mean_ms  median_ms     p95_ms     p99_ms    fail_%         95% CI of mean
+heuristic         1       4.92       4.88       7.66       8.83      0.00             [nan, nan]
+
+===== Service latency vs. backup load (one observation per run x backup) =====
+Does sharing a backup among more primaries raise latency, independent of
+which method produced the sharing? Aggregated per (run, backup) so that
+correlated calls against one loaded server count once, not thousands of times.
+
+  load n_units    mean_ms  median_ms         95% CI of mean
+     1       3       4.80       4.85           [4.67, 4.89]
+     2       1       5.10       5.10             [nan, nan]

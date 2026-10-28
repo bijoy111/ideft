@@ -1,0 +1,94 @@
+analysing call records from ../findings/raw/128hosts_grpc.csv.gz
+
+===== Latency decomposition: backup service time vs. client retry wait =====
+wall_ms is what the previous harness reported as 'latency'. Any gap between
+wall and service is the client's own backoff sleep, not backup delay.
+
+method        service p99    retry p99     wall p99 wall-service  retried %
+optimal             45.83         0.01        45.83         0.01       0.00
+round_robin        963.95         0.01       963.96         0.01       0.00
+random            1096.29         0.01      1096.29         0.00       0.00
+concentrated      1094.83      1894.86      2514.95      1420.12      25.89
+rl                  76.42         0.01        76.42         0.00       0.00
+heuristic          336.29         0.01       336.29         0.00       0.00
+
+===== Run-level summary: service latency =====
+One observation per (method, context_seed, trial). Latency statistics are
+computed within each run, then averaged across runs; CIs are cluster
+bootstraps over runs. Failed calls are censored (counted in failure rate,
+excluded from latency), not imputed as a sentinel value.
+
+method         runs    mean_ms  median_ms     p95_ms     p99_ms    fail_%         95% CI of mean
+optimal          15      12.65      10.47      28.51      44.56      0.00         [12.11, 13.21]
+round_robin      15      78.21      67.27     184.60     258.85      0.00        [12.58, 165.19]
+random           15      68.49      52.08     189.06     264.54      0.00        [18.81, 158.62]
+concentrated     15     518.08     559.19     804.73    1009.41      0.00       [488.25, 553.08]
+rl               15      17.18      12.85      45.50      66.66      0.00         [15.42, 19.31]
+heuristic        15      24.36      16.05      70.75     102.25      0.00         [12.52, 44.51]
+
+===== Paired Wilcoxon signed-rank on per-run mean (service latency) =====
+Paired by (context_seed, trial); Holm-Bonferroni across the 15 comparisons.
+r is the matched-pairs rank-biserial correlation: how consistently one
+method beats the other across runs, +1 or -1 meaning every run agrees.
+
+method A     vs method B     n=       d_median        r       p_raw      p_holm  
+optimal      vs round_robin  n=15       -0.412   -0.367      0.2293      1.0000  n.s.
+optimal      vs random       n=15       -6.400   -1.000      0.0001      0.0009  significant
+optimal      vs concentrated n=15     -478.310   -1.000      0.0001      0.0009  significant
+optimal      vs rl           n=15       -3.474   -1.000      0.0001      0.0009  significant
+optimal      vs heuristic    n=15       -0.360   -0.283      0.3591      1.0000  n.s.
+round_robin  vs random       n=15       -5.817   -0.367      0.2293      1.0000  n.s.
+round_robin  vs concentrated n=15     -459.822   -1.000      0.0001      0.0009  significant
+round_robin  vs rl           n=15       -3.041   -0.300      0.3303      1.0000  n.s.
+round_robin  vs heuristic    n=15       -0.111    0.033      0.9341      1.0000  n.s.
+random       vs concentrated n=15     -455.976   -0.983      0.0001      0.0011  significant
+random       vs rl           n=15        4.481    0.600      0.0413      0.3301  n.s.
+random       vs heuristic    n=15        5.705    0.583      0.0479      0.3354  n.s.
+concentrated vs rl           n=15      477.776    1.000      0.0001      0.0009  significant
+concentrated vs heuristic    n=15      464.689    1.000      0.0001      0.0009  significant
+rl           vs heuristic    n=15        3.322    0.500      0.0946      0.5676  n.s.
+
+===== Paired Wilcoxon signed-rank on per-run p99 (service latency) =====
+Paired by (context_seed, trial); Holm-Bonferroni across the 15 comparisons.
+r is the matched-pairs rank-biserial correlation: how consistently one
+method beats the other across runs, +1 or -1 meaning every run agrees.
+
+method A     vs method B     n=       d_median        r       p_raw      p_holm  
+optimal      vs round_robin  n=15        0.334   -0.167      0.5995      1.0000  n.s.
+optimal      vs random       n=15      -44.745   -1.000      0.0001      0.0009  significant
+optimal      vs concentrated n=15     -899.389   -1.000      0.0001      0.0009  significant
+optimal      vs rl           n=15      -12.028   -0.900      0.0009      0.0077  significant
+optimal      vs heuristic    n=15       -3.781   -0.200      0.5245      1.0000  n.s.
+round_robin  vs random       n=15      -41.085   -0.367      0.2293      1.0000  n.s.
+round_robin  vs concentrated n=15     -858.198   -0.933      0.0004      0.0047  significant
+round_robin  vs rl           n=15      -14.200   -0.267      0.3894      1.0000  n.s.
+round_robin  vs heuristic    n=15       -1.051    0.067      0.8469      1.0000  n.s.
+random       vs concentrated n=15     -825.712   -0.933      0.0004      0.0047  significant
+random       vs rl           n=15       32.716    0.767      0.0067      0.0537  n.s.
+random       vs heuristic    n=15       45.110    0.583      0.0479      0.3354  n.s.
+concentrated vs rl           n=15      862.429    1.000      0.0001      0.0009  significant
+concentrated vs heuristic    n=15      913.015    1.000      0.0001      0.0009  significant
+rl           vs heuristic    n=15       20.366    0.383      0.2078      1.0000  n.s.
+
+===== Service latency vs. backup load (one observation per run x backup) =====
+Does sharing a backup among more primaries raise latency, independent of
+which method produced the sharing? Aggregated per (run, backup) so that
+correlated calls against one loaded server count once, not thousands of times.
+
+  load n_units    mean_ms  median_ms         95% CI of mean
+     1    4224      42.09      12.43         [38.68, 45.61]
+     2     372      43.43      13.14         [32.29, 56.06]
+     3     114      35.35      13.35         [20.68, 53.98]
+     4      42      29.37      13.71         [13.37, 60.68]
+     5      21      43.63      13.81        [13.59, 102.61]
+     6       3      12.54      12.79         [11.31, 13.53]
+     7       3      13.22      13.20         [11.82, 14.63]
+     8       3      17.29      16.03         [15.76, 20.09]
+     9       6      17.71      14.83         [13.74, 22.36]
+    11       3      15.24      15.62         [12.85, 17.24]
+    12       3      14.46      13.07         [12.49, 17.81]
+    14       3      37.45      34.46         [32.31, 45.56]
+    17       3      17.62      16.97         [16.00, 19.88]
+    23       3      26.00      22.52         [20.55, 34.91]
+    28       3      32.36      30.29         [24.35, 42.44]
+    79      15     524.19     498.98       [493.85, 559.92]

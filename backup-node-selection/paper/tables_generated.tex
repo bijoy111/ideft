@@ -2,157 +2,110 @@
 
 \begin{table}[t]
 \centering
-\caption{Homogeneous scale (9 hosts, 5 primaries), 15 runs (5 context seeds $\times$ 3 trials), 200 calls/primary, burst 10. Per-run service latency, averaged across runs.}
+\caption{Homogeneous scale (9 hosts, 5 primaries). XML-RPC: 15 runs; gRPC: 25 runs (5 context seeds $\times$ 5 trials), 200 calls/primary, burst 10. Effect sizes are paired against \texttt{heuristic} on the gRPC arm.}
 \label{tab:homogeneous}
 \resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrr}
+\begin{tabular}{lrrrrr}
 \toprule
-Method & Mean (ms) & 95\% CI of mean & Median (ms) & p95 (ms) \\
+& XML-RPC & \multicolumn{4}{c}{gRPC} \\
+\cmidrule(lr){2-2}\cmidrule(lr){3-6}
+Method & Mean (ms) & Mean (ms) & 95\% CI & $r$ & $p_{\mathrm{Holm}}$ \\
 \midrule
-\texttt{baseline} & 73.45 & [69.58, 77.74] & 15.71 & 81.45 \\
-\texttt{concentrated} & 107.42 & [100.80, 114.72] & 10.04 & 558.47 \\
-\texttt{random} & 58.70 & [55.86, 61.66] & 21.35 & 55.39 \\
-\texttt{round\_robin} & 47.51 & [46.05, 49.05] & 33.36 & 70.20 \\
-\texttt{heuristic} & 51.10 & [48.16, 54.19] & 27.92 & 66.05 \\
-\texttt{optimal} & 45.90 & [44.38, 47.35] & 31.88 & 67.64 \\
-\texttt{PPO} & 48.44 & [45.45, 52.09] & 33.43 & 70.68 \\
+\texttt{baseline} & 73.45 & 20.58 & [17.55, 24.56] & +0.680 & 0.0243 \\
+\texttt{concentrated} & 107.42 & 32.60 & [29.84, 35.77] & +1.000 & $<$0.0001 \\
+\texttt{random} & 58.70 & 16.04 & [14.50, 17.75] & +0.329 & 0.7817 \\
+\texttt{round\_robin} & 47.51 & 14.06 & [12.22, 16.43] & -0.422 & 0.5010 \\
+\texttt{heuristic} & 51.10 & 14.72 & [13.44, 16.18] & -- & -- \\
+\texttt{optimal} & 45.90 & 13.60 & [12.50, 14.92] & -0.286 & 0.8799 \\
+\texttt{PPO} & 48.44 & 13.79 & [12.06, 16.21] & -0.403 & 0.5010 \\
 \bottomrule
 \end{tabular}}
 \end{table}
 
 \begin{table}[t]
 \centering
-\caption{Homogeneous scale: paired comparisons against the heuristic.}
-\label{tab:homogeneous-paired}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrl}
-\toprule
-Method vs.\ \texttt{heuristic} & $\Delta$ median (ms) & $r$ & $p_{\mathrm{Holm}}$ & Verdict \\
-\midrule
-\texttt{baseline} & +22.15 & +1.000 & 0.0013 & significant \\
-\texttt{concentrated} & +54.71 & +1.000 & 0.0013 & significant \\
-\texttt{random} & +7.88 & +0.833 & 0.0210 & significant \\
-\texttt{round\_robin} & -2.08 & -0.517 & 0.4163 & n.s. \\
-\texttt{optimal} & -4.94 & -0.733 & 0.0615 & n.s. \\
-\texttt{PPO} & -2.83 & -0.417 & 0.6753 & n.s. \\
-\bottomrule
-\end{tabular}}
-\end{table}
-
-\begin{table}[t]
-\centering
-\caption{Scaled heterogeneous, 16 hosts (10 primaries, 2 degraded), 15 runs.}
+\caption{Scaled heterogeneous, 16 hosts (10 primaries, 2 degraded).}
 \label{tab:scaled16}
 \resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrr}
+\begin{tabular}{lrrrrr}
 \toprule
-Method & Mean (ms) & 95\% CI of mean & Median (ms) & p95 (ms) \\
+& XML-RPC & \multicolumn{4}{c}{gRPC} \\
+\cmidrule(lr){2-2}\cmidrule(lr){3-6}
+Method & Mean (ms) & Mean (ms) & 95\% CI & $r$ & $p_{\mathrm{Holm}}$ \\
 \midrule
-\texttt{concentrated} & 175.36 & [167.09, 182.75] & 8.35 & 1040.33 \\
-\texttt{random} & 145.00 & [111.61, 183.58] & 46.81 & 263.85 \\
-\texttt{round\_robin} & 144.21 & [140.44, 147.84] & 63.37 & 362.36 \\
-\texttt{heuristic} & 98.35 & [90.67, 108.64] & 59.89 & 175.72 \\
-\texttt{optimal} & 90.73 & [86.88, 94.71] & 61.72 & 167.55 \\
-\texttt{PPO} & 89.38 & [85.38, 94.21] & 60.19 & 149.57 \\
+\texttt{concentrated} & 175.36 & 77.97 & [72.12, 83.99] & +1.000 & $<$0.0001 \\
+\texttt{random} & 145.00 & 31.45 & [24.34, 39.47] & +0.655 & 0.0185 \\
+\texttt{round\_robin} & 144.21 & 26.23 & [24.08, 29.12] & +0.705 & 0.0104 \\
+\texttt{heuristic} & 98.35 & 17.88 & [14.03, 22.76] & -- & -- \\
+\texttt{optimal} & 90.73 & 18.82 & [14.30, 24.45] & -0.046 & 1.0000 \\
+\texttt{PPO} & 89.38 & 13.83 & [12.57, 15.49] & -0.200 & 1.0000 \\
 \bottomrule
 \end{tabular}}
 \end{table}
 
 \begin{table}[t]
 \centering
-\caption{16 hosts: paired comparisons against the heuristic.}
-\label{tab:scaled16-paired}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrl}
-\toprule
-Method vs.\ \texttt{heuristic} & $\Delta$ median (ms) & $r$ & $p_{\mathrm{Holm}}$ & Verdict \\
-\midrule
-\texttt{concentrated} & +82.16 & +1.000 & 0.0009 & significant \\
-\texttt{random} & +17.94 & +0.700 & 0.0905 & n.s. \\
-\texttt{round\_robin} & +48.05 & +0.983 & 0.0012 & significant \\
-\texttt{optimal} & -1.03 & -0.350 & 0.7571 & n.s. \\
-\texttt{PPO} & -8.91 & -0.617 & 0.1767 & n.s. \\
-\bottomrule
-\end{tabular}}
-\end{table}
-
-\begin{table}[t]
-\centering
-\caption{Scaled heterogeneous, 32 hosts (20 primaries, 4 degraded), 15 runs.}
+\caption{Scaled heterogeneous, 32 hosts (20 primaries, 4 degraded).}
 \label{tab:scaled32}
 \resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrr}
+\begin{tabular}{lrrrrr}
 \toprule
-Method & Mean (ms) & 95\% CI of mean & Median (ms) & p95 (ms) \\
+& XML-RPC & \multicolumn{4}{c}{gRPC} \\
+\cmidrule(lr){2-2}\cmidrule(lr){3-6}
+Method & Mean (ms) & Mean (ms) & 95\% CI & $r$ & $p_{\mathrm{Holm}}$ \\
 \midrule
-\texttt{concentrated} & 296.00 & [277.56, 315.07] & 8.19 & 1332.60 \\
-\texttt{random} & 172.59 & [157.84, 187.04] & 79.51 & 338.52 \\
-\texttt{round\_robin} & 163.39 & [160.25, 166.36] & 86.27 & 362.48 \\
-\texttt{heuristic} & 121.39 & [116.33, 126.96] & 85.22 & 200.81 \\
-\texttt{optimal} & 123.29 & [118.27, 129.49] & 87.42 & 221.41 \\
-\texttt{PPO} & 130.38 & [122.57, 139.30] & 84.39 & 243.23 \\
+\texttt{concentrated} & 296.00 & 121.13 & [116.06, 127.00] & +1.000 & $<$0.0001 \\
+\texttt{random} & 172.59 & 31.84 & [23.14, 43.35] & +0.945 & $<$0.0001 \\
+\texttt{round\_robin} & 163.39 & 28.62 & [22.64, 39.73] & +0.994 & $<$0.0001 \\
+\texttt{heuristic} & 121.39 & 13.25 & [12.15, 14.95] & -- & -- \\
+\texttt{optimal} & 123.29 & 19.15 & [12.49, 30.49] & -0.022 & 1.0000 \\
+\texttt{PPO} & 130.38 & 13.22 & [12.34, 14.33] & +0.126 & 1.0000 \\
 \bottomrule
 \end{tabular}}
 \end{table}
 
 \begin{table}[t]
 \centering
-\caption{32 hosts: paired comparisons against the heuristic.}
-\label{tab:scaled32-paired}
+\caption{\texttt{round\_robin} vs.\ \texttt{heuristic} under both transports. $\Delta$ is the median per-run difference (positive favours the heuristic). The effect is real on both; it is roughly $4.3\times$ larger on XML-RPC, whose accept-backlog pathology amplifies the degraded-host penalty.}
+\label{tab:transport}
 \resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrl}
+\begin{tabular}{lrrrrrr}
 \toprule
-Method vs.\ \texttt{heuristic} & $\Delta$ median (ms) & $r$ & $p_{\mathrm{Holm}}$ & Verdict \\
+& \multicolumn{3}{c}{XML-RPC ($n{=}15$)} & \multicolumn{3}{c}{gRPC ($n{=}25$)} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+Hosts & $\Delta$ (ms) & $r$ & $p_{\mathrm{Holm}}$ & $\Delta$ (ms) & $r$ & $p_{\mathrm{Holm}}$ \\
 \midrule
-\texttt{concentrated} & +169.97 & +1.000 & 0.0009 & significant \\
-\texttt{random} & +52.02 & +1.000 & 0.0009 & significant \\
-\texttt{round\_robin} & +43.69 & +1.000 & 0.0009 & significant \\
-\texttt{optimal} & +3.81 & +0.100 & 0.7615 & n.s. \\
-\texttt{PPO} & +15.28 & +0.400 & 0.6057 & n.s. \\
+9 (homog.) & -2.08 & -0.517 & 0.4163 & -2.14 & -0.422 & 0.5010 \\
+16 & +48.05 & +0.983 & 0.0012 & +11.43 & +0.705 & 0.0104 \\
+32 & +43.69 & +1.000 & 0.0009 & +9.75 & +0.994 & $<$0.0001 \\
 \bottomrule
 \end{tabular}}
 \end{table}
 
 \begin{table}[t]
 \centering
-\caption{Scaled heterogeneous, 128 hosts (80 primaries, 16 degraded), 15 runs.}
+\caption{128 hosts (80 primaries, 16 degraded): structural outcome of the produced mapping. Per-call latency is not a usable measurement at this scale on a single machine (\S\ref{sec:p99}), but the mapping itself is exact and hardware-independent.}
 \label{tab:scaled128}
 \resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrr}
+\begin{tabular}{lrr}
 \toprule
-Method & Mean (ms) & 95\% CI of mean & Median (ms) & p95 (ms) \\
+Method & \multicolumn{2}{c}{Distinct backups used (of 80)} \\
+\cmidrule(lr){2-3}
+ & XML-RPC & gRPC \\
 \midrule
-\texttt{concentrated} & 536.87 & [503.12, 577.55] & 8.09 & 3424.71 \\
-\texttt{random} & 214.96 & [200.43, 232.83] & 129.24 & 470.15 \\
-\texttt{round\_robin} & 156.64 & [147.22, 166.78] & 117.53 & 277.70 \\
-\texttt{heuristic} & 167.05 & [152.06, 189.09] & 127.45 & 294.72 \\
-\texttt{optimal} & 189.25 & [153.21, 252.63] & 126.68 & 385.80 \\
-\texttt{PPO} & 328.86 & [296.21, 368.31] & 96.46 & 1196.85 \\
+\texttt{concentrated} & 2--2 & 2--2 \\
+\texttt{random} & 54--62 & 54--62 \\
+\texttt{round\_robin} & 80--80 & 80--80 \\
+\texttt{heuristic} & 74--76 & 74--76 \\
+\texttt{optimal} & 80--80 & 80--80 \\
+\texttt{PPO} & 24--30 & 24--30 \\
 \bottomrule
 \end{tabular}}
 \end{table}
 
 \begin{table}[t]
 \centering
-\caption{128 hosts: paired comparisons against the heuristic.}
-\label{tab:scaled128-paired}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrl}
-\toprule
-Method vs.\ \texttt{heuristic} & $\Delta$ median (ms) & $r$ & $p_{\mathrm{Holm}}$ & Verdict \\
-\midrule
-\texttt{concentrated} & +360.55 & +1.000 & 0.0009 & significant \\
-\texttt{random} & +46.57 & +1.000 & 0.0009 & significant \\
-\texttt{round\_robin} & -4.25 & -0.300 & 0.6605 & n.s. \\
-\texttt{optimal} & -2.48 & -0.133 & 0.6788 & n.s. \\
-\texttt{PPO} & +145.28 & +1.000 & 0.0009 & significant \\
-\bottomrule
-\end{tabular}}
-\end{table}
-
-\begin{table}[t]
-\centering
-\caption{Service latency vs.\ backup load, one observation per (run $\times$ backup).}
+\caption{Service latency vs.\ backup load on the XML-RPC arm, one observation per (run $\times$ backup).}
 \label{tab:backupload}
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{clrrr}
@@ -174,7 +127,7 @@ Scenario & Load & $n$ units & Mean (ms) & 95\% CI \\
 
 \begin{table}[t]
 \centering
-\caption{128 hosts: backup service time vs.\ client retry wait. Only at this scale does client-side backoff contribute measurably; at 9/16/32 hosts no call retries.}
+\caption{128 hosts, XML-RPC: backup service time vs.\ client retry wait. Only at this scale does client-side backoff contribute measurably; at 9/16/32 hosts no call retries.}
 \label{tab:decomposition}
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{lrrrr}

@@ -1,0 +1,35 @@
+// Backup-side state replication, mirroring the interface DEFT's Backup class
+// exposes over XML-RPC (exp_package/Two_phase_commit/backup_2pc.py).
+//
+// The method set is deliberately identical to the XML-RPC one -- a single
+// update_state(state) -> bool -- so that swapping transports changes only how
+// bytes reach the backup, never what the backup is asked to do. That is what
+// makes the two transports comparable: any difference in measured latency is a
+// property of the transport, not of a richer or poorer replication protocol.
+//
+// DEFT's state is a flow-keyed map ("10.0.0.1,10.0.0.2,1" -> counter), so the
+// wire type is map<string, int64> rather than an opaque blob. Keeping it typed
+// means protobuf does the serialization work that XML-RPC did in Python, which
+// is part of what is being compared.
+
+syntax = "proto3";
+
+package ideft;
+
+message StateUpdate {
+  map<string, int64> state = 1;
+}
+
+message UpdateAck {
+  bool ok = 1;
+}
+
+service BackupReplication {
+  // Unary replicate: the direct analogue of the XML-RPC update_state call.
+  rpc UpdateState(StateUpdate) returns (UpdateAck) {}
+
+  // Streaming replicate: a single long-lived stream carrying many updates.
+  // Production NFV replication paths are streaming rather than request/response
+  // per update; this exists so that cost can be measured, not assumed.
+  rpc UpdateStateStream(stream StateUpdate) returns (stream UpdateAck) {}
+}

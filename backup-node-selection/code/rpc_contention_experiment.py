@@ -36,7 +36,19 @@ import config
 import topology_features
 
 DUMMY_STATE = {"10.0.0.1,10.0.0.2,1": 42}
+
+# Which transport carries the replication call. "xmlrpc" drives DEFT's shipped
+# Backup unmodified; "grpc" drives the same logical call over HTTP/2 with a
+# persistent channel and a server thread pool (grpc_transport.py). The selection
+# methods, scoring, topology and statistics are identical either way, so the
+# transport is a controlled variable: a finding that holds under both is a
+# property of backup placement rather than of one RPC stack.
+TRANSPORT = "xmlrpc"
+GRPC_MAX_WORKERS = None  # None -> grpc_transport.DEFAULT_MAX_WORKERS
 RESULTS_DIR = "results_rpc"
+# Every invocation writes its own raw file. A single shared path is a race: a
+# following run truncates it (reset_raw_csv) while an archiving step from the
+# previous run may still be reading, silently yielding a partial archive.
 RESULTS_CSV = "{}/rpc_contention_raw.csv".format(RESULTS_DIR)
 RESULTS_FIELDS = ["method", "context_seed", "trial", "primary", "backup", "backup_load",
                   "service_ms", "retry_wait_ms", "wall_ms", "attempts", "succeeded"]
@@ -63,6 +75,13 @@ def _serve_backup(ip, port, extra_delay_s=0.0):
     backup.server.serve_forever()
 
 
+def _serve_backup_grpc(ip, port, extra_delay_s=0.0, max_workers=None):
+    """gRPC counterpart of _serve_backup, same process-per-backup arrangement."""
+    import grpc_transport
+    kwargs = {} if max_workers is None else {"max_workers": max_workers}
+    grpc_transport.serve_backup(ip, port, extra_delay_s=extra_delay_s, **kwargs)
+
+
 def start_backup_servers(unique_backups, base_port, slow_hosts=None, slow_delay_s=0.05):
     """One Backup XML-RPC server per unique backup host, each in its own OS
     process on its own port. Hosts in `slow_hosts` get an artificial per-call delay
@@ -74,7 +93,11 @@ def start_backup_servers(unique_backups, base_port, slow_hosts=None, slow_delay_
     for i, backup_name in enumerate(sorted(unique_backups)):
         port = base_port + i
         delay = slow_delay_s if backup_name in slow_hosts else 0.0
-        proc = multiprocessing.Process(target=_serve_backup, args=("127.0.0.1", port, delay), daemon=True)
+        if TRANSPORT == "grpc":
+            target, args = _serve_backup_grpc, ("127.0.0.1", port, delay, GRPC_MAX_WORKERS)
+        else:
+            target, args = _serve_backup, ("127.0.0.1", port, delay)
+        proc = multiprocessing.Process(target=target, args=args, daemon=True)
         proc.start()
         processes.append(proc)
         ports[backup_name] = port
@@ -113,6 +136,16 @@ class _TimeoutTransport(xmlrpc.client.Transport):
 
 
 def make_proxy(port):
+    """A client for `port` on the active transport.
+
+    Both expose .update_state(state) and raise on failure, so the measurement
+    loop in replicate_burst is transport-agnostic and the two paths stay
+    comparable call for call.
+    """
+    if TRANSPORT == "grpc":
+        import grpc_transport
+        grpc_transport.CALL_TIMEOUT_S = CALL_TIMEOUT_S
+        return grpc_transport.GrpcBackupClient(port)
     return xmlrpc.client.ServerProxy(
         "http://127.0.0.1:{}".format(port), transport=_TimeoutTransport())
 
@@ -120,6 +153,25 @@ def make_proxy(port):
 # only to the failure rate. The previous harness imputed a 10,000 ms sentinel into the
 # latency sample instead, which silently contaminated every percentile computed from it:
 # a p99 above that sentinel could not be distinguished from a p99 made of sentinels.
+
+
+def _retryable_errors():
+    """Transport-level failures worth retrying.
+
+    gRPC reports transport problems as RpcError rather than as OSError
+    subclasses, so the retry path has to recognise both or the gRPC runs would
+    record a crash where the XML-RPC runs record a retry.
+    """
+    errors = [ConnectionResetError, ConnectionRefusedError, OSError]
+    try:
+        import grpc
+        errors.append(grpc.RpcError)
+    except ImportError:
+        pass
+    return tuple(errors)
+
+
+_RETRYABLE_ERRORS = _retryable_errors()
 
 
 def replicate_burst(port, n_calls, burst_size):
@@ -151,7 +203,7 @@ def replicate_burst(port, n_calls, burst_size):
                     # property of the server under test.
                     service_s = time.perf_counter() - attempt_start
                     break
-                except (ConnectionResetError, ConnectionRefusedError, OSError):
+                except _RETRYABLE_ERRORS:
                     if attempt == MAX_RETRY_ATTEMPTS - 1:
                         break
                     backoff = min(0.05 * (2 ** attempt), 1.0) + random_module.uniform(0, 0.02)
@@ -207,7 +259,13 @@ def backup_load(mapping):
 def run_trial(mapping, base_port, n_calls, burst_size, slow_hosts=None):
     unique_backups = set(mapping.values())
     ports, processes = start_backup_servers(unique_backups, base_port, slow_hosts=slow_hosts)
-    time.sleep(0.3)  # let server processes finish starting up and binding
+    if TRANSPORT == "grpc":
+        # gRPC can report readiness exactly, so wait for it instead of guessing.
+        import grpc_transport
+        for port in ports.values():
+            grpc_transport.wait_until_ready(port)
+    else:
+        time.sleep(0.3)  # let server processes finish starting up and binding
 
     try:
         records_by_primary = {}
@@ -383,13 +441,35 @@ if __name__ == "__main__":
     parser.add_argument("--n-primaries", type=int, default=None)
     parser.add_argument("--n-degraded", type=int, default=0, help="mark this many backup-eligible hosts as artificially degraded (low health/capacity)")
     parser.add_argument("--scale-seed", type=int, default=0)
+    parser.add_argument("--results-csv", default=None,
+                        help="where to write this run's raw per-call records. Defaults to "
+                             "results_rpc/rpc_contention_raw.csv; give each concurrent or "
+                             "back-to-back run its own path so one cannot truncate another's")
+    parser.add_argument("--transport", choices=["xmlrpc", "grpc"], default="xmlrpc",
+                        help="xmlrpc drives DEFT's shipped Backup unmodified; grpc drives the "
+                             "same call over HTTP/2 with a persistent channel and a thread pool")
+    parser.add_argument("--grpc-workers", type=int, default=None,
+                        help="server thread-pool size for --transport grpc. Pass 1 to reproduce "
+                             "the XML-RPC backup's strict single-threading over HTTP/2, isolating "
+                             "the transport change from the concurrency change")
     parser.add_argument("--rl-model", default="rl_model.zip", help="PPO checkpoint for the 'rl' method")
     parser.add_argument("--rl-dqn-model", default="rl_model_dqn.zip", help="DQN checkpoint for the 'rl_dqn' method")
     args = parser.parse_args()
 
+    TRANSPORT = args.transport
+    GRPC_MAX_WORKERS = args.grpc_workers
+    if args.results_csv:
+        RESULTS_CSV = args.results_csv
+        RESULTS_DIR = os.path.dirname(RESULTS_CSV) or "."
+
     # Save this run's output to findings/ as well as the terminal (see run_logging.py).
     import run_logging
-    run_logging.capture_to_findings("latency_{}hosts".format(args.n_hosts or 9))
+    suffix = "" if args.transport == "xmlrpc" else "_{}".format(args.transport)
+    run_logging.capture_to_findings("latency_{}hosts{}".format(args.n_hosts or 9, suffix))
+    print("transport: {}{}".format(
+        args.transport,
+        "" if args.transport == "xmlrpc" else " (server workers: {})".format(
+            args.grpc_workers or "default")))
 
     hosts, primaries, graph, overrides, slow_hosts = None, None, None, None, None
     if args.n_hosts is not None:

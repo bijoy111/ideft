@@ -1,0 +1,1001 @@
+{
+  "config": {
+    "arrival_rates": [
+      500.0,
+      2000.0,
+      8000.0
+    ],
+    "idle_timeouts": [
+      30.0
+    ],
+    "warm_rounds": 150,
+    "round_s": 1.0,
+    "seeds": 3,
+    "live": false,
+    "out": "../findings/"
+  },
+  "records": [
+    {
+      "arrival_rate": 500.0,
+      "idle_timeout": 30.0,
+      "round_s": 1.0,
+      "entries": 15655.666666666666,
+      "predicted_entries": 15074.543564535412,
+      "delta_entries": 521,
+      "delta_fraction": 0.03327740961217658,
+      "encodings": {
+        "packed": {
+          "full_bytes": 692916,
+          "delta_bytes": 23060,
+          "bytes_per_entry": 44.000254000508,
+          "serialize_full_s": 0.011818352999398485,
+          "load_full_s": 0.01754959300160408,
+          "serialize_delta_s": 0.0003264490078436211,
+          "load_delta_s": 0.00049434500397183
+        },
+        "json": {
+          "full_bytes": 1171254,
+          "delta_bytes": 39273,
+          "bytes_per_entry": 74.3747777495555,
+          "serialize_full_s": 0.033240375996683724,
+          "load_full_s": 0.03946113299753051,
+          "serialize_delta_s": 0.0007552380120614544,
+          "load_delta_s": 0.0010713929950725287
+        },
+        "xmlrpc": {
+          "full_bytes": 5061167,
+          "delta_bytes": 168858,
+          "bytes_per_entry": 321.38474726949454,
+          "serialize_full_s": 0.18394020599953365,
+          "load_full_s": 0.7180974290095037,
+          "serialize_delta_s": 0.006254815001739189,
+          "load_delta_s": 0.03064878900477197
+        }
+      }
+    },
+    {
+      "arrival_rate": 2000.0,
+      "idle_timeout": 30.0,
+      "round_s": 1.0,
+      "entries": 62044.666666666664,
+      "predicted_entries": 60298.17425814165,
+      "delta_entries": 2053.3333333333335,
+      "delta_fraction": 0.03309400881641775,
+      "encodings": {
+        "packed": {
+          "full_bytes": 2735968,
+          "delta_bytes": 91612,
+          "bytes_per_entry": 44.0000643283318,
+          "serialize_full_s": 0.05526721499336418,
+          "load_full_s": 0.10773196999798529,
+          "serialize_delta_s": 0.0016253810026682913,
+          "load_delta_s": 0.0023557480017188936
+        },
+        "json": {
+          "full_bytes": 4651181,
+          "delta_bytes": 155989,
+          "bytes_per_entry": 74.80067866390056,
+          "serialize_full_s": 0.14454526499321219,
+          "load_full_s": 0.19420572400849778,
+          "serialize_delta_s": 0.004180086005362682,
+          "load_delta_s": 0.004848494005273096
+        },
+        "xmlrpc": {
+          "full_bytes": 20010045,
+          "delta_bytes": 670400,
+          "bytes_per_entry": 321.8032035509239,
+          "serialize_full_s": 0.4492028609965928,
+          "load_full_s": 1.6781792249967111,
+          "serialize_delta_s": 0.017827187999500893,
+          "load_delta_s": 0.0741639350017067
+        }
+      }
+    },
+    {
+      "arrival_rate": 8000.0,
+      "idle_timeout": 30.0,
+      "round_s": 1.0,
+      "entries": 248272,
+      "predicted_entries": 241192.6970325666,
+      "delta_entries": 8214.333333333334,
+      "delta_fraction": 0.03308596791500803,
+      "encodings": {
+        "packed": {
+          "full_bytes": 10914556,
+          "delta_bytes": 359748,
+          "bytes_per_entry": 44.00001612526103,
+          "serialize_full_s": 0.23335408000275493,
+          "load_full_s": 0.4462119410018204,
+          "serialize_delta_s": 0.01109015999827534,
+          "load_delta_s": 0.01184001300134696
+        },
+        "json": {
+          "full_bytes": 18556011,
+          "delta_bytes": 612959,
+          "bytes_per_entry": 74.80513025179594,
+          "serialize_full_s": 0.6933132669946644,
+          "load_full_s": 0.7967971850011963,
+          "serialize_delta_s": 0.022915246008778922,
+          "load_delta_s": 0.02266060799593106
+        },
+        "xmlrpc": {
+          "full_bytes": 79826494,
+          "delta_bytes": 2632588,
+          "bytes_per_entry": 321.80576316829126,
+          "serialize_full_s": 1.9614988579996862,
+          "load_full_s": 6.795939639996504,
+          "serialize_delta_s": 0.05133531100000255,
+          "load_delta_s": 0.2156408130103955
+        }
+      }
+    }
+  ],
+  "derived": [
+    {
+      "encoding": "packed",
+      "bandwidth_gbps": 1.0,
+      "migration_s": 0.034911274001002565,
+      "service_s_per_round": 0.001005274011815451,
+      "M_rounds": 34.72811749898455,
+      "arrival_rate": 500.0
+    },
+    {
+      "encoding": "packed",
+      "bandwidth_gbps": 10.0,
+      "migration_s": 0.029922278801002566,
+      "service_s_per_round": 0.0008392420118154511,
+      "M_rounds": 35.653933406258574,
+      "arrival_rate": 500.0
+    },
+    {
+      "encoding": "packed",
+      "bandwidth_gbps": 25.0,
+      "migration_s": 0.029589679121002563,
+      "service_s_per_round": 0.0008281732118154511,
+      "M_rounds": 35.72885321433976,
+      "arrival_rate": 500.0
+    },
+    {
+      "encoding": "json",
+      "bandwidth_gbps": 1.0,
+      "migration_s": 0.08207154099421424,
+      "service_s_per_round": 0.002140815007133983,
+      "M_rounds": 38.336587103846746,
+      "arrival_rate": 500.0
+    },
+    {
+      "encoding": "json",
+      "bandwidth_gbps": 10.0,
+      "migration_s": 0.07363851219421425,
+      "service_s_per_round": 0.001858049407133983,
+      "M_rounds": 39.63216043205261,
+      "arrival_rate": 500.0
+    },
+    {
+      "encoding": "json",
+      "bandwidth_gbps": 25.0,
+      "migration_s": 0.07307631027421424,
+      "service_s_per_round": 0.0018391983671339832,
+      "M_rounds": 39.73269636384509,
+      "arrival_rate": 500.0
+    },
+    {
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 1.0,
+      "migration_s": 0.9425269710090374,
+      "service_s_per_round": 0.03825446800651116,
+      "M_rounds": 24.638349979108668,
+      "arrival_rate": 500.0
+    },
+    {
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 10.0,
+      "migration_s": 0.9060865686090374,
+      "service_s_per_round": 0.03703869040651116,
+      "M_rounds": 24.46324528930303,
+      "arrival_rate": 500.0
+    },
+    {
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 25.0,
+      "migration_s": 0.9036572084490373,
+      "service_s_per_round": 0.03695763856651116,
+      "M_rounds": 24.45116201953115,
+      "arrival_rate": 500.0
+    },
+    {
+      "encoding": "packed",
+      "bandwidth_gbps": 1.0,
+      "migration_s": 0.18488692899134945,
+      "service_s_per_round": 0.004714025004387185,
+      "M_rounds": 39.220608465012674,
+      "arrival_rate": 2000.0
+    },
+    {
+      "encoding": "packed",
+      "bandwidth_gbps": 10.0,
+      "migration_s": 0.16518795939134948,
+      "service_s_per_round": 0.004054418604387185,
+      "M_rounds": 40.74269963456751,
+      "arrival_rate": 2000.0
+    },
+    {
+      "encoding": "packed",
+      "bandwidth_gbps": 25.0,
+      "migration_s": 0.16387469475134947,
+      "service_s_per_round": 0.004010444844387185,
+      "M_rounds": 40.86197444672507,
+      "arrival_rate": 2000.0
+    },
+    {
+      "encoding": "json",
+      "bandwidth_gbps": 1.0,
+      "migration_s": 0.37596043700171,
+      "service_s_per_round": 0.010276492010635779,
+      "M_rounds": 36.584511194345815,
+      "arrival_rate": 2000.0
+    },
+    {
+      "encoding": "json",
+      "bandwidth_gbps": 10.0,
+      "migration_s": 0.3424719338017099,
+      "service_s_per_round": 0.009153371210635778,
+      "M_rounds": 37.414841583587695,
+      "arrival_rate": 2000.0
+    },
+    {
+      "encoding": "json",
+      "bandwidth_gbps": 25.0,
+      "migration_s": 0.34023936692171,
+      "service_s_per_round": 0.009078496490635779,
+      "M_rounds": 37.47750161853976,
+      "arrival_rate": 2000.0
+    },
+    {
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 1.0,
+      "migration_s": 2.287462445993304,
+      "service_s_per_round": 0.0973543230012076,
+      "M_rounds": 23.49625959563121,
+      "arrival_rate": 2000.0
+    },
+    {
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 10.0,
+      "migration_s": 2.143390121993304,
+      "service_s_per_round": 0.0925274430012076,
+      "M_rounds": 23.164912511040967,
+      "arrival_rate": 2000.0
+    },
+    {
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 25.0,
+      "migration_s": 2.133785300393304,
+      "service_s_per_round": 0.09220565100120759,
+      "M_rounds": 23.141589232587908,
+      "arrival_rate": 2000.0
+    },
+    {
+      "encoding": "packed",
+      "bandwidth_gbps": 1.0,
+      "migration_s": 0.7668824690045752,
+      "service_s_per_round": 0.0258081569996223,
+      "M_rounds": 29.714732013440496,
+      "arrival_rate": 8000.0
+    },
+    {
+      "encoding": "packed",
+      "bandwidth_gbps": 10.0,
+      "migration_s": 0.6882976658045753,
+      "service_s_per_round": 0.0232179713996223,
+      "M_rounds": 29.64503892083234,
+      "arrival_rate": 8000.0
+    },
+    {
+      "encoding": "packed",
+      "bandwidth_gbps": 25.0,
+      "migration_s": 0.6830586789245753,
+      "service_s_per_round": 0.0230452923596223,
+      "M_rounds": 29.639835688149642,
+      "arrival_rate": 8000.0
+    },
+    {
+      "encoding": "json",
+      "bandwidth_gbps": 1.0,
+      "migration_s": 1.6385585399958607,
+      "service_s_per_round": 0.05047952600470998,
+      "M_rounds": 32.45986382366141,
+      "arrival_rate": 8000.0
+    },
+    {
+      "encoding": "json",
+      "bandwidth_gbps": 10.0,
+      "migration_s": 1.5049552607958607,
+      "service_s_per_round": 0.04606622120470998,
+      "M_rounds": 32.66938814252011,
+      "arrival_rate": 8000.0
+    },
+    {
+      "encoding": "json",
+      "bandwidth_gbps": 25.0,
+      "migration_s": 1.4960483755158607,
+      "service_s_per_round": 0.04577200088470998,
+      "M_rounds": 32.68479303065844,
+      "arrival_rate": 8000.0
+    },
+    {
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 1.0,
+      "migration_s": 9.39605044999619,
+      "service_s_per_round": 0.28803682801039804,
+      "M_rounds": 32.62100376156411,
+      "arrival_rate": 8000.0
+    },
+    {
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 10.0,
+      "migration_s": 8.82129969319619,
+      "service_s_per_round": 0.26908219441039805,
+      "M_rounds": 32.78291866366358,
+      "arrival_rate": 8000.0
+    },
+    {
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 25.0,
+      "migration_s": 8.782982976076191,
+      "service_s_per_round": 0.26781855217039807,
+      "M_rounds": 32.79452788053334,
+      "arrival_rate": 8000.0
+    }
+  ],
+  "crossovers": [
+    {
+      "arrival_rate": 500.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 13.964509600401026,
+      "crossover_s": 13.964509600401026
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 3.4911274001002566,
+      "crossover_s": 3.4911274001002566
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 1.1637091333667524,
+      "crossover_s": 1.1637091333667524
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 11.968911520401026,
+      "crossover_s": 11.968911520401026
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 2.9922278801002564,
+      "crossover_s": 2.9922278801002564
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 0.9974092933667522,
+      "crossover_s": 0.9974092933667522
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 11.835871648401023,
+      "crossover_s": 11.835871648401023
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 2.9589679121002557,
+      "crossover_s": 2.9589679121002557
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 0.9863226373667522,
+      "crossover_s": 0.9863226373667522
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "json",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 32.82861639768569,
+      "crossover_s": 32.82861639768569
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "json",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 8.207154099421423,
+      "crossover_s": 8.207154099421423
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "json",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 2.7357180331404742,
+      "crossover_s": 2.7357180331404742
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "json",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 29.455404877685698,
+      "crossover_s": 29.455404877685698
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "json",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 7.3638512194214245,
+      "crossover_s": 7.3638512194214245
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "json",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 2.454617073140475,
+      "crossover_s": 2.454617073140475
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "json",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 29.2305241096857,
+      "crossover_s": 29.2305241096857
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "json",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 7.307631027421425,
+      "crossover_s": 7.307631027421425
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "json",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 2.435877009140475,
+      "crossover_s": 2.435877009140475
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 377.010788403615,
+      "crossover_s": 377.010788403615
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 94.25269710090375,
+      "crossover_s": 94.25269710090375
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 31.41756570030125,
+      "crossover_s": 31.41756570030125
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 362.43462744361494,
+      "crossover_s": 362.43462744361494
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 90.60865686090374,
+      "crossover_s": 90.60865686090374
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 30.202885620301245,
+      "crossover_s": 30.202885620301245
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 361.4628833796149,
+      "crossover_s": 361.4628833796149
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 90.36572084490372,
+      "crossover_s": 90.36572084490372
+    },
+    {
+      "arrival_rate": 500.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 30.121906948301245,
+      "crossover_s": 30.121906948301245
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 73.95477159653977,
+      "crossover_s": 73.95477159653977
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 18.488692899134943,
+      "crossover_s": 18.488692899134943
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 6.162897633044982,
+      "crossover_s": 6.162897633044982
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 66.07518375653979,
+      "crossover_s": 66.07518375653979
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 16.518795939134947,
+      "crossover_s": 16.518795939134947
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 5.506265313044982,
+      "crossover_s": 5.506265313044982
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 65.54987790053978,
+      "crossover_s": 65.54987790053978
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 16.387469475134946,
+      "crossover_s": 16.387469475134946
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 5.462489825044982,
+      "crossover_s": 5.462489825044982
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "json",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 150.384174800684,
+      "crossover_s": 150.384174800684
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "json",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 37.596043700171,
+      "crossover_s": 37.596043700171
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "json",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 12.532014566723666,
+      "crossover_s": 12.532014566723666
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "json",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 136.988773520684,
+      "crossover_s": 136.988773520684
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "json",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 34.247193380171,
+      "crossover_s": 34.247193380171
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "json",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 11.415731126723665,
+      "crossover_s": 11.415731126723665
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "json",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 136.095746768684,
+      "crossover_s": 136.095746768684
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "json",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 34.023936692171,
+      "crossover_s": 34.023936692171
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "json",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 11.341312230723666,
+      "crossover_s": 11.341312230723666
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 914.9849783973216,
+      "crossover_s": 914.9849783973216
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 228.7462445993304,
+      "crossover_s": 228.7462445993304
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 76.24874819977681,
+      "crossover_s": 76.24874819977681
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 857.3560487973216,
+      "crossover_s": 857.3560487973216
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 214.3390121993304,
+      "crossover_s": 214.3390121993304
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 71.4463373997768,
+      "crossover_s": 71.4463373997768
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 853.5141201573215,
+      "crossover_s": 853.5141201573215
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 213.37853003933037,
+      "crossover_s": 213.37853003933037
+    },
+    {
+      "arrival_rate": 2000.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 71.12617667977679,
+      "crossover_s": 71.12617667977679
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 306.7529876018301,
+      "crossover_s": 306.7529876018301
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 76.68824690045753,
+      "crossover_s": 76.68824690045753
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 25.562748966819175,
+      "crossover_s": 25.562748966819175
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 275.3190663218301,
+      "crossover_s": 275.3190663218301
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 68.82976658045753,
+      "crossover_s": 68.82976658045753
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 22.943255526819176,
+      "crossover_s": 22.943255526819176
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 273.2234715698301,
+      "crossover_s": 273.2234715698301
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 68.30586789245753,
+      "crossover_s": 68.30586789245753
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "packed",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 22.768622630819177,
+      "crossover_s": 22.768622630819177
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "json",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 655.4234159983442,
+      "crossover_s": 655.4234159983442
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "json",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 163.85585399958606,
+      "crossover_s": 163.85585399958606
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "json",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 54.618617999862025,
+      "crossover_s": 54.618617999862025
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "json",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 601.9821043183443,
+      "crossover_s": 601.9821043183443
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "json",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 150.49552607958609,
+      "crossover_s": 150.49552607958609
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "json",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 50.165175359862026,
+      "crossover_s": 50.165175359862026
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "json",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 598.4193502063442,
+      "crossover_s": 598.4193502063442
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "json",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 149.60483755158606,
+      "crossover_s": 149.60483755158606
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "json",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 49.86827918386203,
+      "crossover_s": 49.86827918386203
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 3758.4201799984758,
+      "crossover_s": 3758.4201799984758
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 939.6050449996189,
+      "crossover_s": 939.6050449996189
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 1.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 313.2016816665397,
+      "crossover_s": 313.2016816665397
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 3528.519877278476,
+      "crossover_s": 3528.519877278476
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 882.129969319619,
+      "crossover_s": 882.129969319619
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 10.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 294.0433231065397,
+      "crossover_s": 294.0433231065397
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 5.0,
+      "crossover_rounds": 3513.1931904304765,
+      "crossover_s": 3513.1931904304765
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 20.0,
+      "crossover_rounds": 878.2982976076191,
+      "crossover_s": 878.2982976076191
+    },
+    {
+      "arrival_rate": 8000.0,
+      "encoding": "xmlrpc",
+      "bandwidth_gbps": 25.0,
+      "gap_ms": 60.0,
+      "crossover_rounds": 292.76609920253975,
+      "crossover_s": 292.76609920253975
+    }
+  ]
+}

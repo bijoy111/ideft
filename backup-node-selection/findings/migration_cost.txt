@@ -1,0 +1,153 @@
+==============================================================================
+Migration cost of real network-function state
+==============================================================================
+
+A connection-tracking flow table (flow_state.py) filled to steady state
+by a flow-arrival workload (workload.py). DEFT's own backup discards the
+state it receives, so none of this could be measured before.
+
+Table occupancy at steady state
+------------------------------------------------------------------------------
+     flows/s     timeout       entries      Little   delta/rnd   delta share
+         500          30        15,656      15,075         521         3.3%
+        2000          30        62,045      60,298       2,053         3.3%
+        8000          30       248,272     241,193       8,214         3.3%
+
+'Little' is the Little's-law prediction arrival_rate x (mean lifetime +
+idle timeout); agreement is a check on the generator, not a second result.
+
+Serialized size of the full table
+------------------------------------------------------------------------------
+     flows/s    encoding     bytes/entry      full table     vs packed
+         500      packed            44.0         692,916         1.00x
+         500        json            74.4       1,171,254         1.69x
+         500      xmlrpc           321.4       5,061,167         7.30x
+        2000      packed            44.0       2,735,968         1.00x
+        2000        json            74.8       4,651,181         1.70x
+        2000      xmlrpc           321.8      20,010,045         7.31x
+        8000      packed            44.0      10,914,556         1.00x
+        8000        json            74.8      18,556,011         1.70x
+        8000      xmlrpc           321.8      79,826,494         7.31x
+
+xmlrpc is what DEFT puts on the wire. Its <int> is signed 32-bit, so an
+IPv4 address does not fit and must be sent as text; that, plus per-value
+markup, is where the inflation comes from.
+
+Migration cost M, in rounds of ordinary replication service
+------------------------------------------------------------------------------
+     flows/s  encoding    Gb/s     migration   service/round  M (rounds)
+         500    packed       1         34.9ms           1.01ms        34.7
+         500    packed      10         29.9ms           0.84ms        35.7
+         500    packed      25         29.6ms           0.83ms        35.7
+         500      json       1         82.1ms           2.14ms        38.3
+         500      json      10         73.6ms           1.86ms        39.6
+         500      json      25         73.1ms           1.84ms        39.7
+         500    xmlrpc       1        942.5ms          38.25ms        24.6
+         500    xmlrpc      10        906.1ms          37.04ms        24.5
+         500    xmlrpc      25        903.7ms          36.96ms        24.5
+        2000    packed       1        184.9ms           4.71ms        39.2
+        2000    packed      10        165.2ms           4.05ms        40.7
+        2000    packed      25        163.9ms           4.01ms        40.9
+        2000      json       1        376.0ms          10.28ms        36.6
+        2000      json      10        342.5ms           9.15ms        37.4
+        2000      json      25        340.2ms           9.08ms        37.5
+        2000    xmlrpc       1       2287.5ms          97.35ms        23.5
+        2000    xmlrpc      10       2143.4ms          92.53ms        23.2
+        2000    xmlrpc      25       2133.8ms          92.21ms        23.1
+        8000    packed       1        766.9ms          25.81ms        29.7
+        8000    packed      10        688.3ms          23.22ms        29.6
+        8000    packed      25        683.1ms          23.05ms        29.6
+        8000      json       1       1638.6ms          50.48ms        32.5
+        8000      json      10       1505.0ms          46.07ms        32.7
+        8000      json      25       1496.0ms          45.77ms        32.7
+        8000    xmlrpc       1       9396.1ms         288.04ms        32.6
+        8000    xmlrpc      10       8821.3ms         269.08ms        32.8
+        8000    xmlrpc      25       8783.0ms         267.82ms        32.8
+
+Crossover: how long degradation must last before migrating pays
+------------------------------------------------------------------------------
+A policy that leaves a degraded backup must come back when it recovers,
+so the round trip costs 2M against a saving of `gap` per round.
+
+     flows/s  encoding    Gb/s    gap (ms)  crossover rnds   crossover s
+         500    packed       1           5            14.0          14.0
+         500    packed       1          20             3.5           3.5
+         500    packed       1          60             1.2           1.2
+         500    packed      10           5            12.0          12.0
+         500    packed      10          20             3.0           3.0
+         500    packed      10          60             1.0           1.0
+         500    packed      25           5            11.8          11.8
+         500    packed      25          20             3.0           3.0
+         500    packed      25          60             1.0           1.0
+         500      json       1           5            32.8          32.8
+         500      json       1          20             8.2           8.2
+         500      json       1          60             2.7           2.7
+         500      json      10           5            29.5          29.5
+         500      json      10          20             7.4           7.4
+         500      json      10          60             2.5           2.5
+         500      json      25           5            29.2          29.2
+         500      json      25          20             7.3           7.3
+         500      json      25          60             2.4           2.4
+         500    xmlrpc       1           5           377.0         377.0
+         500    xmlrpc       1          20            94.3          94.3
+         500    xmlrpc       1          60            31.4          31.4
+         500    xmlrpc      10           5           362.4         362.4
+         500    xmlrpc      10          20            90.6          90.6
+         500    xmlrpc      10          60            30.2          30.2
+         500    xmlrpc      25           5           361.5         361.5
+         500    xmlrpc      25          20            90.4          90.4
+         500    xmlrpc      25          60            30.1          30.1
+        2000    packed       1           5            74.0          74.0
+        2000    packed       1          20            18.5          18.5
+        2000    packed       1          60             6.2           6.2
+        2000    packed      10           5            66.1          66.1
+        2000    packed      10          20            16.5          16.5
+        2000    packed      10          60             5.5           5.5
+        2000    packed      25           5            65.5          65.5
+        2000    packed      25          20            16.4          16.4
+        2000    packed      25          60             5.5           5.5
+        2000      json       1           5           150.4         150.4
+        2000      json       1          20            37.6          37.6
+        2000      json       1          60            12.5          12.5
+        2000      json      10           5           137.0         137.0
+        2000      json      10          20            34.2          34.2
+        2000      json      10          60            11.4          11.4
+        2000      json      25           5           136.1         136.1
+        2000      json      25          20            34.0          34.0
+        2000      json      25          60            11.3          11.3
+        2000    xmlrpc       1           5           915.0         915.0
+        2000    xmlrpc       1          20           228.7         228.7
+        2000    xmlrpc       1          60            76.2          76.2
+        2000    xmlrpc      10           5           857.4         857.4
+        2000    xmlrpc      10          20           214.3         214.3
+        2000    xmlrpc      10          60            71.4          71.4
+        2000    xmlrpc      25           5           853.5         853.5
+        2000    xmlrpc      25          20           213.4         213.4
+        2000    xmlrpc      25          60            71.1          71.1
+        8000    packed       1           5           306.8         306.8
+        8000    packed       1          20            76.7          76.7
+        8000    packed       1          60            25.6          25.6
+        8000    packed      10           5           275.3         275.3
+        8000    packed      10          20            68.8          68.8
+        8000    packed      10          60            22.9          22.9
+        8000    packed      25           5           273.2         273.2
+        8000    packed      25          20            68.3          68.3
+        8000    packed      25          60            22.8          22.8
+        8000      json       1           5           655.4         655.4
+        8000      json       1          20           163.9         163.9
+        8000      json       1          60            54.6          54.6
+        8000      json      10           5           602.0         602.0
+        8000      json      10          20           150.5         150.5
+        8000      json      10          60            50.2          50.2
+        8000      json      25           5           598.4         598.4
+        8000      json      25          20           149.6         149.6
+        8000      json      25          60            49.9          49.9
+        8000    xmlrpc       1           5          3758.4        3758.4
+        8000    xmlrpc       1          20           939.6         939.6
+        8000    xmlrpc       1          60           313.2         313.2
+        8000    xmlrpc      10           5          3528.5        3528.5
+        8000    xmlrpc      10          20           882.1         882.1
+        8000    xmlrpc      10          60           294.0         294.0
+        8000    xmlrpc      25           5          3513.2        3513.2
+        8000    xmlrpc      25          20           878.3         878.3
+        8000    xmlrpc      25          60           292.8         292.8

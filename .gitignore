@@ -19,3 +19,4 @@ results_rpc/
 # Raw per-call records (55 MB). Regenerate with the harness; the derived
 # per-run analyses in findings/analysis_*.txt are committed instead.
 backup-node-selection/findings/raw/
+iDEFT feedback.pdf

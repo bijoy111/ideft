@@ -1,0 +1,158 @@
+\section{Online Backup Selection under Churn}
+\label{sec:online}
+
+Every method in \S\ref{sec:methods} solves a \emph{one-shot} problem: given a
+snapshot of host state, choose an assignment. That formulation is correct only if
+host state is static. It is not. Hosts degrade and recover, hard failures occur,
+and primaries are scaled in and out. The assignment that is best at $t=0$ is not
+the assignment that is best at $t=100$.
+
+The obvious repair---re-solve the snapshot problem whenever state changes---is
+wrong, and wrong in a way that is worth stating precisely, because it is what the
+Hungarian \textsc{optimal} baseline of \S\ref{sec:optimal} would do if it
+were deployed rather than evaluated offline. Moving a primary's backup is not
+free: the new backup holds no replica of the primary's state, so a migration costs
+a full state transfer. A policy that tracks the instantaneous optimum pays that
+cost on every fluctuation, including fluctuations that reverse a round later.
+
+This section formulates the online problem, proves that snapshot-chasing has
+unbounded competitive ratio, gives an algorithm with a certified bound on what it
+can spend on migration, and locates the problem in a complexity class with known
+lower bounds.
+
+\subsection{Problem Formulation}
+\label{sec:online:model}
+
+Let $V$ be the hosts, $P \subseteq V$ the primaries, and $k = |V| - 1$ the number
+of feasible backups for a given primary. Time proceeds in rounds
+$t = 1, \dots, T$. At round $t$, assigning primary $p$ to backup $b$ incurs a
+\emph{service cost} $c_t(p,b) \ge 0$, which we instantiate with exactly the
+weighted feature score of \S\ref{sec:heuristic}, negated and shifted to be
+non-negative, so that the online objective is the online version of the paper's
+objective rather than a new one.
+
+A policy maintains an assignment $\sigma_t : P \to V$. Writing
+$\ell_t(b) = |\{p : \sigma_t(p) = b\}|$ for the load on $b$, the cost of round $t$ is
+\begin{equation}
+\begin{split}
+\mathrm{cost}_t(\sigma_t) = \sum_{p \in P} \Big[\;
+  & c_t(p, \sigma_t(p))
+  + \lambda\big(\ell_t(\sigma_t(p)) - 1\big) \\
+  & + M \cdot \mathbb{1}[\sigma_t(p) \neq \sigma_{t-1}(p)] \Big],
+\end{split}
+\label{eq:roundcost}
+\end{equation}
+where $\lambda$ charges congestion when primaries share a backup and $M$ is the
+migration cost, expressed in units of one round of service cost. A migration
+decided during round $t$ takes effect at round $t+1$: a primary cannot
+retroactively have had its state on the new backup. The total cost is
+$\sum_{t=1}^{T}\mathrm{cost}_t(\sigma_t)$, and an online policy must choose
+$\sigma_t$ knowing $c_s(\cdot,\cdot)$ only for $s \le t$.
+
+An algorithm $A$ is $\rho$-competitive if $\mathrm{cost}(A) \le \rho \cdot
+\mathrm{cost}(\mathrm{OPT}) + O(1)$ on every instance, where $\mathrm{OPT}$ is the
+minimum-cost schedule chosen with full knowledge of the trace.
+
+Two quantities make the results below readable. The \emph{floor}
+$F = \sum_t \sum_p \min_b c_t(p,b)$ is the cost of placing every primary on its
+instantaneously cheapest backup with congestion and migration free; no policy,
+including $\mathrm{OPT}$, can pay less. The \emph{regret} of a policy that holds
+$p$ on $b$ at round $t$ is $c_t(p,b) - \min_{b'} c_t(p,b')$, the excess it is
+paying for not being on the best host. Since $F$ is typically the majority of
+total cost and no selection policy influences it, we report both the total-cost
+ratio and the \emph{excess ratio} $(\mathrm{cost}(A) - F)/(\mathrm{cost}(\mathrm{OPT}) - F)$,
+which isolates the part of the bill that selection actually controls.
+
+\subsection{Snapshot-Chasing Is Not Competitive}
+
+\begin{theorem}
+\label{thm:snapshot}
+Let \textsc{snapshot} be the policy that plays a cost-minimizing assignment for
+round $t$ at every $t$. For every $M > 0$ and every $\rho$, there is an instance on
+which $\mathrm{cost}(\textsc{snapshot}) > \rho \cdot \mathrm{cost}(\mathrm{OPT})$.
+\textsc{snapshot} is therefore not $\rho$-competitive for any $\rho$.
+\end{theorem}
+
+\begin{proof}
+Take $|P| = 1$, two feasible backups $b_1, b_2$, and $\lambda = 0$. Let
+$c_t(p,b_1) = 0$ and $c_t(p,b_2) = \varepsilon$ for odd $t$, and the reverse for
+even $t$. The instantaneous minimizer alternates every round, so \textsc{snapshot}
+migrates at every round after the first and pays at least $M(T-1)$. The static
+schedule that holds $b_1$ throughout pays $\varepsilon \lceil T/2 \rceil$, so
+$\mathrm{cost}(\mathrm{OPT}) \le \varepsilon \lceil T/2 \rceil$ and the ratio is at
+least $2M(T-1)/(\varepsilon T) \to 2M/\varepsilon$. Choosing
+$\varepsilon < 2M/\rho$ gives the claim.
+\end{proof}
+
+The construction needs no churn in the usual sense: it is driven entirely by
+fluctuations too small to be worth acting on. The failure mode is not that
+\textsc{snapshot} chooses badly---it chooses the best host every single round---but
+that it has no mechanism to decline a move whose benefit does not repay its cost.
+\S\ref{sec:online:results} measures this on the feature-based instances, where
+\textsc{snapshot} spends over 80\% of its total cost on migration.
+
+\subsection{A Certified Migration Budget}
+
+\textsc{hysteresis}($\alpha$) accumulates each primary's regret since its last
+migration and moves to the current best only once that regret reaches $\alpha M$,
+at which point the counter resets. The threshold is expressed in units of $M$, so
+the policy needs no tuning when the state size or the link bandwidth changes.
+
+\begin{proposition}
+\label{prop:budget}
+On every instance, \textsc{hysteresis}($\alpha$) spends at most a $1/\alpha$
+fraction of its own service-plus-congestion cost on migration.
+\end{proposition}
+
+\begin{proof}
+Each migration is preceded by at least $\alpha M$ of accumulated regret, and the
+counter is reset on each migration, so regret is never counted twice. After $N$
+migrations the policy has therefore accumulated at least $\alpha M N$ regret, giving
+$MN \le R/\alpha$ where $R$ is its total regret. The regret charged at round $t$ for
+primary $p$ held on $b$ is $c_t(p,b) - \min_{b'}c_t(p,b') \le c_t(p,b)$, because
+costs are non-negative, and because migrations take effect only at $t+1$ the policy
+actually pays $c_t(p,b)$ in that round. Summing, $R$ is at most the policy's total
+service-plus-congestion cost $S$, so the migration spend $MN \le S/\alpha$.
+\end{proof}
+
+This is the guarantee Theorem~\ref{thm:snapshot} shows \textsc{snapshot} lacks.
+It is a bound on \emph{waste} rather than on competitiveness: it says the policy
+cannot be made to thrash, whatever the adversary does, and it holds for every
+instance rather than in expectation. The parameter $\alpha$ buys that bound
+directly---at $\alpha = 2$ no more than a third of the bill can be migration---and
+\S\ref{sec:online:results} reports how much of the budget is used in practice.
+
+\subsection{What Is Not Achievable}
+
+A natural question is whether some cleverer online policy could be
+$O(1)$-competitive. It cannot, and the reason is structural rather than specific to
+our cost model.
+
+\begin{proposition}
+\label{prop:lower}
+With $|P| = 1$ and $\lambda = 0$, online backup selection is exactly the metrical
+task system (MTS) problem on the uniform metric over $k$ states with switching cost
+$M$. Consequently no deterministic online algorithm is better than
+$(2k-1)$-competitive, and no randomized algorithm is better than
+$\Omega(\log k / \log\log k)$-competitive against an oblivious adversary.
+\end{proposition}
+
+\begin{proof}
+The states are the $k$ feasible backups; the task vector at round $t$ is
+$(c_t(p,b))_{b}$; the distance between any two distinct states is $M$, which is a
+uniform metric. The correspondence is cost-preserving in both directions, so the
+deterministic lower bound of Borodin, Linial and Saks~\cite{borodin1992mts} and the
+randomized lower bound of Karloff et al.~\cite{karloff1994mts} transfer.
+\end{proof}
+
+Two consequences matter for practice. First, the competitive ratio necessarily
+degrades with the number of candidate backups, so a constant-factor guarantee is
+not a reasonable design target at the scales NFV orchestrators operate at; a
+budget guarantee of the kind in Proposition~\ref{prop:budget} is. Second, the
+reduction means the $(2k-1)$-competitive deterministic work-function algorithm and
+the $O(\log^2 k)$ randomized algorithms for uniform MTS are \emph{available} for
+this problem. We do not deploy them: both maintain state proportional to the
+candidate set and are substantially more complex than a per-primary counter, and
+\S\ref{sec:online:results} shows the counter is already close to the offline
+optimum on realistic traces. We note the connection because it tells an
+implementer where the ceiling is.

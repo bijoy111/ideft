@@ -1,0 +1,85 @@
+\subsection{Measuring the Migration Cost}
+\label{sec:online:M}
+
+Everything in \S\ref{sec:online} turns on $M$, the cost of moving a primary's
+state to a different backup relative to one round of ordinary replication. Up to
+this point $M$ was a swept parameter, for a reason worth stating plainly: DEFT's
+backup does not keep the state it is sent. Its \texttt{update\_state} handler
+prints the payload and returns, with the one line that would have persisted it
+commented out, so the backup holds nothing and could not in fact take over. The
+replication experiments in \S\ref{sec:results} consequently ship a single
+hard-coded dictionary entry of about thirty bytes. That is sufficient for
+measuring the cost of an RPC round trip, which is what those experiments set out
+to do, but it means there is no state whose transfer could be timed.
+
+We therefore implement the missing component: a connection-tracking flow table of
+the kind a stateful NAT maintains, keyed by the 5-tuple in the same
+comma-separated form DEFT's placeholder already uses, with an entry holding
+packet and byte counters, a translation, a last-seen timestamp and a TCP state.
+It supports the three operations replication actually requires---fold an
+incremental update into the table, serialize the whole table, and load it---so
+that a backup is a warm standby rather than a sink. The table is filled by a
+flow-arrival workload with Poisson arrivals and heavy-tailed, truncated-Pareto
+lifetimes, with idle eviction. Steady-state occupancy agrees with the Little's-law
+prediction to within 10\%, which we use as a check on the generator rather than as
+a result. The workload parameters are not measured and are swept over a
+$16\times$ range of arrival rates for that reason; replacing the generator with a
+packet trace changes nothing downstream, since every later stage consumes only the
+resulting table.
+
+\paragraph{The encoding DEFT uses costs more than the state does.}
+Table~\ref{tab:encoding} reports the serialized size of the same table under
+three encodings. A fixed-width binary layout needs 44 bytes per flow. DEFT's
+XML-RPC marshalling needs over seven times that. Part of the gap is per-value
+markup, but part of it is a hard limitation: XML-RPC's \texttt{<int>} is signed
+32-bit, so an IPv4 address from 128.0.0.0 upward does not fit and a byte counter
+overflows past 2\,GiB. Any real NAT state must therefore cross this transport as
+text. This compounds the transport finding of \S\ref{sec:p99}: the shipped
+RPC stack distorts the latency measurement \emph{and} inflates the quantity that
+governs whether adaptation is worthwhile.
+
+\paragraph{The migration cost is tens of rounds, not a few.}
+Table~\ref{tab:mrounds} gives $M$ in rounds. Across the sweep it lands between
+roughly 23 and 41, where the online sweeps had assumed $3$. The reason it is
+large is structural rather than incidental: a round replicates only the flows that
+changed during that round---a few percent of the table, per
+Table~\ref{tab:occupancy}---whereas a migration ships all of it. $M$ is
+consequently close to the reciprocal of the delta share, which makes it a
+property of traffic churn rather than of the wire format, since a costlier
+encoding inflates the full transfer and the per-round delta in equal measure.
+The encoding does move the cost in absolute time, and substantially. At 10\,Gb/s,
+migrating a 62{,}000-flow table takes about 165\,ms packed and about 2.1\,s over
+DEFT's XML-RPC; at the top of the sweep, a 248{,}000-flow table takes 8.8\,s over
+XML-RPC against 0.7\,s packed.
+
+\paragraph{What this does to the conclusions.}
+Re-running the sweeps of \S\ref{sec:online:results} at the measured
+$M$ sharpens them in one direction and overturns one of them.
+
+\textsc{snapshot} becomes far worse: its excess ratio at the gentlest churn rises
+from $11.2$ to $46.1$, and it now spends $96\%$ of its total cost on migration.
+\textsc{periodic} rebalancing, the sensible-looking operational compromise, spends
+$60\%$ of its cost on migration at low churn and is no longer defensible either.
+The cost of acting on stale or transient information scales with $M$, and $M$ was
+underestimated by a factor of three to five.
+
+The overturned result is the comparison between hysteresis and doing nothing. At
+$M=3$ the two traded places across the persistence sweep, and we reported that no
+regime clearly favoured reacting to degradation. At the measured $M$ there is
+essentially no trading. At the top of the measured range ($M = 13.7$)
+\textsc{static} is ahead at every degradation duration we test, from $2$ to $300$
+rounds, at $1.15$--$1.20$ against $1.22$--$1.31$. At the bottom ($M = 7.7$) it is
+ahead at four of the six durations, level at one, and behind at one by $0.01$.
+The largest advantage hysteresis holds anywhere in the measured range is that
+$0.01$, against deficits of up to $0.12$. With a realistic
+migration cost, reacting to degradation does not pay anywhere in this model's
+measured range; only reacting to hard failure does.
+
+Table~\ref{tab:crossover} says when that would change. A severe degradation---the
+60\,ms of the \texttt{link\_congested} kind---must persist for about $5.5$
+seconds before migrating away from it repays the round trip, under a compact
+encoding at 10\,Gb/s. Under DEFT's own encoding the same degradation must last
+$71$ seconds, and a mild 5\,ms one over fourteen minutes. These are the numbers an operator can
+check against their own failure durations, and they are the practical output of
+the online analysis: not an algorithm to deploy, but a condition to evaluate
+before deciding whether any algorithm is needed.

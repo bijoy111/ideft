@@ -1,0 +1,79 @@
+\begin{table}[t]
+\centering
+\caption{Flow-table occupancy at steady state, and the share of it that changes in one replication round. `Little' is the Little's-law prediction; its agreement with the simulated occupancy is a check on the workload generator, not a separate result. The delta share is what makes migration expensive relative to ordinary replication: a round ships a few percent of the table, a migration ships all of it.}
+\label{tab:occupancy}
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{rrrrr}
+\toprule
+flows/s & entries & Little & delta/round & delta share \\
+\midrule
+500 & 15,656 & 15,075 & 521 & 3.3\% \\
+2000 & 62,045 & 60,298 & 2,053 & 3.3\% \\
+8000 & 248,272 & 241,193 & 8,214 & 3.3\% \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Serialized size of the replicated state. \texttt{xmlrpc} is the encoding DEFT actually puts on the wire. Its \texttt{<int>} is signed 32-bit, so an IPv4 address does not fit and has to be sent as text; that and per-value markup account for the inflation over a fixed-width binary encoding of the same state.}
+\label{tab:encoding}
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{rlrrr}
+\toprule
+flows/s & encoding & B/entry & full table & vs.\ packed \\
+\midrule
+500 & \texttt{packed} & 44 & 0.7\,MB & 1.00$\times$ \\
+500 & \texttt{json} & 74 & 1.2\,MB & 1.69$\times$ \\
+500 & \texttt{xmlrpc} (DEFT) & 321 & 5.1\,MB & 7.30$\times$ \\
+2000 & \texttt{packed} & 44 & 2.7\,MB & 1.00$\times$ \\
+2000 & \texttt{json} & 75 & 4.7\,MB & 1.70$\times$ \\
+2000 & \texttt{xmlrpc} (DEFT) & 322 & 20.0\,MB & 7.31$\times$ \\
+8000 & \texttt{packed} & 44 & 10.9\,MB & 1.00$\times$ \\
+8000 & \texttt{json} & 75 & 18.6\,MB & 1.70$\times$ \\
+8000 & \texttt{xmlrpc} (DEFT) & 322 & 79.8\,MB & 7.31$\times$ \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{The measured migration cost $M$, in rounds of ordinary replication service, at 10\,Gb/s. $M$ is close to the reciprocal of the delta share and is therefore a property of traffic churn rather than of the wire format: a costlier encoding inflates the full transfer and the per-round delta alike. Every value is several times the $M=3$ that the online sweeps originally assumed.}
+\label{tab:mrounds}
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{rlrrr}
+\toprule
+flows/s & encoding & migration & service/round & $M$ (rounds) \\
+\midrule
+500 & \texttt{packed} & 30\,ms & 0.8\,ms & 36 \\
+500 & \texttt{json} & 74\,ms & 1.9\,ms & 40 \\
+500 & \texttt{xmlrpc} (DEFT) & 906\,ms & 37.0\,ms & 24 \\
+2000 & \texttt{packed} & 165\,ms & 4.1\,ms & 41 \\
+2000 & \texttt{json} & 342\,ms & 9.2\,ms & 37 \\
+2000 & \texttt{xmlrpc} (DEFT) & 2143\,ms & 92.5\,ms & 23 \\
+8000 & \texttt{packed} & 688\,ms & 23.2\,ms & 30 \\
+8000 & \texttt{json} & 1505\,ms & 46.1\,ms & 33 \\
+8000 & \texttt{xmlrpc} (DEFT) & 8821\,ms & 269.1\,ms & 33 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{How long degradation must persist before migrating away from it is worth the round trip, at 10\,Gb/s and 2000 flows/s. Columns are the extra per-round cost the degraded backup imposes, spanning the delay range of the failure kinds in \S\ref{sec:weights}. Under DEFT's own encoding even a severe degradation must outlast a minute before reacting to it pays.}
+\label{tab:crossover}
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrrr}
+\toprule
+encoding & 5\,ms & 20\,ms & 60\,ms \\
+\midrule
+\texttt{packed} & 66\,s & 17\,s & 6\,s \\
+\texttt{json} & 137\,s & 34\,s & 11\,s \\
+\texttt{xmlrpc} (DEFT) & 857\,s & 214\,s & 71\,s \\
+\bottomrule
+\end{tabular}}
+\end{table}

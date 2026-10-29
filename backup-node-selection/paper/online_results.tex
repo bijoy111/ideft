@@ -1,0 +1,109 @@
+\subsection{Results: What Online Adaptation Is Worth}
+\label{sec:online:results}
+
+We evaluate on synthetic churn traces built from the same degradation model as
+\S\ref{sec:weights}: hosts move between healthy, degraded and failed
+regimes under a Markov process, degraded hosts draw a kind and a severity from the
+five failure modes of \S\ref{sec:weights}, and within-regime drift keeps the
+instantaneous argmin moving even when no regime changes. Policies are scored
+against an offline optimum computed by dynamic programming over the time--host
+trellis, which is exact when the primaries decouple and a feasible---hence
+upper-bounding---schedule when congestion couples them. The DP is verified against
+exhaustive enumeration on small instances.
+
+Alongside the policies of \S\ref{sec:online:model} we evaluate
+\textsc{failover}: the deployed static assignment, but migrating when the current
+backup \emph{hard-fails}. This is the fair version of what a production system
+does. It does not react to a host that is merely degraded, which is the regime the
+online policies target, so comparing against it rather than against pure
+\textsc{static} separates the value of reacting to death from the value of
+reacting to degradation, and avoids crediting the online policies for beating a
+strawman.
+
+\paragraph{Snapshot-chasing fails exactly as predicted.}
+Table~\ref{tab:online-migration} sweeps the migration cost $M$ over a $24\times$
+range. \textsc{snapshot}'s excess ratio rises from $2.44$ to $28.46$, an $11.7\times$
+degradation, and Table~\ref{tab:online-migshare} shows why: its migration spend
+climbs from $46\%$ to $95\%$ of its total cost. At the largest $M$ it is paying
+nineteen-twentieths of its bill for the privilege of never being more than one
+round out of date. This is Theorem~\ref{thm:snapshot} in the feature-based model
+rather than in the adversarial construction, and it is worth stating plainly what
+it implies for the rest of this paper: the Hungarian \textsc{optimal} of
+\S\ref{sec:optimal} is a legitimate upper bound on \emph{one-shot} placement
+quality and is not an upper bound on anything once state moves. Reported as an
+achievable target for a deployed selector, it would be badly misleading.
+
+The hysteresis policies are flat over the same sweep---$2.35$ to $2.03$ for
+$\alpha=2$, drifting slightly \emph{downward}---because their threshold is
+expressed in units of $M$, so a more expensive migration automatically demands
+proportionally more evidence before it is taken. No retuning is required when the
+replicated state grows or the link slows down, which is the practical payoff of
+Proposition~\ref{prop:budget}.
+
+\paragraph{Almost all of the available gain comes from failover, not from
+degradation-chasing.}
+This is the main empirical result, and it is a negative one.
+Table~\ref{tab:online-churn} sweeps the churn rate with hard failures enabled.
+At the most volatile setting, \textsc{static} reaches an excess ratio of $42.25$:
+a policy that never moves eventually sits on dead replicas and its cost is
+dominated by them. Adding failover alone drops this to $4.64$, closing $91.2\%$ of
+the distance to the offline optimum. Adding full degradation-aware hysteresis on
+top of failover takes it to $4.59$ --- a further $0.13$ percentage points.
+
+Table~\ref{tab:online-persistence} isolates the effect by disabling hard failures
+entirely, so that \textsc{failover} and \textsc{static} coincide and the only
+question is whether to react to degradation. Across a $150\times$ range of
+degradation durations the two sit between $1.08$ and $1.29$, and they trade places:
+hysteresis is ahead at very short and very long durations and behind in the middle.
+There is no regime in this sweep where reacting to degradation is clearly worth
+its migration cost. The reason is visible in the arithmetic of the cost model. A
+degraded host costs roughly $0.5$ per round more than a healthy one, and a
+migration costs $M$; but degradation is transient, so a policy that leaves also
+has to come back, making the round trip $2M$ against a saving of $0.5$ per round.
+Migration pays only once degradation outlasts $2M/\mathrm{gap}$ rounds, which at
+the $M = 3$ used here is about $12$ --- the mean degradation duration the model
+was parameterised with. The policies tie because this sweep sits on its own
+crossover.
+
+That makes the value of $M$ decisive rather than incidental, and $M$ has so far
+been assumed rather than measured. \S\ref{sec:online:M} measures it, finds it
+several times larger, and reports what that does to the comparison: the tie does
+not survive.
+
+That is a useful thing for an operator to be able to compute. It also sharpens the
+paper's wider finding rather than contradicting it: adaptive machinery again fails
+to beat a simple deterministic rule, and this time there is a closed-form condition
+saying when it could.
+
+\paragraph{A weak migration budget is a real failure mode.}
+Table~\ref{tab:online-hosts} scales the topology from 8 to 64 hosts. The
+well-provisioned policies are stable---\textsc{failover} improves from $2.26$ to
+$1.77$ and \textsc{hyst}($2$) stays between $2.03$ and $2.30$---but
+\textsc{hyst}($0.5$), whose Proposition~\ref{prop:budget} guarantee permits
+migration to reach twice its service cost, degrades from $2.39$ to $34.84$. With
+more candidate backups there are more ways for a marginal host to look briefly
+attractive, and a policy with a loose budget takes all of them. This is the
+practical content of Proposition~\ref{prop:lower}: the achievable ratio degrades
+with $k$, and the degradation shows up first in the policy with the weakest
+budget.
+
+Table~\ref{tab:online-alpha} reports the budget directly. The bound holds at every
+$\alpha$, as it must, but with large slack---at $\alpha = 1$ the policy is permitted
+to spend as much on migration as on service and in fact spends $13.4\%$ of it. The
+guarantee is therefore not what limits the policy in practice; it is what rules out
+the catastrophic tail that Theorem~\ref{thm:snapshot} exhibits. Ratio is best
+around $\alpha = 4$ ($1.536$) and is insensitive between $1$ and $8$, so the
+parameter does not need careful tuning---in contrast to the RL penalty of
+Table~\ref{tab:rlablation}, which has a genuine optimum that moves with scale.
+
+\paragraph{Summary.}
+The online formulation changes two conclusions and confirms one. It changes the
+status of the Hungarian optimum, which is not an achievable target under churn and
+is unboundedly bad if deployed as a policy. It changes what a practitioner should
+build: failover is nearly all of the benefit, and the additional complexity of
+degradation-aware migration is justified only when degradation persists for longer
+than $2M/\mathrm{gap}$ rounds, a quantity \S\ref{sec:online:M} measures for a
+real flow table. And it confirms the
+paper's central claim in a setting where the claim now has a proof attached: the
+sophisticated policy loses to the simple one, and Theorem~\ref{thm:snapshot}
+explains why it must.

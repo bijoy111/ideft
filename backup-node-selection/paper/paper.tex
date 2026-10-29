@@ -10,6 +10,9 @@
 \usepackage{booktabs}
 \usepackage{multirow}
 \usepackage{url}
+\usepackage{amsthm}
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
 
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
@@ -359,6 +362,7 @@ heuristic, none of these apply an inter-primary load penalty, so they spread onl
 statistically.
 
 \subsection{Optimal: Capacity-Constrained Hungarian Assignment}
+\label{sec:optimal}
 
 To obtain an upper bound the heuristic and RL policy can be judged against, we solve the
 assignment problem exactly, using the same multi-criteria score $\mathrm{score}(p,c)$
@@ -385,6 +389,7 @@ computation is in tension with DEFT's distributed, controller-free design
 benchmark, not as a deployment candidate.
 
 \subsection{Heuristic: Multi-Criteria Greedy Scoring}
+\label{sec:heuristic}
 
 For each primary (processed in a fixed order), the heuristic scores every feasible
 candidate $c$ as
@@ -976,7 +981,7 @@ resource draws per setting. 32 hosts: 150k timesteps, averaged over two training
 training seeds. No setting routed a primary to a degraded host.}
 \label{tab:rlablation}
 \resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrr}
+\begin{tabular}{lrrrr}
 \toprule
 & \multicolumn{2}{c}{32 hosts (of 20)} & \multicolumn{2}{c}{128 hosts (of 80)} \\
 \cmidrule(lr){2-3}\cmidrule(lr){4-5}
@@ -1379,6 +1384,16 @@ consistently at every scale we tested. This is why we treat latency as the prima
 throughout and throughput as corroborating rather than replacing evidence: throughput
 reliably resolves gross contention, but only marginally resolves the finer degraded-host
 effect that this paper is actually about.
+
+\input{online_theory}
+
+\input{tables_online}
+
+\input{online_results}
+
+\input{tables_migration}
+
+\input{online_migration}
 
 \section{Threats to Validity}
 \label{sec:threats}

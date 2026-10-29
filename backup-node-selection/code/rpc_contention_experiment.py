@@ -1,8 +1,17 @@
-"""Standalone localhost RPC-contention benchmark for backup-node selection.
+"""RPC-contention benchmark for backup-node selection, on one machine or many.
 
-Runs real Backup XML-RPC servers (exp_package's 2PC backup_2pc.Backup, unmodified)
-on localhost ports, one per unique backup host in a mapping, then fires concurrent
-bursts of update_state() replicate calls per primary against its assigned backup.
+Runs real Backup XML-RPC servers (exp_package's 2PC backup_2pc.Backup, unmodified),
+one per unique backup host in a mapping, then fires concurrent bursts of
+update_state() replicate calls per primary against its assigned backup.
+
+By default the servers are local processes on 127.0.0.1, which is the arrangement
+every published result here was produced with. Given a manifest (--manifest, or
+the IDEFT_MANIFEST environment variable) the same experiment instead drives
+servers already running on other machines; see deployment.py and
+provision_remote.py. That matters because at 128 hosts the single-machine
+arrangement puts 128 single-threaded servers and the client on the same cores, so
+the latency it reports reflects CPU scheduling rather than backup placement --
+which is why the 128-host latency results are reported as structural only.
 This is the same call Primary.replicate() makes, without the Mininet network path.
 
 Each primary uses a burst of BURST_SIZE simultaneous in-flight requests so a backup
@@ -32,6 +41,7 @@ from exp_package.Two_phase_commit.backup_2pc import Backup
 
 import analysis
 import backup_selector
+import deployment
 import degradation
 import config
 import topology_features
@@ -83,32 +93,35 @@ def _serve_backup_grpc(ip, port, extra_delay_s=0.0, max_workers=None):
     grpc_transport.serve_backup(ip, port, extra_delay_s=extra_delay_s, **kwargs)
 
 
-def start_backup_servers(unique_backups, base_port, slow_hosts=None, slow_delay_s=0.05):
-    """One Backup server per unique backup host, each in its own OS process on its
-    own port. `slow_hosts` carries the artificial per-call delay that makes a
-    degraded host actually slower rather than merely lower-scoring. It may be a
-    mapping of host -> seconds (the realistic degradation model, where the delay
-    varies with failure kind and severity) or a plain set (the binary model, where
-    every degraded host gets the same `slow_delay_s`). Returns ({backup_name: port},
-    [processes])."""
-    slow_hosts = slow_hosts or {}
-    ports = {}
-    processes = []
-    for i, backup_name in enumerate(sorted(unique_backups)):
-        port = base_port + i
-        if isinstance(slow_hosts, dict):
-            delay = slow_hosts.get(backup_name, 0.0)
-        else:
-            delay = slow_delay_s if backup_name in slow_hosts else 0.0
-        if TRANSPORT == "grpc":
-            target, args = _serve_backup_grpc, ("127.0.0.1", port, delay, GRPC_MAX_WORKERS)
-        else:
-            target, args = _serve_backup, ("127.0.0.1", port, delay)
-        proc = multiprocessing.Process(target=target, args=args, daemon=True)
-        proc.start()
-        processes.append(proc)
-        ports[backup_name] = port
-    return ports, processes
+def start_backup_servers(unique_backups, base_port, slow_hosts=None, slow_delay_s=0.05,
+                         manifest=None):
+    """Provide one backup server per unique backup host and return
+    ({host_id: Endpoint}, deployment).
+
+    Which servers these are depends on the deployment (deployment.py). By default
+    they are local processes on 127.0.0.1 assigned consecutive ports from
+    `base_port`, which is the arrangement every published single-machine result
+    was produced with. Given a manifest -- passed here or in IDEFT_MANIFEST -- they
+    are instead servers already running on other machines, and this function only
+    resolves addresses.
+
+    `slow_hosts` carries the artificial per-call delay that makes a degraded host
+    actually slower rather than merely lower-scoring. It may be a mapping of
+    host -> seconds (the realistic degradation model, where the delay varies with
+    failure kind and severity) or a plain set (the binary model, where every
+    degraded host gets the same `slow_delay_s`). A remote deployment cannot inject
+    it and says so rather than ignoring it.
+
+    The caller must call deployment.teardown() when finished; only a local
+    deployment owns processes to release.
+    """
+    deploy = deployment.make_deployment(
+        base_port, transport=TRANSPORT, grpc_workers=GRPC_MAX_WORKERS,
+        manifest=manifest,
+        serve_xmlrpc=_serve_backup, serve_grpc=_serve_backup_grpc)
+    endpoints = deploy.endpoints_for(unique_backups, slow_hosts=slow_hosts,
+                                     slow_delay_s=slow_delay_s)
+    return endpoints, deploy
 
 
 MAX_RETRY_ATTEMPTS = 8
@@ -142,19 +155,26 @@ class _TimeoutTransport(xmlrpc.client.Transport):
         return conn
 
 
-def make_proxy(port):
-    """A client for `port` on the active transport.
+def make_proxy(target):
+    """A client for `target` on the active transport.
 
-    Both expose .update_state(state) and raise on failure, so the measurement
-    loop in replicate_burst is transport-agnostic and the two paths stay
-    comparable call for call.
+    `target` is an Endpoint. A bare int is also accepted and read as a port on
+    127.0.0.1, so that callers and tests written against the single-machine
+    harness keep working unchanged.
+
+    Both clients expose .update_state(state) and raise on failure, so the
+    measurement loop in replicate_burst is transport-agnostic and the two paths
+    stay comparable call for call.
     """
+    if isinstance(target, int):
+        target = deployment.Endpoint("?", "127.0.0.1", target)
     if TRANSPORT == "grpc":
         import grpc_transport
         grpc_transport.CALL_TIMEOUT_S = CALL_TIMEOUT_S
-        return grpc_transport.GrpcBackupClient(port)
+        return grpc_transport.GrpcBackupClient(target.port, host=target.ip)
     return xmlrpc.client.ServerProxy(
-        "http://127.0.0.1:{}".format(port), transport=_TimeoutTransport())
+        target.url(), transport=_TimeoutTransport())
+
 
 # A call that never succeeds is recorded as censored (succeeded=False) and contributes
 # only to the failure rate. The previous harness imputed a 10,000 ms sentinel into the
@@ -181,7 +201,7 @@ def _retryable_errors():
 _RETRYABLE_ERRORS = _retryable_errors()
 
 
-def replicate_burst(port, n_calls, burst_size):
+def replicate_burst(endpoint, n_calls, burst_size):
     """Fires n_calls requests using burst_size concurrent in-flight connections, so a
     shared backend accumulates a request queue instead of seeing calls one at a time.
     Each worker lane keeps one persistent ServerProxy for all its calls; a fresh proxy
@@ -193,7 +213,7 @@ def replicate_burst(port, n_calls, burst_size):
     run, so heavy contention shows up as elevated latency and a nonzero failure count."""
 
     def worker(n_calls_for_this_worker):
-        proxy = make_proxy(port)
+        proxy = make_proxy(endpoint)
         records = []
         failures = 0
         for _ in range(n_calls_for_this_worker):
@@ -215,7 +235,7 @@ def replicate_burst(port, n_calls, burst_size):
                         break
                     backoff = min(0.05 * (2 ** attempt), 1.0) + random_module.uniform(0, 0.02)
                     time.sleep(backoff)
-                    proxy = make_proxy(port)
+                    proxy = make_proxy(endpoint)
             wall_s = time.perf_counter() - call_start
             if service_s is None:
                 failures += 1
@@ -263,32 +283,29 @@ def backup_load(mapping):
     return load
 
 
-def run_trial(mapping, base_port, n_calls, burst_size, slow_hosts=None):
+def run_trial(mapping, base_port, n_calls, burst_size, slow_hosts=None,
+              manifest=None):
     unique_backups = set(mapping.values())
-    ports, processes = start_backup_servers(unique_backups, base_port, slow_hosts=slow_hosts)
-    if TRANSPORT == "grpc":
-        # gRPC can report readiness exactly, so wait for it instead of guessing.
-        import grpc_transport
-        for port in ports.values():
-            grpc_transport.wait_until_ready(port)
-    else:
-        time.sleep(0.3)  # let server processes finish starting up and binding
+    endpoints, deploy = start_backup_servers(
+        unique_backups, base_port, slow_hosts=slow_hosts, manifest=manifest)
+    # Probe until every server answers rather than sleeping a fixed interval. On
+    # one machine the old 0.3 s sleep was adequate; across several machines a
+    # slow binder would otherwise be recorded as a connection failure in the
+    # first burst rather than as a server that was not up yet.
+    deploy.wait_ready(endpoints, TRANSPORT)
 
     try:
         records_by_primary = {}
         with ThreadPoolExecutor(max_workers=len(mapping)) as primary_pool:
             futures = {
-                primary: primary_pool.submit(replicate_burst, ports[backup], n_calls, burst_size)
+                primary: primary_pool.submit(replicate_burst, endpoints[backup],
+                                             n_calls, burst_size)
                 for primary, backup in mapping.items()
             }
             for primary, future in futures.items():
                 records_by_primary[primary] = future.result()
     finally:
-        for proc in processes:
-            proc.terminate()
-        for proc in processes:
-            proc.join()
-        time.sleep(0.2)  # let the OS fully release ports/sockets before the next method
+        deploy.teardown()
 
     return records_by_primary
 
@@ -371,7 +388,8 @@ METHODS = {
 
 def run_experiment(context_seeds, trials, n_calls, burst_size, methods, order_seed=0,
                     hosts=None, primaries=None, graph=None, overrides=None, slow_hosts=None,
-                    rl_model_path="rl_model.zip", rl_dqn_model_path="rl_model_dqn.zip"):
+                    rl_model_path="rl_model.zip", rl_dqn_model_path="rl_model_dqn.zip",
+                    manifest=None):
     """Runs the full method comparison independently across each seed in context_seeds
     (a fresh topology/resource realization and a fresh mapping per method for each seed),
     then aggregates across all (context_seed x trial) combinations. Running many trials of
@@ -415,7 +433,8 @@ def run_experiment(context_seeds, trials, n_calls, burst_size, methods, order_se
 
             for name in trial_order:
                 mapping = mappings[name]
-                records_by_primary = run_trial(mapping, base_port, n_calls, burst_size, slow_hosts=slow_hosts)
+                records_by_primary = run_trial(mapping, base_port, n_calls, burst_size,
+                                               slow_hosts=slow_hosts, manifest=manifest)
                 record_raw(name, context_seed, trial, mapping, records_by_primary)
                 base_port += len(set(mapping.values())) + 1
             print("  trial {}/{} done (order: {})".format(trial + 1, trials, trial_order))
@@ -459,6 +478,11 @@ if __name__ == "__main__":
                         help="where to write this run's raw per-call records. Defaults to "
                              "results_rpc/rpc_contention_raw.csv; give each concurrent or "
                              "back-to-back run its own path so one cannot truncate another's")
+    parser.add_argument("--manifest", default=None,
+                        help="path to a deployment manifest (provision_remote.py). "
+                             "With it, the backups are servers already running on "
+                             "other machines instead of local processes. "
+                             "IDEFT_MANIFEST is honoured if this is omitted.")
     parser.add_argument("--transport", choices=["xmlrpc", "grpc"], default="xmlrpc",
                         help="xmlrpc drives DEFT's shipped Backup unmodified; grpc drives the "
                              "same call over HTTP/2 with a persistent channel and a thread pool")
@@ -503,4 +527,5 @@ if __name__ == "__main__":
         args.context_seeds, args.trials, args.calls, args.burst, args.methods,
         hosts=hosts, primaries=primaries, graph=graph, overrides=overrides, slow_hosts=slow_hosts,
         rl_model_path=args.rl_model, rl_dqn_model_path=args.rl_dqn_model,
+        manifest=args.manifest,
     )

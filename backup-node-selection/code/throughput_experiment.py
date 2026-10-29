@@ -44,14 +44,14 @@ THROUGHPUT_FIELDS = [
 CALL_TIMEOUT_S = 2.0
 
 
-def throughput_burst(port, duration_s, burst_size):
+def throughput_burst(endpoint, duration_s, burst_size):
     """burst_size concurrent worker lanes hammer one backup for a fixed
     wall-clock duration, counting successes and failures (timeouts/connection
     errors, retried once via a fresh connection before counting as failed)."""
 
     def worker():
         socket.setdefaulttimeout(CALL_TIMEOUT_S)
-        proxy = xmlrpc.client.ServerProxy("http://127.0.0.1:{}".format(port))
+        proxy = xmlrpc.client.ServerProxy(endpoint.url())
         successes = 0
         failures = 0
         deadline = time.perf_counter() + duration_s
@@ -61,7 +61,7 @@ def throughput_burst(port, duration_s, burst_size):
                 successes += 1
             except (ConnectionResetError, ConnectionRefusedError, OSError, socket.timeout):
                 failures += 1
-                proxy = xmlrpc.client.ServerProxy("http://127.0.0.1:{}".format(port))
+                proxy = xmlrpc.client.ServerProxy(endpoint.url())
         return successes, failures
 
     successes = 0
@@ -78,24 +78,22 @@ def throughput_burst(port, duration_s, burst_size):
 
 def run_trial(mapping, base_port, duration_s, burst_size, slow_hosts=None):
     unique_backups = set(mapping.values())
-    ports, processes = start_backup_servers(unique_backups, base_port, slow_hosts=slow_hosts)
-    time.sleep(0.3)
+    endpoints, deploy = start_backup_servers(unique_backups, base_port, slow_hosts=slow_hosts)
+    # XML-RPC only: this experiment builds its own ServerProxy rather than
+    # going through make_proxy, so it has no gRPC arm.
+    deploy.wait_ready(endpoints, "xmlrpc")
 
     try:
         results_by_primary = {}
         with ThreadPoolExecutor(max_workers=len(mapping)) as primary_pool:
             futures = {
-                primary: primary_pool.submit(throughput_burst, ports[backup], duration_s, burst_size)
+                primary: primary_pool.submit(throughput_burst, endpoints[backup], duration_s, burst_size)
                 for primary, backup in mapping.items()
             }
             for primary, future in futures.items():
                 results_by_primary[primary] = future.result()
     finally:
-        for proc in processes:
-            proc.terminate()
-        for proc in processes:
-            proc.join()
-        time.sleep(0.2)
+        deploy.teardown()
 
     return results_by_primary
 

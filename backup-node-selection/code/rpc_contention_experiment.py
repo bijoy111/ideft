@@ -473,6 +473,28 @@ if __name__ == "__main__":
                              "from healthy hosts; realistic draws a continuous severity and one of "
                              "five failure kinds per host, and gives healthy hosts a baseline "
                              "utilisation so remaining capacity is a measurement rather than a flag")
+    parser.add_argument("--degraded-selection", choices=["prefix", "spread"],
+                        default="prefix",
+                        help="which backup-eligible hosts are degraded. 'prefix' "
+                             "takes the first n, which is what earlier runs did; it "
+                             "yields a contiguous block that ordering-based methods "
+                             "can miss entirely. round_robin_mapping cycles a "
+                             "lexicographically sorted host list, so with 80 "
+                             "primaries it never advances past the first 80 entries "
+                             "and a block beyond them is never selected, scoring 0% "
+                             "degraded by accident rather than by avoidance. "
+                             "'spread' samples the n degraded hosts evenly across "
+                             "that same ordering, so no method can dodge them "
+                             "without actually reading the features.")
+    parser.add_argument("--physical-degradation", action="store_true",
+                        help="the degraded hosts are already slow by a physical "
+                             "mechanism on the node (tc netem, a cgroup limit), so "
+                             "do not also ask the deployment for a simulated "
+                             "per-call delay. The feature overrides still apply, so "
+                             "selectors see the hosts as degraded; what changes is "
+                             "that the slowness is produced by the kernel rather "
+                             "than by a sleep inside the server. Requires "
+                             "--manifest, and apply_degradation.py beforehand.")
     parser.add_argument("--scale-seed", type=int, default=0)
     parser.add_argument("--results-csv", default=None,
                         help="where to write this run's raw per-call records. Defaults to "
@@ -516,12 +538,36 @@ if __name__ == "__main__":
         )
         if args.n_degraded > 0:
             backup_pool = [h for h in hosts if h not in primaries]
-            degraded = backup_pool[:args.n_degraded]
+            if args.degraded_selection == "spread":
+                # Sample along the same lexicographic order the ordering-based
+                # baselines cycle, so the degraded hosts fall inside every method's
+                # reach and 0% means avoidance rather than never arriving.
+                ordered = sorted(hosts)
+                step = len(ordered) / float(args.n_degraded)
+                degraded = sorted({ordered[min(int(i * step), len(ordered) - 1)]
+                                   for i in range(args.n_degraded)})
+            else:
+                degraded = backup_pool[:args.n_degraded]
             overrides, slow_hosts, profiles = degradation.build(
                 degraded, model=args.degradation_model, seed=args.scale_seed,
                 healthy_hosts=[h for h in backup_pool if h not in degraded])
             print("degradation model: {} -- {}".format(
                 args.degradation_model, degradation.describe(profiles)))
+            if args.physical_degradation:
+                if not args.manifest and not os.environ.get("IDEFT_MANIFEST"):
+                    parser.error("--physical-degradation needs --manifest: there is "
+                                 "no node to impose degradation on without one.")
+                # Keep `overrides` (what the selector sees) and drop the simulated
+                # delays (what the server would have slept). The slowness has to
+                # come from somewhere real, so say where, and say it in the log the
+                # run is judged from.
+                print("physical degradation: per-call sleeps suppressed; the {} "
+                      "degraded host(s) must already be slowed on their nodes "
+                      "(apply_degradation.py). Simulated delays dropped: {}".format(
+                          len(slow_hosts),
+                          ", ".join("{}={:.0f}ms".format(h, d * 1000.0)
+                                    for h, d in sorted(slow_hosts.items()))))
+                slow_hosts = None
 
     run_experiment(
         args.context_seeds, args.trials, args.calls, args.burst, args.methods,

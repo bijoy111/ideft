@@ -46,6 +46,14 @@ def main(argv=None):
     ap.add_argument("--grpc-workers", type=int, default=None,
                     help="gRPC server thread pool size; 1 reproduces XML-RPC's "
                          "strict serialization")
+    ap.add_argument("--backlog", type=int, default=None,
+                    help="TCP listen backlog for the XML-RPC server. DEFT ships "
+                         "SimpleXMLRPCServer unmodified, whose default is 5; under "
+                         "concurrent replication that overflows the accept queue and "
+                         "the client retries after the 1s TCP RTO, which shows up as "
+                         "a p99 plateau unrelated to backup placement. Leave unset to "
+                         "reproduce DEFT as shipped; set it to measure the same "
+                         "placement without that artifact.")
     ap.add_argument("--delay", type=float, default=0.0,
                     help="artificial per-call delay in seconds (prefer tc/cgroups; "
                          "see module docstring)")
@@ -68,6 +76,17 @@ def main(argv=None):
                          sorted(os.sched_getaffinity(0))
                          if hasattr(os, "sched_getaffinity") else "n/a"))
     sys.stderr.flush()
+
+    if args.backlog is not None and args.transport == "xmlrpc":
+        # Set on the class before Backup constructs it: SimpleXMLRPCServer binds and
+        # calls listen() inside __init__, so the value has to be in place beforehand.
+        # Patching here rather than in exp_package keeps DEFT's shipped code intact,
+        # which is what the unset default reproduces.
+        from xmlrpc.server import SimpleXMLRPCServer
+        SimpleXMLRPCServer.request_queue_size = args.backlog
+        sys.stderr.write("backup_server: listen backlog set to {} (DEFT default is 5)\n"
+                         .format(args.backlog))
+        sys.stderr.flush()
 
     if args.transport == "grpc":
         rpc._serve_backup_grpc(args.bind, args.port, args.delay, args.grpc_workers)

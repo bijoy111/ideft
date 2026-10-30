@@ -117,7 +117,7 @@ def plan(hosts, nodes, per_node, base_port, reserve_cores=2):
 
 
 def server_command(host_id, spec, transport, grpc_workers, remote_dir,
-                   python="python3"):
+                   python="python3", backlog=None):
     """The command to run on the node for one backup."""
     inner = [python, "backup_server.py",
              "--host-id", host_id,
@@ -126,9 +126,11 @@ def server_command(host_id, spec, transport, grpc_workers, remote_dir,
              "--transport", transport]
     if grpc_workers is not None:
         inner += ["--grpc-workers", str(grpc_workers)]
+    if backlog is not None:
+        inner += ["--backlog", str(backlog)]
     pinned = ["taskset", "-c", str(spec["core"])] + inner
     logfile = "/tmp/ideft_backup_{}.log".format(host_id)
-    body = "cd {} && nohup {} > {} 2>&1 & echo $!".format(
+    body = "cd {} || exit 1; nohup {} > {} 2>&1 < /dev/null & echo $!".format(
         shlex.quote(remote_dir), " ".join(shlex.quote(x) for x in pinned),
         shlex.quote(logfile))
     return body
@@ -136,7 +138,7 @@ def server_command(host_id, spec, transport, grpc_workers, remote_dir,
 
 def ssh(node, command, user=None, dry_run=False):
     target = "{}@{}".format(user, node) if user else node
-    argv = ["ssh", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new",
+    argv = ["ssh", "-n", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new",
             target, command]
     if dry_run:
         print("  " + " ".join(shlex.quote(a) for a in argv))
@@ -236,6 +238,12 @@ def main(argv=None):
     ap.add_argument("--degrade", nargs="*", default=[],
                     metavar="HOST=KIND:ARG",
                     help="record a physical degradation, e.g. w7=link_congested:20ms")
+    ap.add_argument("--backlog", type=int, default=None,
+                    help="TCP listen backlog for each XML-RPC backup. Unset "
+                         "reproduces DEFT as shipped (SimpleXMLRPCServer's default "
+                         "of 5), whose accept queue overflows under concurrent "
+                         "replication and produces a 1s RTO plateau at p99. "
+                         "Recorded in the manifest either way.")
     ap.add_argument("--iface", default="eth1", help="testbed NIC for tc commands")
     ap.add_argument("--local", action="store_true",
                     help="launch on this machine instead of over SSH, to exercise "
@@ -297,7 +305,7 @@ def main(argv=None):
             print("  # {} on {}".format(host_id, spec["node"]))
             ssh(spec["node"],
                 server_command(host_id, spec, args.transport, args.grpc_workers,
-                               args.remote_dir),
+                               args.remote_dir, backlog=args.backlog),
                 user=args.user, dry_run=True)
         print("\nmanifest would be written to {}".format(args.manifest))
         return 0
@@ -317,7 +325,8 @@ def main(argv=None):
         for host_id, spec in sorted(slots.items(), key=lambda kv: natural(kv[0])):
             out = ssh(spec["node"],
                       server_command(host_id, spec, args.transport,
-                                     args.grpc_workers, args.remote_dir),
+                                     args.grpc_workers, args.remote_dir,
+                                     backlog=args.backlog),
                       user=args.user)
             if out:
                 spec["pid"] = int(out.splitlines()[-1])
@@ -331,6 +340,7 @@ def main(argv=None):
         extra={"launched": launched,
                "per_node": args.per_node,
                "grpc_workers": args.grpc_workers,
+               "backlog": args.backlog,
                "degradations": degradations})
     print("\nwrote {}".format(args.manifest))
     print("run the experiment against it with:")

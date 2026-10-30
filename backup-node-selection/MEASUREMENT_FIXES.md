@@ -1,13 +1,27 @@
 # Measurement and statistics corrections
 
-Two defects in the original evaluation harness were found and fixed. Both changed
-reported conclusions, so every RPC-latency number in the paper must be regenerated
-from the re-run data in `findings/raw/`.
+Eight defects in the evaluation harness were found and fixed, in the order they were
+discovered. Every one of them changed a reported conclusion, and several invalidated
+results that had already been written down. They are kept here in sequence rather than
+folded away, because the sequence is the point: each fix was only visible once the
+previous one stopped dominating the measurement.
 
-- **Code:** `code/analysis.py` (new), `code/rpc_contention_experiment.py`,
-  `code/throughput_experiment.py`
-- **Checks:** `code/test_analysis.py`, `code/test_connection_reuse.py`
-- **Raw data:** `findings/raw/{9,16,32,128}hosts.csv.gz`
+Fixes 1–4 concern the statistics and the harness. Fix 5 makes the RPC transport a
+controlled variable. Fixes 6–8 came from moving to real hardware, and are the ones that
+revised the most: the shipped accept backlog accounted for most of the apparent cost of
+concentrating backups, and a contiguous degraded block had made a load-spreading baseline
+appear to avoid an impairment it merely never encountered.
+
+- **Code:** `code/analysis.py`, `code/rpc_contention_experiment.py`,
+  `code/throughput_experiment.py`, `code/grpc_transport.py`, `code/deployment.py`,
+  `code/backup_server.py`, `code/provision_remote.py`, `code/apply_degradation.py`
+- **Checks:** `code/test_analysis.py`, `code/test_connection_reuse.py`,
+  `code/test_deployment.py`
+- **Raw data:** `findings/raw/{9,16,32,128}hosts.csv.gz`, and the bare-metal runs in
+  `findings/latency_128hosts_cloudlab*.txt`
+
+The claim-status table partway down this document reflects the state after Fix 4;
+**the authoritative one is at the end**, after bare-metal validation.
 
 ---
 
@@ -321,6 +335,9 @@ retry-exhaustion failures, where the original harness crashed outright.
 
 ## Summary of claims after re-measurement
 
+*State after Fix 4. Superseded by the table at the end of this document, which reflects
+Fixes 5–8 and the bare-metal validation.*
+
 | claim | status |
 | --- | --- |
 | Feature-aware selection beats blind load-spreading under heterogeneity | **Strongly supported** -- r ~ 1.0, p ~ 0.001, replicated at 16 and 32 hosts |
@@ -406,6 +423,10 @@ Only gross concentration survives (r=1.000 on both transports, both executions).
 The paper reports structural results only at this scale. Real distributed hardware
 is required to validate latency there.
 
+**That hardware was obtained; see "128 hosts: now measured" below.** The measurement
+confirmed the structural reading and revised two magnitudes substantially, including the
+concentration penalty quoted in this section.
+
 ### Effects that did not survive replication
 
 Four candidate effects reached significance in a single execution and vanished on
@@ -414,3 +435,241 @@ result, 9-host heuristic-vs-random on gRPC at n=15, and 16-host
 round_robin-vs-heuristic at n=15 (which then *did* hold at n=25). The harness
 resolution floor is about 10 ms; no claim below it is made. Two independent
 replications per configuration is the working standard.
+
+---
+
+## Fix 6 — three harness defects a single machine could not expose
+
+Moving to a testbed required separating three things the harness had treated as one:
+a topology host's *identity*, the *process* serving it, and its *network address*. The
+old harness started its own servers with `multiprocessing.Process` and addressed them at
+`127.0.0.1:base_port+i`; `deployment.py` splits these into `Endpoint`, `LocalDeployment`
+and `RemoteDeployment`, with the local path's port assignment byte-identical to the old
+rule so every published single-machine result reproduces unchanged.
+
+Three defects surfaced on first contact with real machines. All three were invisible
+locally, because the local path never goes through SSH:
+
+1. **SSH hung on the very first server.** `cd X && nohup Y &` backgrounds the *whole
+   AND-list* in a subshell, and that subshell holds the SSH channel's stdout until the
+   process it waits on exits — which, for a server, is never. The server started
+   correctly every time; only the acknowledgement was stuck behind a `bash -c` wrapper,
+   visible in the remote process table as a live parent of a healthy server. Now
+   `cd X || exit 1; nohup Y &`, which keeps the directory check and backgrounds the
+   server directly.
+2. **`pkill -f "backup_server.py --host-id"` matched its own caller's command line.** The
+   teardown path killed the invoking shell. Hardened to `backup_serve[r].py`.
+3. **`throughput_experiment.py` built its own hard-coded `127.0.0.1` proxy** and
+   referenced a `port` variable the refactor had removed — a runtime `NameError` waiting
+   for the first remote run. Now uses `endpoint.url()`.
+
+`test_deployment.py` covers the slot planner, manifest round-tripping, the remote delay
+refusal, and `test_real_trial_through_the_remote_path()`, which drives a real 36-call
+trial through a manifest against servers started outside the harness, treating localhost
+as the "remote" node. That test is what made the remote path checkable without hardware.
+
+**Verification that the pinning is real, not asserted.** `provision_remote.py --verify`
+reports the CPU affinity each server actually holds. On the reported run: *all 128
+endpoints answered, every server has its own core on its node*. Hyperthread siblings on
+the testbed processor pair as (0,16), (1,17), …, so cores 2–14 are fourteen distinct
+physical cores and no two servers share one core's two threads. Without this check, a
+measurement at this scale cannot be distinguished from CPU scheduling — which is exactly
+what the withdrawn single-machine table was.
+
+---
+
+## Fix 7 — the accept backlog was never a controlled variable
+
+Fix 5 established that DEFT's five-deep accept queue causes the latency tail, inferred
+from the distribution's shape and the contrast with gRPC. It was never varied directly,
+because on one machine there was no way to separate it from everything else going wrong.
+
+`backup_server.py --backlog N` sets `SimpleXMLRPCServer.request_queue_size` before
+`Backup` constructs the server. Leaving it unset reproduces DEFT exactly, so the two
+configurations are a controlled pair rather than a fix.
+
+### The artifact, measured rather than inferred
+
+Reproducing DEFT as shipped on bare metal gives a result that cannot be about placement:
+
+| method | p95 (ms) | p99 (ms) |
+| --- | --- | --- |
+| optimal | 64.94 | 1040.06 |
+| heuristic | 66.79 | 1042.47 |
+| round_robin | 66.67 | 1039.96 |
+| random | 65.49 | 1051.67 |
+
+Four methods whose p95 differs by **1.85 ms** have p99 values within **11.67 ms** of
+1040 ms. A constant surviving every change of method is an artifact, and one second is
+Linux's initial retransmission timeout. The kernel counters confirm the mechanism
+directly rather than merely being consistent with it:
+
+```
+node1   TcpExtListenOverflows  103209   TcpExtListenDrops  103209   TcpRetransSegs  116
+node5   TcpExtListenOverflows   24705   TcpExtListenDrops   24705   TcpRetransSegs  225
+node10  TcpExtListenOverflows    1923   TcpExtListenDrops    1923   TcpRetransSegs  141
+```
+
+`ListenDrops` equals `ListenOverflows` exactly: the connections were refused at the
+server, not lost in the network. The gradient across nodes tracks how heavily each node's
+backups were selected, so the artifact is **correlated with the quantity being measured**
+— which is why it could not be noted and set aside.
+
+### What it changes
+
+Raising the backlog to 512, with every other variable fixed, took overflows to **zero**
+and p99 from 1040 ms to 79 ms. The consequence for the placement claim is larger than the
+tail alone suggests:
+
+| primaries sharing one backup | mean @ backlog 5 | mean @ backlog 512 |
+| --- | --- | --- |
+| 1 | 50.32 | 41.86 |
+| 16 | 218.99 | 42.39 |
+| 45 | 342.64 | 49.66 |
+| 79 | 378.19 | 56.41 |
+
+**7.5x becomes 35%.** Most of the apparent penalty for sharing a backup was connection
+setup being refused, not queueing at the backup. This sharpens Fix 5's ~4.3x inflation
+estimate: the inflation is attributable to one configurable integer, and removing it
+leaves an effect that is real but considerably smaller.
+
+Both configurations are reported. Neither replaces the other: the shipped one describes
+DEFT as deployed, the raised one isolates placement.
+
+---
+
+## Fix 8 — a contiguous degraded block flatters ordering-based baselines
+
+This one invalidated a result we had already written down, and it is the subtlest defect
+in this document.
+
+### Simulated degradation replaced with a physical mechanism
+
+`RemoteDeployment` **refuses** a `slow_hosts` argument rather than ignoring it: it cannot
+inject a per-call sleep into a server it did not start, and reporting a degradation that
+was never applied would be worse than failing. Degradation on the testbed is therefore
+imposed with `tc netem`.
+
+`tc` attaches to an interface, but each node carries thirteen backups, and shaping the
+interface would degrade the healthy co-tenants the comparison depends on as controls.
+`apply_degradation.py` installs a four-band `prio` qdisc with a `u32` filter on **source
+port**, so only the degraded servers' traffic is delayed. Band 4 is unreachable through
+the default priomap, so healthy flows never enter the netem queue at all rather than
+being delayed by zero. Measured on adjacent ports of one NIC:
+
+| host | node | port | ms/call | |
+| --- | --- | --- | --- | --- |
+| w1 | node1 | 19000 | 101.6 | degraded |
+| w3 | node1 | 19002 | 0.8 | healthy |
+| w27 | node3 | 19000 | 101.3 | degraded |
+| w28 | node3 | 19001 | 0.9 | healthy |
+
+Note 101 ms, not 50: `netem` delays every packet the server sends, so a
+connection-per-call protocol pays it twice — once on the SYN-ACK, once on the response.
+The physical arm is therefore **not numerically comparable** to the simulated 50 ms sleep
+used at 16 and 32 hosts. It is a more faithful model of a congested link, not the same
+one.
+
+### The defect
+
+The first degraded run marked the first sixteen backup-eligible hosts, `w81`–`w96`, a
+contiguous block. It reported:
+
+| method | mean (ms) | calls to a degraded backup |
+| --- | --- | --- |
+| round_robin | **41.28** | **0.00%** |
+| optimal | 41.55 | 0.00% |
+| heuristic | 41.54 | 0.00% |
+| random | 50.63 | 10.75% |
+
+`round_robin` tying with `optimal` while touching no degraded host would have been
+reported as "a cost-free load-spreading baseline matches feature-aware selection". It has
+no access to the degradation features and cannot be avoiding anything.
+
+`round_robin_mapping()` cycles a **lexicographically** sorted host list, in which every
+name beginning `w1`–`w7` precedes `w8`. With 80 primaries the cursor advances 80
+positions and never reaches `w81`–`w96`. It scored zero by **never arriving**, not by
+avoiding. Natural-order sorting would not help: those hosts still sit beyond position 80.
+`concentrated` at 0.00% was the same accident, piling onto `w1`–`w2`.
+
+### The fix and what it changed
+
+`--degraded-selection spread` samples the degraded hosts evenly along that same ordering
+(cycle positions 0, 8, 16, …, 120), putting them inside every method's reach. `prefix`
+remains the default so earlier runs reproduce.
+
+| method | mean, contiguous | mean, spread | degraded share, spread |
+| --- | --- | --- | --- |
+| round_robin | 41.28 | **51.87** | 12.50% |
+| random | 50.63 | 51.25 | 11.25% |
+| optimal | 41.55 | 41.76 | 0.00% |
+| heuristic | 41.54 | 42.03 | 0.00% |
+| rl (PPO) | 42.54 | 45.04 | 0.00% |
+| concentrated | 55.44 | 260.11 | 100.00% |
+
+`round_robin`'s apparent parity with `optimal` disappears entirely. With the degraded
+hosts reachable, the feature-aware methods beat both ordering-based ones with
+**r = −1.000** over 15 paired runs — no run dissents — and roughly 2x at p99 (80 ms
+against 156 ms).
+
+**Methodological rule:** any scenario that marks a contiguous block of hosts as degraded
+must report what share of each method's calls actually reached one. Without that column
+the comparison is uninterpretable, and a load-spreading baseline can appear to avoid an
+impairment it merely never encountered.
+
+### A second thing the share column exposed
+
+`rl` (PPO) reaches a degraded backup **0.00%** of the time, matching the deterministic
+methods, and is still significantly slower than both (p_Holm = 0.0009 vs `heuristic`,
+r = 1.000). It used **44** distinct backups where `heuristic` used 112 and `random` 119.
+Host-quality discrimination and load balancing are separable properties, and PPO acquired
+the first without the second. "PPO degrades at 128 hosts" was true but imprecise; this is
+the sharper statement.
+
+---
+
+## 128 hosts: now measured, and what that changed
+
+Fix 5 concluded that 128 hosts is not measurable on one machine and that real distributed
+hardware would be required. That measurement now exists: ten bare-metal nodes carrying
+128 backups at one physical core each, plus a client node, on a 25 GbE LAN.
+
+It changed more than it confirmed:
+
+| single-machine claim | status after bare metal |
+| --- | --- |
+| Concentration is catastrophic (7.5x across the load sweep) | **Revised** — 35% once the accept queue is sized; most of the 7.5x was refused connections |
+| Feature-aware selection beats blind spreading under heterogeneity | **Confirmed**, r = −1.000, and now with the mechanism shown (0.00% vs 12.50% degraded) |
+| Heuristic matches the Hungarian optimum | **Confirmed** as a null, p_Holm = 0.909 (mean) and 1.000 (p99) |
+| PPO degrades at 128 hosts | **Confirmed and sharpened** — it avoids degraded hosts perfectly; the cost is load concentration alone |
+| Selection matters regardless of host quality | **Withdrawn** — with homogeneous hosts, `optimal` vs `random` differs by 0.002 ms (p = 1.000) |
+
+The last row is new and is the one most worth stating: where every candidate is
+equivalent, a selector that reads node features has nothing to read, and the Hungarian
+assignment buys nothing over choosing uniformly at random. The paper's claim is
+specifically about **heterogeneous** pools, and that is now the only form in which it is
+made.
+
+### What the smaller scales inherit
+
+The 9-, 16- and 32-host results have **not** been re-run on bare metal. They were
+measured over the shipped five-deep backlog, so Fix 7 applies to them: their
+concentration penalties should be read as upper bounds. The *ordering* of methods is
+unaffected, since Fix 7 compresses all methods toward each other rather than reordering
+them, but the magnitudes are inflated by an amount that is now known to be substantial.
+
+---
+
+## Summary of claims after bare-metal validation
+
+| claim | status |
+| --- | --- |
+| Feature-aware selection beats blind load-spreading under heterogeneity | **Strongly supported** — r = −1.000 at 128 hosts on bare metal, with the mechanism measured |
+| Greedy heuristic matches the Hungarian optimum | **Supported** as a null at every scale, including bare metal |
+| PPO avoids degraded hosts but concentrates load | **Supported** — 0.00% degraded, 44 distinct backups vs 112 |
+| Selection matters when hosts are homogeneous | **Withdrawn** — 0.002 ms difference, p = 1.000 |
+| Concentration costs ~7.5x | **Revised to ~35%** — the remainder was the five-deep accept queue |
+| `round_robin` matches feature-aware selection at 128 hosts | **Withdrawn** — an artifact of lexicographic ordering (Fix 8) |
+| DEFT's shipped backlog imposes a 1 s p99 floor under concurrent replication | **Supported** — 103,209 ListenOverflows, zero at backlog 512 |
+| p99 as a latency metric on XML-RPC | **Invalid** at backlog 5; **usable** at backlog 512 and on gRPC |
+| 9/16/32-host concentration magnitudes | **Upper bounds** — measured over the shipped backlog, not re-run on bare metal |

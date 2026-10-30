@@ -107,6 +107,30 @@
   "rl": 0.0,
   "round_robin": 12.5
  },
+ "degraded_share_pct_16": {
+  "concentrated": 100.0,
+  "heuristic": 0.0,
+  "optimal": 0.0,
+  "random": 18.0,
+  "rl": 0.0,
+  "round_robin": 10.0
+ },
+ "degraded_share_pct_16_asshipped": {
+  "concentrated": 100.0,
+  "heuristic": 0.0,
+  "optimal": 0.0,
+  "random": 18.0,
+  "rl": 0.0,
+  "round_robin": 10.0
+ },
+ "degraded_share_pct_32": {
+  "concentrated": 95.0,
+  "heuristic": 0.0,
+  "optimal": 0.0,
+  "random": 15.0,
+  "rl": 1.0,
+  "round_robin": 10.0
+ },
  "homogeneous": {
   "concentrated": {
    "fail": 0.0,
@@ -194,5 +218,155 @@
   "7": 41.8,
   "79": 56.41,
   "9": 40.51
+ },
+ "s16": {
+  "concentrated": {
+   "fail": 0.0,
+   "mean": 101.71,
+   "median": 101.52,
+   "p95": 103.32,
+   "p99": 104.52,
+   "runs": 15
+  },
+  "heuristic": {
+   "fail": 0.0,
+   "mean": 23.82,
+   "median": 23.09,
+   "p95": 42.05,
+   "p99": 56.76,
+   "runs": 15
+  },
+  "optimal": {
+   "fail": 0.0,
+   "mean": 23.17,
+   "median": 22.68,
+   "p95": 40.87,
+   "p99": 49.45,
+   "runs": 15
+  },
+  "random": {
+   "fail": 0.0,
+   "mean": 36.45,
+   "median": 23.62,
+   "p95": 81.74,
+   "p99": 95.39,
+   "runs": 15
+  },
+  "rl": {
+   "fail": 0.0,
+   "mean": 23.49,
+   "median": 22.87,
+   "p95": 41.16,
+   "p99": 49.84,
+   "runs": 15
+  },
+  "round_robin": {
+   "fail": 0.0,
+   "mean": 29.89,
+   "median": 22.11,
+   "p95": 102.51,
+   "p99": 120.62,
+   "runs": 15
+  }
+ },
+ "s16_asshipped": {
+  "concentrated": {
+   "fail": 0.0,
+   "mean": 101.7,
+   "median": 101.49,
+   "p95": 103.19,
+   "p99": 104.3,
+   "runs": 15
+  },
+  "heuristic": {
+   "fail": 0.0,
+   "mean": 32.04,
+   "median": 12.08,
+   "p95": 29.71,
+   "p99": 1020.77,
+   "runs": 15
+  },
+  "optimal": {
+   "fail": 0.0,
+   "mean": 28.7,
+   "median": 14.64,
+   "p95": 32.21,
+   "p99": 1015.26,
+   "runs": 15
+  },
+  "random": {
+   "fail": 0.0,
+   "mean": 51.54,
+   "median": 12.04,
+   "p95": 73.82,
+   "p99": 858.46,
+   "runs": 15
+  },
+  "rl": {
+   "fail": 0.0,
+   "mean": 32.46,
+   "median": 11.13,
+   "p95": 28.34,
+   "p99": 1022.93,
+   "runs": 15
+  },
+  "round_robin": {
+   "fail": 0.0,
+   "mean": 35.22,
+   "median": 14.44,
+   "p95": 102.03,
+   "p99": 1013.35,
+   "runs": 15
+  }
+ },
+ "s32": {
+  "concentrated": {
+   "fail": 0.0,
+   "mean": 98.35,
+   "median": 101.72,
+   "p95": 108.13,
+   "p99": 129.27,
+   "runs": 15
+  },
+  "heuristic": {
+   "fail": 0.0,
+   "mean": 31.59,
+   "median": 30.94,
+   "p95": 52.87,
+   "p99": 77.05,
+   "runs": 15
+  },
+  "optimal": {
+   "fail": 0.0,
+   "mean": 31.27,
+   "median": 30.97,
+   "p95": 52.24,
+   "p99": 68.15,
+   "runs": 15
+  },
+  "random": {
+   "fail": 0.0,
+   "mean": 40.88,
+   "median": 30.81,
+   "p95": 103.23,
+   "p99": 121.1,
+   "runs": 15
+  },
+  "rl": {
+   "fail": 0.0,
+   "mean": 32.37,
+   "median": 31.39,
+   "p95": 58.21,
+   "p99": 79.65,
+   "runs": 15
+  },
+  "round_robin": {
+   "fail": 0.0,
+   "mean": 38.65,
+   "median": 31.54,
+   "p95": 105.39,
+   "p99": 136.58,
+   "runs": 15
+  }
  }
 }

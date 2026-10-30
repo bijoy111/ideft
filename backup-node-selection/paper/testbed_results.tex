@@ -45,9 +45,36 @@ which invites the reading that concentration is catastrophic; with a backlog of
 512 the same sweep costs $35\%$. Most of the apparent penalty for sharing a
 backup was connection setup being refused rather than queueing at the backup.
 This sharpens \S\ref{sec:p99}'s estimate that the shipped transport inflates the
-measured placement effect by about $4.3\times$: the inflation is attributable to
-one configurable integer, and removing it leaves an effect that is real but
+measured concentration penalty: the inflation is attributable to one
+configurable integer, and removing it leaves an effect that is real but
 considerably smaller.
+
+\textbf{The bias does not have a single sign.} Repeating the 16-host scenario on
+the same nodes with the same \texttt{tc} degradation, changing only the backlog,
+gives the opposite result (Table~\ref{tab:backlog16}). The one-second plateau
+appears exactly as before --- p99 of $1013$--$1023$\,ms across four methods whose
+p95 spans $28$ to $102$\,ms --- but the \emph{gap between methods} is
+\emph{larger} once the backlog is fixed: \texttt{round\_robin} minus
+\texttt{heuristic} is $3.18$\,ms as shipped and $6.07$\,ms at backlog 512. At
+this scale the shipped queue understates the placement effect rather than
+inflating it.
+
+The two results are consistent once the mechanism is stated. Overflow is driven
+by how many primaries share one backup. At 128 hosts with 80 primaries,
+concentration is extreme and the overflow penalty falls hardest on exactly the
+placements that are already worst, exaggerating the spread. At 16 hosts with 10
+primaries over 16 backups nothing is concentrated enough for that, so the
+penalty falls roughly evenly and compresses the spread instead. The shipped
+backlog therefore \emph{biases} a measured placement effect, with a sign that
+depends on how concentrated the workload is --- which is a stronger reason to
+report it as a controlled variable than if it merely scaled everything.
+
+A third observation falls out of the same table and is a property of the shipped
+system rather than of our measurement: the five-deep queue \emph{lowers} the
+median, from $22.68$ to $14.64$\,ms for \texttt{optimal}. A short accept queue is
+admission control. Calls that are accepted contend with fewer others for a
+single-threaded server and complete faster; calls that are refused wait a full
+second. DEFT as shipped trades a better median for a catastrophic tail.
 
 \textbf{With homogeneous hosts, selection does not matter.}
 On identical hardware with no degraded hosts, \texttt{optimal},
@@ -88,6 +115,24 @@ has $r=-1.000$ over 15 paired runs, meaning no run dissents. The gap between
 ($p_{\text{Holm}}=0.909$) or p99 ($p_{\text{Holm}}=1.000$), so the
 multi-criteria heuristic attains the quality of the capacity-constrained
 Hungarian assignment without solving one.
+
+\textbf{The result holds at every scale we can run on this hardware.}
+Repeating the degraded scenario at 16 and 32 hosts, with 12.5\% of hosts
+degraded at each, gives the same ordering and the same mechanism
+(Table~\ref{tab:scales}). \texttt{heuristic} and \texttt{optimal} reach a
+degraded backup in $0.00\%$ of calls at all three scales; \texttt{round\_robin}
+meets them at $10.00$--$12.50\%$ and \texttt{random} at $11.25$--$18.00\%$. The
+latency gap between the two groups widens with the pool, from $6.72$\,ms at 16
+hosts to $7.38$ at 32 and $10.11$ at 128, which is what one expects as blind
+selection has more degraded hosts to encounter. \texttt{heuristic} versus
+\texttt{optimal} is not significant at any scale.
+
+These are the scales the paper previously measured on a single machine
+(\S\ref{sec:scale32}), so the comparison also settles what that arrangement
+cost. At 16 hosts the single-machine run reported a p99 of $1110$--$1136$\,ms
+for the four leading methods; the same scenario here reports $49$--$121$\,ms.
+The one-second plateau was never specific to 128 hosts --- it has bounded p99 at
+every scale in this paper, which is visible only once the backlog can be varied.
 
 \textbf{A contiguous degraded block makes the baselines look better than they
 are.} An earlier execution of this arm degraded the first sixteen

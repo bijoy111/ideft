@@ -34,6 +34,14 @@
     degraded</strong>. This is the scenario the paper is actually about: does knowing
     which hosts are bad change anything once hosts differ in quality?
   </p>
+  <div class="card">
+    <strong>Re-run on bare metal.</strong> This scenario has since been repeated on ten
+    networked machines, each backup pinned to its own physical core, with degraded hosts
+    slowed by the Linux kernel rather than by a sleep — see
+    <a href="testbed.html">Bare Metal</a>. The ordering below holds there. The absolute
+    latencies do not: the p99 figures on this page sit on a one-second plateau caused by
+    DEFT's five-deep accept queue, not by backup placement.
+  </div>
   <div class="pill-row">
     <span class="pill">XML-RPC: 5 seeds × 3 trials (15 runs)</span>
     <span class="pill">gRPC: 5 seeds × 5 trials (25 runs)</span>

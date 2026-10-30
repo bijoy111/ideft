@@ -799,14 +799,85 @@ Natural-order sorting would not fix it either: `w81`–`w96` still sit beyond po
 avoid it. Any scenario that marks a contiguous block of hosts as degraded must check what
 share of each method's calls actually reached one, or the comparison is uninterpretable.
 
-#### 4.11.5 What this section does not claim
+#### 4.11.5 The same result at 16 and 32 hosts, and what the single machine cost
+
+The degraded scenario was repeated at 16 and 32 hosts on the same nodes, 12.5% of hosts
+degraded at each (`w1 w2` and `w1 w17 w24 w31` respectively, chosen by
+`--degraded-selection spread`), two and four servers per node so no node carries more than
+a handful.
+
+| method | 16 hosts | degr. | 32 hosts | degr. | 128 hosts | degr. |
+|---|---|---|---|---|---|---|
+| optimal | 23.17 | 0.00% | 31.27 | 0.00% | 41.76 | 0.00% |
+| heuristic | 23.82 | 0.00% | 31.59 | 0.00% | 42.03 | 0.00% |
+| rl (PPO) | 23.49 | 0.00% | 32.37 | 1.00% | 45.04 | 0.00% |
+| round_robin | 29.89 | 10.00% | 38.65 | 10.00% | 51.87 | 12.50% |
+| random | 36.45 | 18.00% | 40.88 | 15.00% | 51.25 | 11.25% |
+| concentrated | 101.71 | 100.00% | 98.35 | 95.00% | 260.11 | 100.00% |
+
+`optimal` beats `round_robin` and `random` with r = −1.000 and −0.983 at 32 hosts
+(p_Holm = 0.0009 both), and r = −1.000 and −0.967 at 16 hosts. `optimal` vs `heuristic` is
+n.s. at every scale. The gap between the feature-aware and ordering-based groups widens
+with the pool: 6.72 ms at 16, 7.38 at 32, 10.11 at 128.
+
+**A power note.** The 32-host run was first executed at the original reduced parameters
+(`--context-seeds 1 2 3 --trials 2`, n = 6). Every effect size was r = −1.000, but with 6
+pairs the smallest attainable two-sided p is 0.0312, so Holm correction across 15
+comparisons left everything at p = 0.4688 — non-significant purely from sample size, as
+the harness's own `[power]` warning said. Re-run at 5 seeds × 3 trials (n = 15) the same
+effects clear at p_Holm = 0.0009. Both files ship; the n = 6 one is a valid replication at
+the original parameters and the two agree on every ordering.
+
+#### 4.11.6 The accept backlog's bias does not have a single sign
+
+The 16-host scenario was also run with DEFT's shipped backlog — same nodes, same `tc`
+degradation, one variable changed.
+
+| method | mean @ 5 | median @ 5 | p99 @ 5 | mean @ 512 | median @ 512 | p99 @ 512 |
+|---|---|---|---|---|---|---|
+| optimal | 28.70 | 14.64 | 1015.26 | 23.17 | 22.68 | 49.45 |
+| heuristic | 32.04 | 12.08 | 1020.77 | 23.82 | 23.09 | 56.76 |
+| rl (PPO) | 32.46 | 11.13 | 1022.93 | 23.49 | 22.87 | 49.84 |
+| round_robin | 35.22 | 14.44 | 1013.35 | 29.89 | 22.11 | 120.62 |
+| random | 51.54 | 12.04 | 858.46 | 36.45 | 23.62 | 95.39 |
+| concentrated | 101.70 | 101.49 | 104.30 | 101.71 | 101.52 | 104.52 |
+
+Three things fall out of this table.
+
+**The one-second plateau is not specific to 128 hosts.** p99 sits at 1013–1023 ms for four
+methods whose p95 spans 28 to 102 ms, on hardware where nothing else is contended. It has
+been bounding p99 at every scale in this paper; it was only ever visible as an artifact
+once the backlog could be varied.
+
+**The bias runs the other way at this scale.** `round_robin` minus `heuristic` is
+**3.18 ms as shipped** and **6.07 ms at backlog 512**. At 128 hosts the shipped queue
+*inflated* the concentration penalty (§4.11.1); here it *understates* the placement gap.
+Both follow from the same mechanism: overflow is driven by how many primaries share one
+backup, so at 128 hosts with 80 primaries it falls hardest on exactly the placements that
+are already worst and exaggerates the spread, while at 16 hosts with 10 primaries over 16
+backups nothing is concentrated enough and the penalty falls roughly evenly, compressing
+it. **The shipped backlog biases a measured placement effect with a sign that depends on
+how concentrated the workload is** — which is a stronger reason to report it as a
+controlled variable than if it merely scaled everything.
+
+This narrows a claim made in an earlier draft of §4.11.1, which read as though the
+inflation were general. It is not; it is specific to concentrated workloads.
+
+**A five-deep queue is admission control.** It *lowers* the median — 22.68 → 14.64 ms for
+`optimal`. Calls that are accepted contend with fewer others for a single-threaded server
+and finish faster; calls that are refused wait a full second. DEFT as shipped trades a
+better median for a catastrophic tail, which is a property of the system rather than of
+our measurement.
+
+#### 4.11.7 What this section does not claim
 
 - `concentrated`'s 260 ms in the degraded arm mixes concentration with degradation, because
   the host it piles onto (`w1`) is itself degraded. The clean figure for concentration alone
   is the homogeneous column: 56.27 against 41.73, a 35% penalty.
-- §4.1, §4.2 and §4.5 (9, 16 and 32 hosts) remain single-machine measurements over the
-  shipped backlog. Their concentration penalties should be read as upper bounds until
-  re-run here.
+- §4.2 and §4.5 (16 and 32 hosts) have since been re-run here (§4.11.5) and the ordering
+  holds. Their single-machine *magnitudes* are still affected by the shipped backlog, in
+  the direction §4.11.6 measures — which is not the direction an earlier draft assumed.
+  §4.1 (9 hosts) remains a single-machine measurement.
 
 ---
 
@@ -979,9 +1050,13 @@ our favour.
   selection method separates from random. (3) A load-spreading baseline that appeared to
   avoid degraded hosts was missing them by lexicographic accident (§4.11.4). The claim that
   survived all three is the load-bearing one: feature-aware selection avoids degraded hosts
-  and ordering-based selection does not. **§4.1, §4.2 and §4.5 have not been re-run on bare
-  metal**, so their absolute magnitudes inherit (1) — they are measured over the shipped
-  backlog, and their concentration penalties should be read as upper bounds.
+  and ordering-based selection does not. §4.2 and §4.5 (16 and 32 hosts) **have** since been
+  re-run on bare metal (§4.11.5) and the ordering holds at both. Their single-machine
+  magnitudes are still affected by the shipped backlog, but not in the direction an
+  earlier draft assumed: §4.11.6 measures the bias at 16 hosts running the *opposite*
+  way, understating the placement gap rather than inflating it, because overflow tracks
+  concentration and nothing is concentrated enough at that scale. §4.1 (9 hosts) has not
+  been re-run.
 - **The degraded arm's mechanism changed with the hardware.** §4.2/§4.5 impose degradation
   as a 50 ms sleep inside the server. §4.11.3 imposes it with `tc netem` on the server's
   source port, which delays every packet the server sends; a connection-per-call protocol

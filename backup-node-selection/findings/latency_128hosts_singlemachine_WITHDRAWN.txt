@@ -1,0 +1,6 @@
+# iDEFT findings: latency_128hosts
+# command: rpc_contention_experiment.py --n-hosts 128 --manifest ../findings/manifest_cloudlab.json --results-csv results_rpc/raw_128hosts_cloudlab.csv
+# generated: 2026-10-29 21:00:58 UTC
+# (reproducing this scenario overwrites this file)
+
+transport: xmlrpc

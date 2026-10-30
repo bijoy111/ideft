@@ -1482,10 +1482,13 @@ homogeneous hosts no selection method separates from random; and a
 load-spreading baseline that appeared to avoid degraded hosts was found to be
 missing them by lexicographic accident. The claim that survived all three is the
 load-bearing one, that feature-aware selection avoids degraded hosts and
-ordering-based selection does not. The smaller scales have not been re-run on
-bare metal, so their absolute magnitudes inherit the first of these concerns:
-they are measured over the shipped backlog, and the concentration penalties
-reported there should be read as upper bounds.
+ordering-based selection does not. The 16- and 32-host scenarios have since been
+re-run on the same hardware (\S\ref{sec:testbed}), which both confirms the
+ordering there and shows that the shipped backlog's bias does not have a single
+sign: at 128 hosts it inflates the concentration penalty, while at 16 hosts it
+\emph{understates} the gap between placement methods, because overflow tracks
+concentration and nothing is concentrated enough at that scale. The 9-host
+scenario remains a single-machine measurement.
 
 \textbf{Absolute latencies are not reproducible across executions.} Ephemeral-port
 TIME\_WAIT pressure shifts the mean of every method by of order 17\,ms between otherwise

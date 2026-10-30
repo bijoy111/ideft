@@ -23,6 +23,27 @@ Method & Mean & p99 & Mean & p99 & Degraded (\%) \\
 
 \begin{table}[t]
 \centering
+\caption{Mean service latency and the share of calls reaching a degraded backup, at three scales on the same bare-metal testbed. Every backup is pinned to its own physical core and the degraded hosts are slowed by \texttt{tc netem} on the server's source port. 12.5\% of hosts are degraded at every scale. Milliseconds.}
+\label{tab:scales}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrrrrrr}
+\toprule
+& \multicolumn{2}{c}{16 hosts} & \multicolumn{2}{c}{32 hosts} & \multicolumn{2}{c}{128 hosts} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+Method & Mean & Degr.\% & Mean & Degr.\% & Mean & Degr.\% \\
+\midrule
+\texttt{optimal} & 23.17 & 0.00 & 31.27 & 0.00 & 41.76 & 0.00 \\
+\texttt{heuristic} & 23.82 & 0.00 & 31.59 & 0.00 & 42.03 & 0.00 \\
+\texttt{round\_robin} & 29.89 & 10.00 & 38.65 & 10.00 & 51.87 & 12.50 \\
+\texttt{random} & 36.45 & 18.00 & 40.88 & 15.00 & 51.25 & 11.25 \\
+\texttt{PPO} & 23.49 & 0.00 & 32.37 & 1.00 & 45.04 & 0.00 \\
+\texttt{concentrated} & 101.71 & 100.00 & 98.35 & 95.00 & 260.11 & 100.00 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\begin{table}[t]
+\centering
 \caption{The effect of DEFT's listen backlog, all hosts homogeneous and every other variable held fixed. DEFT constructs \texttt{SimpleXMLRPCServer} unmodified, so its accept queue holds five connections. p99 in milliseconds.}
 \label{tab:backlog}
 \resizebox{\columnwidth}{!}{%
@@ -38,6 +59,27 @@ Method & p95 & p99 & p95 & p99 \\
 \texttt{random} & 65.49 & 1051.67 & 65.47 & 79.24 \\
 \texttt{PPO} & 842.60 & 5293.69 & 71.40 & 89.26 \\
 \texttt{concentrated} & 1822.87 & 11039.43 & 83.43 & 114.69 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{DEFT's accept backlog as the only variable, 16 hosts on bare metal with identical \texttt{tc netem} degradation. The five-deep queue sheds load rather than queueing it, which lowers the median and produces the one-second tail. Milliseconds.}
+\label{tab:backlog16}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrrrrrr}
+\toprule
+& \multicolumn{3}{c}{Backlog 5 (as shipped)} & \multicolumn{3}{c}{Backlog 512} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+Method & Mean & Median & p99 & Mean & Median & p99 \\
+\midrule
+\texttt{optimal} & 28.70 & 14.64 & 1015.26 & 23.17 & 22.68 & 49.45 \\
+\texttt{heuristic} & 32.04 & 12.08 & 1020.77 & 23.82 & 23.09 & 56.76 \\
+\texttt{round\_robin} & 35.22 & 14.44 & 1013.35 & 29.89 & 22.11 & 120.62 \\
+\texttt{random} & 51.54 & 12.04 & 858.46 & 36.45 & 23.62 & 95.39 \\
+\texttt{PPO} & 32.46 & 11.13 & 1022.93 & 23.49 & 22.87 & 49.84 \\
+\texttt{concentrated} & 101.70 & 101.49 & 104.30 & 101.71 & 101.52 & 104.52 \\
 \bottomrule
 \end{tabular}}
 \end{table}

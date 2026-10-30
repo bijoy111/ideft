@@ -530,8 +530,38 @@ tail alone suggests:
 
 **7.5x becomes 35%.** Most of the apparent penalty for sharing a backup was connection
 setup being refused, not queueing at the backup. This sharpens Fix 5's ~4.3x inflation
-estimate: the inflation is attributable to one configurable integer, and removing it
-leaves an effect that is real but considerably smaller.
+estimate for the *concentration* penalty: it is attributable to one configurable integer.
+
+### The bias does not have a single sign
+
+An earlier version of this section generalised that to "the shipped backlog inflates the
+measured placement effect". Repeating the 16-host scenario on the same nodes with the same
+`tc` degradation, changing only the backlog, shows the opposite at that scale:
+
+| method | mean @ 5 | median @ 5 | p99 @ 5 | mean @ 512 | median @ 512 | p99 @ 512 |
+| --- | --- | --- | --- | --- | --- | --- |
+| optimal | 28.70 | 14.64 | 1015.26 | 23.17 | 22.68 | 49.45 |
+| heuristic | 32.04 | 12.08 | 1020.77 | 23.82 | 23.09 | 56.76 |
+| round_robin | 35.22 | 14.44 | 1013.35 | 29.89 | 22.11 | 120.62 |
+| random | 51.54 | 12.04 | 858.46 | 36.45 | 23.62 | 95.39 |
+
+`round_robin` minus `heuristic` is **3.18 ms as shipped** and **6.07 ms at backlog 512**.
+At 16 hosts the shipped queue *understates* the placement gap; at 128 hosts it inflated
+the concentration penalty. Both follow from one mechanism: overflow is driven by how many
+primaries share a backup, so at 80 primaries it falls hardest on exactly the worst
+placements and exaggerates the spread, while at 10 primaries over 16 backups it falls
+roughly evenly and compresses it.
+
+**The correct statement is that the shipped backlog biases a measured placement effect,
+with a sign that depends on how concentrated the workload is.** That is a stronger reason
+to treat it as a controlled variable than if it merely scaled everything.
+
+Two further observations from the same table. The one-second plateau appears at 16 hosts
+too (1013-1023 ms across four methods whose p95 spans 28 to 102 ms), on hardware where
+nothing else is contended: it has bounded p99 at **every** scale in this work, and was
+only ever visible as an artifact once the backlog could be varied. And the five-deep queue
+*lowers* the median, 22.68 to 14.64 ms — a short accept queue is admission control, and
+DEFT as shipped trades a better median for a catastrophic tail.
 
 Both configurations are reported. Neither replaces the other: the shipped one describes
 DEFT as deployed, the raised one isolates placement.
@@ -672,4 +702,7 @@ them, but the magnitudes are inflated by an amount that is now known to be subst
 | `round_robin` matches feature-aware selection at 128 hosts | **Withdrawn** — an artifact of lexicographic ordering (Fix 8) |
 | DEFT's shipped backlog imposes a 1 s p99 floor under concurrent replication | **Supported** — 103,209 ListenOverflows, zero at backlog 512 |
 | p99 as a latency metric on XML-RPC | **Invalid** at backlog 5; **usable** at backlog 512 and on gRPC |
-| 9/16/32-host concentration magnitudes | **Upper bounds** — measured over the shipped backlog, not re-run on bare metal |
+| The result holds at 16, 32 and 128 hosts | **Supported** — same ordering and mechanism at all three on bare metal; the gap widens with the pool (6.72 / 7.38 / 10.11 ms) |
+| The shipped backlog inflates the measured placement effect | **Narrowed** — it *biases* it, with a sign that depends on workload concentration; it inflates at 128 hosts and understates at 16 |
+| DEFT's five-deep queue is purely harmful | **Narrowed** — it lowers the median by shedding load, at the cost of a one-second tail |
+| 9-host concentration magnitude | **Upper bound** — the only scale not re-run on bare metal |

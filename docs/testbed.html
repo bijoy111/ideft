@@ -155,6 +155,71 @@
     but considerably smaller than the shipped configuration suggests.
   </div>
 
+  <h2>The same result at 16, 32 and 128 hosts</h2>
+  <p>
+    The degraded scenario was repeated at all three scales on the same hardware, with
+    12.5% of hosts degraded at each. Mean latency, and the share of each method's calls
+    that reached a degraded backup:
+  </p>
+  <table>
+    <thead><tr><th>Method</th><th>16 hosts</th><th>degr.</th><th>32 hosts</th><th>degr.</th><th>128 hosts</th><th>degr.</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">optimal</td><td>23.17</td><td>0.00%</td><td>31.27</td><td>0.00%</td><td>41.76</td><td>0.00%</td></tr>
+      <tr><td class="mono">heuristic</td><td>23.82</td><td>0.00%</td><td>31.59</td><td>0.00%</td><td>42.03</td><td>0.00%</td></tr>
+      <tr><td class="mono">PPO</td><td>23.49</td><td>0.00%</td><td>32.37</td><td>1.00%</td><td>45.04</td><td>0.00%</td></tr>
+      <tr><td class="mono">round_robin</td><td>29.89</td><td>10.00%</td><td>38.65</td><td>10.00%</td><td>51.87</td><td>12.50%</td></tr>
+      <tr><td class="mono">random</td><td>36.45</td><td>18.00%</td><td>40.88</td><td>15.00%</td><td>51.25</td><td>11.25%</td></tr>
+      <tr><td class="mono">concentrated</td><td>101.71</td><td>100.00%</td><td>98.35</td><td>95.00%</td><td>260.11</td><td>100.00%</td></tr>
+    </tbody>
+  </table>
+  <div class="finding">
+    <strong>Three independent confirmations.</strong> The feature-aware methods reach a
+    degraded backup <strong>0% of the time at every scale</strong>; the ordering-based ones
+    meet them at the base rate. The gap widens as the pool grows — 6.72 ms at 16 hosts,
+    7.38 at 32, 10.11 at 128 — which is what you expect when blind selection has more
+    degraded hosts to stumble into. <span class="mono">heuristic</span> is statistically
+    indistinguishable from the Hungarian optimum at all three.
+  </div>
+
+  <h2>The backlog's bias does not have a single sign</h2>
+  <p>
+    The 16-host scenario was also run with DEFT's shipped backlog, on the same nodes with
+    the same <span class="mono">tc</span> degradation — one variable changed, nothing else.
+  </p>
+  <table>
+    <thead><tr><th>Method</th><th>mean @ 5</th><th>median @ 5</th><th>p99 @ 5</th><th>mean @ 512</th><th>median @ 512</th><th>p99 @ 512</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">optimal</td><td>28.70</td><td>14.64</td><td>1015.26</td><td>23.17</td><td>22.68</td><td>49.45</td></tr>
+      <tr><td class="mono">heuristic</td><td>32.04</td><td>12.08</td><td>1020.77</td><td>23.82</td><td>23.09</td><td>56.76</td></tr>
+      <tr><td class="mono">round_robin</td><td>35.22</td><td>14.44</td><td>1013.35</td><td>29.89</td><td>22.11</td><td>120.62</td></tr>
+      <tr><td class="mono">random</td><td>51.54</td><td>12.04</td><td>858.46</td><td>36.45</td><td>23.62</td><td>95.39</td></tr>
+    </tbody>
+  </table>
+  <div class="card warn">
+    <strong>Two surprises here, and one of them corrects us.</strong>
+    <p>
+      First, the one-second plateau appears at 16 hosts too (1013&ndash;1023 ms), on hardware
+      where nothing else is contended. It was never specific to 128 hosts — it has been
+      bounding p99 at <em>every</em> scale in this work.
+    </p>
+    <p>
+      Second, the gap between methods is <strong>larger</strong> once the backlog is fixed:
+      round-robin minus heuristic is 3.18 ms as shipped and 6.07 ms at backlog 512. At 128
+      hosts the shipped queue <em>inflated</em> the concentration penalty; at 16 hosts it
+      <em>understates</em> the placement gap. Overflow tracks concentration, and with 10
+      primaries over 16 backups nothing is concentrated enough for it to fall selectively on
+      the bad placements. So the backlog <em>biases</em> a measurement, with a sign that
+      depends on the workload — which is a better reason to treat it as a controlled
+      variable than if it simply scaled everything.
+    </p>
+    <p>
+      Third, the five-deep queue <em>lowers</em> the median (22.68 &rarr; 14.64 ms). A short
+      accept queue is admission control: accepted calls contend with fewer others and finish
+      faster, refused ones wait a full second. DEFT as shipped trades a better median for a
+      catastrophic tail.
+    </p>
+  </div>
+
   <h2>How degradation was imposed</h2>
   <p>
     The deployment refuses to simulate a degraded backup by sleeping inside a server it did
@@ -204,9 +269,11 @@
     <strong>Two things this page does not claim.</strong> First,
     <span class="mono">concentrated</span>'s 260 ms in the degraded arm mixes concentration
     with degradation, because the host it piles onto is itself degraded; the clean figure for
-    concentration alone is the homogeneous column, 56.27 against 41.73. Second, the 9-, 16-
-    and 32-host pages are still single-machine measurements over the shipped backlog, so
-    their concentration penalties should be read as upper bounds until re-run here.
+    concentration alone is the homogeneous column, 56.27 against 41.73. Second, the 16- and 32-host
+    scenarios <em>have</em> since been re-run here, and the result holds at both; the
+    9-host page remains a single-machine measurement. The &quot;upper bound&quot; caution
+    that used to sit here was also wrong in direction at small scale — see the backlog
+    comparison above.
   </div>
 
   <div class="scenario-nav">

@@ -18,9 +18,24 @@ FINDINGS = "../findings"
 RESULTS = "results_rpc"
 
 RUNS = {
+    # 128 hosts: as shipped, with the backlog raised, and with degraded hosts.
     "asshipped": "latency_128hosts_cloudlab.txt",
     "backlog": "latency_128hosts_cloudlab_backlog512.txt",
     "degraded": "latency_128hosts_cloudlab_degraded_spread.txt",
+    # The smaller scales, degraded, on the same hardware.
+    "s16": "latency_16hosts_cloudlab.txt",
+    "s32": "latency_32hosts_cloudlab_n15.txt",
+    # 16 hosts again with DEFT's shipped backlog: the single-variable pair that
+    # isolates the accept queue from the hardware and the degradation mechanism.
+    "s16_asshipped": "latency_16hosts_cloudlab_asshipped.txt",
+}
+
+# The degraded set `--degraded-selection spread` produces at each scale.
+DEGRADED_BY_SCALE = {
+    16: {"w1", "w2"},
+    32: {"w1", "w17", "w24", "w31"},
+    128: {"w1", "w2", "w27", "w34", "w41", "w49", "w56", "w63", "w70", "w78",
+          "w85", "w92", "w106", "w113", "w120", "w128"},
 }
 
 # The degraded set the spread selection produces at n_hosts=128, n_degraded=16.
@@ -93,13 +108,14 @@ def load_curve(text):
     return out
 
 
-def degraded_share(csv_name):
+def degraded_share(csv_name, n_hosts):
     """Fraction of a method's calls that landed on a degraded backup."""
+    degraded = DEGRADED_BY_SCALE[n_hosts]
     hits, total = collections.Counter(), collections.Counter()
     with open(os.path.join(RESULTS, csv_name)) as handle:
         for row in csv.DictReader(handle):
             total[row["method"]] += 1
-            if row["backup"] in DEGRADED:
+            if row["backup"] in degraded:
                 hits[row["method"]] += 1
     return {m: 100.0 * hits[m] / total[m] for m in total}
 
@@ -125,6 +141,57 @@ def table_main(homog, degr, share):
         lines.append("{} & {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f} \\\\".format(
             TEX[m], homog[m]["mean"], homog[m]["p99"],
             degr[m]["mean"], degr[m]["p99"], share[m]))
+    lines += [r"\bottomrule", r"\end{tabular}}", r"\end{table}"]
+    return "\n".join(lines)
+
+
+def table_scales(s16, s32, s128, share16, share32, share128):
+    lines = [
+        r"\begin{table}[t]", r"\centering",
+        r"\caption{Mean service latency and the share of calls reaching a degraded "
+        r"backup, at three scales on the same bare-metal testbed. Every backup is "
+        r"pinned to its own physical core and the degraded hosts are slowed by "
+        r"\texttt{tc netem} on the server's source port. 12.5\% of hosts are degraded "
+        r"at every scale. Milliseconds.}",
+        r"\label{tab:scales}",
+        r"\resizebox{\columnwidth}{!}{%",
+        r"\begin{tabular}{lrrrrrr}",
+        r"\toprule",
+        r"& \multicolumn{2}{c}{16 hosts} & \multicolumn{2}{c}{32 hosts} "
+        r"& \multicolumn{2}{c}{128 hosts} \\",
+        r"\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}",
+        r"Method & Mean & Degr.\% & Mean & Degr.\% & Mean & Degr.\% \\",
+        r"\midrule",
+    ]
+    for m in ORDER:
+        lines.append("{} & {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f} \\\\".format(
+            TEX[m], s16[m]["mean"], share16[m], s32[m]["mean"], share32[m],
+            s128[m]["mean"], share128[m]))
+    lines += [r"\bottomrule", r"\end{tabular}}", r"\end{table}"]
+    return "\n".join(lines)
+
+
+def table_backlog16(asshipped, backlog):
+    """The single-variable pair: same hardware, same tc degradation, backlog only."""
+    lines = [
+        r"\begin{table}[t]", r"\centering",
+        r"\caption{DEFT's accept backlog as the only variable, 16 hosts on bare metal "
+        r"with identical \texttt{tc netem} degradation. The five-deep queue sheds load "
+        r"rather than queueing it, which lowers the median and produces the "
+        r"one-second tail. Milliseconds.}",
+        r"\label{tab:backlog16}",
+        r"\resizebox{\columnwidth}{!}{%",
+        r"\begin{tabular}{lrrrrrr}",
+        r"\toprule",
+        r"& \multicolumn{3}{c}{Backlog 5 (as shipped)} & \multicolumn{3}{c}{Backlog 512} \\",
+        r"\cmidrule(lr){2-4}\cmidrule(lr){5-7}",
+        r"Method & Mean & Median & p99 & Mean & Median & p99 \\",
+        r"\midrule",
+    ]
+    for m in ORDER:
+        lines.append("{} & {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f} \\\\".format(
+            TEX[m], asshipped[m]["mean"], asshipped[m]["median"], asshipped[m]["p99"],
+            backlog[m]["mean"], backlog[m]["median"], backlog[m]["p99"]))
     lines += [r"\bottomrule", r"\end{tabular}}", r"\end{table}"]
     return "\n".join(lines)
 
@@ -178,13 +245,22 @@ def table_load(asshipped, backlog):
 def main():
     texts = {k: read(k) for k in RUNS}
     stats = {k: summary(v) for k, v in texts.items()}
-    share = degraded_share("raw_128hosts_degraded_spread.csv")
+
+    shares = {
+        16: degraded_share("raw_16hosts_cloudlab.csv", 16),
+        32: degraded_share("raw_32hosts_cloudlab_n15.csv", 32),
+        128: degraded_share("raw_128hosts_degraded_spread.csv", 128),
+    }
+    share16a = degraded_share("raw_16hosts_asshipped.csv", 16)
     curves = {k: load_curve(texts[k]) for k in ("asshipped", "backlog")}
 
     out = "\n\n".join([
         "% Generated by make_testbed_tables.py -- do not edit by hand.",
-        table_main(stats["backlog"], stats["degraded"], share),
+        table_main(stats["backlog"], stats["degraded"], shares[128]),
+        table_scales(stats["s16"], stats["s32"], stats["degraded"],
+                     shares[16], shares[32], shares[128]),
         table_backlog(stats["asshipped"], stats["backlog"]),
+        table_backlog16(stats["s16_asshipped"], stats["s16"]),
         table_load(curves["asshipped"], curves["backlog"]),
     ]) + "\n"
 
@@ -197,7 +273,13 @@ def main():
         "homogeneous": {m: stats["backlog"][m] for m in ORDER},
         "degraded": {m: stats["degraded"][m] for m in ORDER},
         "as_shipped": {m: stats["asshipped"][m] for m in ORDER},
-        "degraded_share_pct": share,
+        "s16": {m: stats["s16"][m] for m in ORDER},
+        "s32": {m: stats["s32"][m] for m in ORDER},
+        "s16_asshipped": {m: stats["s16_asshipped"][m] for m in ORDER},
+        "degraded_share_pct": shares[128],
+        "degraded_share_pct_16": shares[16],
+        "degraded_share_pct_32": shares[32],
+        "degraded_share_pct_16_asshipped": share16a,
         "load_curve_asshipped": {str(k): v[1] for k, v in curves["asshipped"].items()},
         "load_curve_backlog": {str(k): v[1] for k, v in curves["backlog"].items()},
     }

@@ -33,7 +33,7 @@ EXPECTED = {
     "Heuristic weight sensitivity": ("tab:terms", None),
     "Hash baselines": ("tab:hrw", None),
     "Cross-algorithm check": ("tab:ppodqn", None),
-    "Bare-metal validation": ("tab:cloudlab", "tab:loadcurve"),
+    "Bare-metal validation": ("tab:scales", "tab:loadcurve"),
     "Online selection under churn": ("tab:online-churn", "tab:online-alpha"),
     "Migration cost of real": ("tab:occupancy", "tab:crossover"),
 }

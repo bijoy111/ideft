@@ -104,10 +104,10 @@ python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --call
     <a href="scaled128.html">128-host page</a>.
   </p>
 
-  <h2><span class="step-num">4</span>Selection-time overhead → <a href="overhead.html">results</a>, EXPERIMENTS.md §4.4, paper Table XVII</h2>
+  <h2><span class="step-num">4</span>Selection-time overhead → <a href="overhead.html">results</a>, EXPERIMENTS.md §4.4, paper Table XIV</h2>
   <pre><code>python3 selection_overhead.py</code></pre>
 
-  <h2><span class="step-num">5</span>Throughput and failure rate → <a href="throughput.html">results</a>, EXPERIMENTS.md §4.7, paper Table XVIII</h2>
+  <h2><span class="step-num">5</span>Throughput and failure rate → <a href="throughput.html">results</a>, EXPERIMENTS.md §4.7, paper Table XV</h2>
   <pre><code>rm -f results_rpc/throughput_raw.csv
 python3 throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration 3.0 --burst 10 \
     --methods baseline concentrated random round_robin heuristic optimal rl
@@ -117,7 +117,7 @@ python3 throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration
     --methods concentrated random round_robin heuristic optimal rl \
     --n-hosts 16 --n-primaries 10 --n-degraded 2 --scale-seed 0 --rl-model rl_model_scaled.zip</code></pre>
 
-  <h2><span class="step-num">6</span>Heuristic weight sensitivity &amp; decay calibration → paper §V-H, Table XV</h2>
+  <h2><span class="step-num">6</span>Heuristic weight sensitivity &amp; decay calibration → paper §V-H, Table XII</h2>
   <p>
     This answers a natural question about the multi-criteria heuristic: are its scoring
     weights <span class="mono">(0.35, 0.35, 0.20, 0.10)</span> and its load-decay mechanics
@@ -182,7 +182,7 @@ python3 throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration
     <span class="mono">findings/decay_sensitivity.txt</span>.
   </div>
 
-  <h2><span class="step-num">7</span>Hash baselines, a fairer round-robin &amp; topology diversity → paper §V-I, Table XVI</h2>
+  <h2><span class="step-num">7</span>Hash baselines, a fairer round-robin &amp; topology diversity → paper §V-I, Table XIII</h2>
   <p>
     Compares decentralized hash placements — the NFV analog of CRUSH/Dynamo — and a fairer
     round-robin against the feature-aware methods, structurally (degraded-host hits + max
@@ -218,7 +218,7 @@ python3 throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration
     <span class="mono">findings/baseline_comparison.txt</span>.
   </div>
 
-  <h2><span class="step-num">8</span>Cross-algorithm check: DQN vs PPO → paper §V-G, Table XIV</h2>
+  <h2><span class="step-num">8</span>Cross-algorithm check: DQN vs PPO → paper §V-G, Table XI</h2>
   <p>
     Is the load-balancing gap a PPO quirk, or a property of the problem? DQN answers that: it
     runs through the same environment, reward, and inference path as PPO, with only the learner

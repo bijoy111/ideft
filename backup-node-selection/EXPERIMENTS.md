@@ -488,7 +488,7 @@ primary metric and treat this throughput/failure-rate result as a corroborating,
 replacing, measurement. **Reproducers: expect the `concentrated` comparisons to hold every
 time and the finer degraded-host ones to be only partially resolved.**
 
-### 4.8 Heuristic weight sensitivity and decay calibration (paper §V-H, Table XV)
+### 4.8 Heuristic weight sensitivity and decay calibration (paper §V-H, Table XII)
 
 The heuristic's scoring weights `(w_h, w_k, w_l, w_d) = (0.35, 0.35, 0.20, 0.10)` and its
 load-decay mechanics (`cap -= 20`; `health *= 0.95`) are otherwise chosen by intuition. To
@@ -553,7 +553,7 @@ variation, could trade host quality for balance). So `(20, 0.95)` is a principle
 monotone response surface, not an arbitrary constant. Full run saved in
 `findings/decay_sensitivity.txt`.
 
-### 4.9 Hash baselines, a fairer round-robin, and topology diversity (paper §V-I, Table XVI)
+### 4.9 Hash baselines, a fairer round-robin, and topology diversity (paper §V-I, Table XIII)
 
 `baseline_comparison.py` broadens the baseline set — the NFV analogs of decentralized,
 load-aware replica placement (CRUSH, Dynamo, consistent-hashing variants) plus a fairer
@@ -590,7 +590,7 @@ deterministic round-robin's lucky 0-hit at 128 hosts was a naming coincidence. O
 topologies (16-host/3-hub, 32-host/3-hub) the numbers are identical — the findings are driven
 by host quality, not graph shape. Full run saved in `findings/baseline_comparison.txt`.
 
-### 4.10 Cross-algorithm check: DQN vs PPO (paper §V-G, Table XIV)
+### 4.10 Cross-algorithm check: DQN vs PPO (paper §V-G, Table XI)
 
 §4.6's load-balancing gap is measured on PPO alone, which leaves open whether it is a PPO
 quirk or a property of the problem formulation. DQN (`--algorithm dqn`) is trained and
@@ -645,7 +645,7 @@ cross-algorithm claim rests on the structural table above instead. The structura
 matches across both machines: PPO 24-30 distinct backups at 128 hosts here vs 24-29 there,
 DQN 1-3 vs 3.
 
-### 4.11 Bare-metal validation at 128 hosts (paper §V-F, Tables X–XIII)
+### 4.11 Bare-metal validation at 128 hosts (paper §V-F, Tables VIII–X)
 
 §4.6's latency table was produced on one machine and is withdrawn (see the notice there).
 This section is that scenario repeated on real hardware.
@@ -881,7 +881,7 @@ our measurement.
 
 ---
 
-### 4.12 Online selection under churn (paper §VI, Tables XIX–XXII)
+### 4.12 Online selection under churn (paper §VI, Tables XVI–XIX)
 
 Every scenario above is one-shot: given the cluster as it is, choose a backup. This section
 asks what *adaptation* is worth when hosts degrade, recover and fail over time and moving a
@@ -956,7 +956,7 @@ regret on a host and then dodge paying for it, and the bound fails at α=4.
 
 ---
 
-### 4.13 Migration cost of real network-function state (paper §VI-F, Table XXIII)
+### 4.13 Migration cost of real network-function state (paper §VI-F, Table XX)
 
 Every number in §4.12 depends on `M`, the cost of moving a replica in rounds of ordinary
 replication. The model assumed `M = 3`. This section measures it

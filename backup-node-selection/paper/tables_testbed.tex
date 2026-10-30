@@ -2,27 +2,6 @@
 
 \begin{table}[t]
 \centering
-\caption{128 hosts, 80 primaries, on 10 bare-metal nodes with every backup pinned to its own physical core. Left: all hosts identical. Right: 16 of 128 hosts degraded by \texttt{tc netem} on the server's source port, and the share of each method's calls that reached one. Mean and p99 in milliseconds.}
-\label{tab:cloudlab}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrrr}
-\toprule
-& \multicolumn{2}{c}{Homogeneous} & \multicolumn{3}{c}{16 degraded} \\
-\cmidrule(lr){2-3}\cmidrule(lr){4-6}
-Method & Mean & p99 & Mean & p99 & Degraded (\%) \\
-\midrule
-\texttt{optimal} & 41.73 & 78.81 & 41.76 & 79.66 & 0.00 \\
-\texttt{heuristic} & 41.80 & 80.57 & 42.03 & 80.99 & 0.00 \\
-\texttt{round\_robin} & 41.97 & 80.09 & 51.87 & 157.17 & 12.50 \\
-\texttt{random} & 41.55 & 79.24 & 51.25 & 155.07 & 11.25 \\
-\texttt{PPO} & 46.53 & 89.26 & 45.04 & 83.26 & 0.00 \\
-\texttt{concentrated} & 56.27 & 114.69 & 260.11 & 1282.18 & 100.00 \\
-\bottomrule
-\end{tabular}}
-\end{table}
-
-\begin{table}[t]
-\centering
 \caption{Mean service latency and the share of calls reaching a degraded backup, at three scales on the same bare-metal testbed. Every backup is pinned to its own physical core and the degraded hosts are slowed by \texttt{tc netem} on the server's source port. 12.5\% of hosts are degraded at every scale. Milliseconds.}
 \label{tab:scales}
 \resizebox{\columnwidth}{!}{%

@@ -80,7 +80,7 @@ second. DEFT as shipped trades a better median for a catastrophic tail.
 On identical hardware with no degraded hosts, \texttt{optimal},
 \texttt{heuristic}, \texttt{round\_robin} and \texttt{random} are statistically
 indistinguishable from one another at $41.5$--$42.0$\,ms mean
-(Table~\ref{tab:cloudlab}, left). The paired comparison between
+with no method separating from the others. The paired comparison between
 \texttt{optimal} and \texttt{random} gives a median difference of $0.002$\,ms
 ($p_{\text{Holm}}=1.000$). Only \texttt{concentrated} ($56.27$\,ms) and
 \texttt{PPO} ($46.53$\,ms) separate from the group. This is the expected result
@@ -107,7 +107,7 @@ latency twice, once on the SYN-ACK and once on the response.
 Sixteen of the 128 hosts degraded, \texttt{heuristic} and \texttt{optimal}
 route a primary to a degraded backup in $0.00\%$ of calls, while
 \texttt{round\_robin} reaches them at the base rate of $12.50\%$ and
-\texttt{random} at $11.25\%$ (Table~\ref{tab:cloudlab}, right). The latency
+\texttt{random} at $11.25\%$ (Table~\ref{tab:scales}). The latency
 follows the selection: $42.0$ and $41.8$\,ms against $51.9$ and $51.3$, and at
 p99 $81$ and $80$\,ms against $157$ and $155$. Every one of these comparisons
 has $r=-1.000$ over 15 paired runs, meaning no run dissents. The gap between

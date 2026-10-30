@@ -729,9 +729,55 @@ below that threshold. Four candidate effects of that size appeared significant i
 a single execution and vanished under replication, which is why every scale is run
 twice and the gRPC arm at $n=25$.
 
+\begin{table}[t]
+\centering
+\caption{Per-call service latency by topology scale and transport. XML-RPC: 15
+runs; gRPC: 25 runs (5 context seeds $\times$ 5 trials), 200 calls/primary,
+burst 10. Effect sizes are paired against \texttt{heuristic} on the gRPC arm.
+\texttt{baseline} is DEFT's shipped static mapping, which exists only for the
+9-host topology. The 9-host scenario is homogeneous and serves as the negative
+control: with nothing to discriminate between candidates, every method except
+\texttt{concentrated} and \texttt{baseline} is indistinguishable from the
+heuristic.}
+\label{tab:scalesweep}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{llrrrrr}
+\toprule
+& & XML-RPC & \multicolumn{4}{c}{gRPC} \\
+\cmidrule(lr){3-3}\cmidrule(lr){4-7}
+Scale & Method & Mean (ms) & Mean (ms) & 95\% CI & $r$ & $p_{\mathrm{Holm}}$ \\
+\midrule
+\multirow{7}{*}{\shortstack[l]{9 hosts\\5 primaries\\homogeneous}}
+ & \texttt{baseline} & 73.45 & 20.58 & [17.55, 24.56] & $+0.680$ & 0.0243 \\
+ & \texttt{concentrated} & 107.42 & 32.60 & [29.84, 35.77] & $+1.000$ & $<$0.0001 \\
+ & \texttt{random} & 58.70 & 16.04 & [14.50, 17.75] & $+0.329$ & 0.7817 \\
+ & \texttt{round\_robin} & 47.51 & 14.06 & [12.22, 16.43] & $-0.422$ & 0.5010 \\
+ & \texttt{heuristic} & 51.10 & 14.72 & [13.44, 16.18] & -- & -- \\
+ & \texttt{optimal} & 45.90 & 13.60 & [12.50, 14.92] & $-0.286$ & 0.8799 \\
+ & \texttt{PPO} & 48.44 & 13.79 & [12.06, 16.21] & $-0.403$ & 0.5010 \\
+\midrule
+\multirow{6}{*}{\shortstack[l]{16 hosts\\10 primaries\\2 degraded}}
+ & \texttt{concentrated} & 175.36 & 77.97 & [72.12, 83.99] & $+1.000$ & $<$0.0001 \\
+ & \texttt{random} & 145.00 & 31.45 & [24.34, 39.47] & $+0.655$ & 0.0185 \\
+ & \texttt{round\_robin} & 144.21 & 26.23 & [24.08, 29.12] & $+0.705$ & 0.0104 \\
+ & \texttt{heuristic} & 98.35 & 17.88 & [14.03, 22.76] & -- & -- \\
+ & \texttt{optimal} & 90.73 & 18.82 & [14.30, 24.45] & $-0.046$ & 1.0000 \\
+ & \texttt{PPO} & 89.38 & 13.83 & [12.57, 15.49] & $-0.200$ & 1.0000 \\
+\midrule
+\multirow{6}{*}{\shortstack[l]{32 hosts\\20 primaries\\4 degraded}}
+ & \texttt{concentrated} & 296.00 & 121.13 & [116.06, 127.00] & $+1.000$ & $<$0.0001 \\
+ & \texttt{random} & 172.59 & 31.84 & [23.14, 43.35] & $+0.945$ & $<$0.0001 \\
+ & \texttt{round\_robin} & 163.39 & 28.62 & [22.64, 39.73] & $+0.994$ & $<$0.0001 \\
+ & \texttt{heuristic} & 121.39 & 13.25 & [12.15, 14.95] & -- & -- \\
+ & \texttt{optimal} & 123.29 & 19.15 & [12.49, 30.49] & $-0.022$ & 1.0000 \\
+ & \texttt{PPO} & 130.38 & 13.22 & [12.34, 14.33] & $+0.126$ & 1.0000 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
 \subsection{Homogeneous Scale}
 
-Table~\ref{tab:homogeneous} reports the 9-host scenario, where resource values are
+Table~\ref{tab:scalesweep} reports the 9-host scenario, where resource values are
 drawn without engineered heterogeneity. The result is a clean null, and it
 replicates across transports: \texttt{round\_robin}, \texttt{optimal},
 \texttt{PPO} and \texttt{random} are all statistically indistinguishable from the
@@ -744,31 +790,10 @@ not piling every primary onto one backup. This is the correct negative control f
 the experiments that follow: it shows the apparatus does not manufacture an
 advantage for feature-aware methods where none should exist.
 
-\begin{table}[t]
-\centering
-\caption{Homogeneous scale (9 hosts, 5 primaries). XML-RPC: 15 runs; gRPC: 25 runs (5 context seeds $\times$ 5 trials), 200 calls/primary, burst 10. Effect sizes are paired against \texttt{heuristic} on the gRPC arm.}
-\label{tab:homogeneous}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrrr}
-\toprule
-& XML-RPC & \multicolumn{4}{c}{gRPC} \\
-\cmidrule(lr){2-2}\cmidrule(lr){3-6}
-Method & Mean (ms) & Mean (ms) & 95\% CI & $r$ & $p_{\mathrm{Holm}}$ \\
-\midrule
-\texttt{baseline} & 73.45 & 20.58 & [17.55, 24.56] & +0.680 & 0.0243 \\
-\texttt{concentrated} & 107.42 & 32.60 & [29.84, 35.77] & +1.000 & $<$0.0001 \\
-\texttt{random} & 58.70 & 16.04 & [14.50, 17.75] & +0.329 & 0.7817 \\
-\texttt{round\_robin} & 47.51 & 14.06 & [12.22, 16.43] & -0.422 & 0.5010 \\
-\texttt{heuristic} & 51.10 & 14.72 & [13.44, 16.18] & -- & -- \\
-\texttt{optimal} & 45.90 & 13.60 & [12.50, 14.92] & -0.286 & 0.8799 \\
-\texttt{PPO} & 48.44 & 13.79 & [12.06, 16.21] & -0.403 & 0.5010 \\
-\bottomrule
-\end{tabular}}
-\end{table}
 \subsection{Scaled Heterogeneous: 16 and 32 Hosts}
 \label{sec:scale32}
 
-Tables~\ref{tab:scaled16} and~\ref{tab:scaled32} isolate feature awareness: one
+The 16- and 32-host blocks of Table~\ref{tab:scalesweep} isolate feature awareness: one
 third of the backup-eligible hosts are deliberately degraded.
 \texttt{concentrated}, \texttt{heuristic}, \texttt{optimal} and \texttt{PPO}
 \emph{never} route a primary to a degraded host in any seed at either scale;
@@ -796,46 +821,6 @@ Figure~\ref{fig:latencyscale} plots both arms across the full scale sweep; the
 p95 row shows the degraded-host penalty that \texttt{round\_robin} and
 \texttt{random} pay at 16 and 32 hosts while the feature-aware methods stay flat.
 
-\begin{table}[t]
-\centering
-\caption{Scaled heterogeneous, 16 hosts (10 primaries, 2 degraded).}
-\label{tab:scaled16}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrrr}
-\toprule
-& XML-RPC & \multicolumn{4}{c}{gRPC} \\
-\cmidrule(lr){2-2}\cmidrule(lr){3-6}
-Method & Mean (ms) & Mean (ms) & 95\% CI & $r$ & $p_{\mathrm{Holm}}$ \\
-\midrule
-\texttt{concentrated} & 175.36 & 77.97 & [72.12, 83.99] & +1.000 & $<$0.0001 \\
-\texttt{random} & 145.00 & 31.45 & [24.34, 39.47] & +0.655 & 0.0185 \\
-\texttt{round\_robin} & 144.21 & 26.23 & [24.08, 29.12] & +0.705 & 0.0104 \\
-\texttt{heuristic} & 98.35 & 17.88 & [14.03, 22.76] & -- & -- \\
-\texttt{optimal} & 90.73 & 18.82 & [14.30, 24.45] & -0.046 & 1.0000 \\
-\texttt{PPO} & 89.38 & 13.83 & [12.57, 15.49] & -0.200 & 1.0000 \\
-\bottomrule
-\end{tabular}}
-\end{table}
-\begin{table}[t]
-\centering
-\caption{Scaled heterogeneous, 32 hosts (20 primaries, 4 degraded).}
-\label{tab:scaled32}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrrr}
-\toprule
-& XML-RPC & \multicolumn{4}{c}{gRPC} \\
-\cmidrule(lr){2-2}\cmidrule(lr){3-6}
-Method & Mean (ms) & Mean (ms) & 95\% CI & $r$ & $p_{\mathrm{Holm}}$ \\
-\midrule
-\texttt{concentrated} & 296.00 & 121.13 & [116.06, 127.00] & +1.000 & $<$0.0001 \\
-\texttt{random} & 172.59 & 31.84 & [23.14, 43.35] & +0.945 & $<$0.0001 \\
-\texttt{round\_robin} & 163.39 & 28.62 & [22.64, 39.73] & +0.994 & $<$0.0001 \\
-\texttt{heuristic} & 121.39 & 13.25 & [12.15, 14.95] & -- & -- \\
-\texttt{optimal} & 123.29 & 19.15 & [12.49, 30.49] & -0.022 & 1.0000 \\
-\texttt{PPO} & 130.38 & 13.22 & [12.34, 14.33] & +0.126 & 1.0000 \\
-\bottomrule
-\end{tabular}}
-\end{table}
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/fig_latency_scale.pdf}

@@ -16,6 +16,9 @@
     <a href="scaled16.html">16 Hosts</a>
     <a href="scaled32.html">32 Hosts</a>
     <a href="scaled128.html">128 Hosts</a>
+    <a href="testbed.html">Bare Metal</a>
+    <a href="online.html">Online</a>
+    <a href="migration.html">Migration Cost</a>
     <a href="overhead.html">Overhead</a>
     <a href="throughput.html">Throughput</a>
     <a href="reproduce.html">Reproduce</a>
@@ -94,7 +97,9 @@
     hosts. Even after that fix it still spreads load less evenly than the heuristic,
     though it picks good hosts just as well. The
     <a href="scaled128.html">128-host page</a> has the full account of what broke and what
-    we fixed.
+    we fixed, and the <a href="testbed.html">bare-metal page</a> repeats that scale on ten
+    real machines &mdash; where the finding holds, but two of its magnitudes turn out to be
+    much smaller than a single machine suggested.
   </div>
 
   <figure class="fig">
@@ -102,7 +107,8 @@
     <figcaption>
       Per-call service latency against network size, by transport: mean (top) and p95
       (bottom), XML-RPC (left) and gRPC (right), on log axes. The 128-host column is
-      shaded because a single machine cannot resolve latency at that scale.
+      shaded because a single machine cannot resolve latency at that scale; the
+      <a href="testbed.html">bare-metal page</a> supplies that column on real hardware.
       <span class="mono">heuristic</span> and <span class="mono">optimal</span> stay flat,
       <span class="mono">concentrated</span> gets steadily worse, and
       <span class="mono">rl</span> (shown as PPO in the chart) follows the smarter
@@ -129,6 +135,9 @@ python3 -m venv venv &amp;&amp; source venv/bin/activate &amp;&amp; pip install 
     <div class="stat-card"><a href="scaled16.html"><strong>16 Hosts →</strong></a><div class="label">The main result: the smarter methods avoid bad hosts, round-robin cannot.</div></div>
     <div class="stat-card"><a href="scaled32.html"><strong>32 Hosts →</strong></a><div class="label">The 16-host result still holds at twice the size.</div></div>
     <div class="stat-card"><a href="scaled128.html"><strong>128 Hosts →</strong></a><div class="label">Where the backup server breaks, round-robin gets lucky, and RL collapses.</div></div>
+    <div class="stat-card"><a href="testbed.html"><strong>Bare Metal →</strong></a><div class="label">128 backups on ten real machines, one core each. Confirms the finding and shrinks two of the numbers.</div></div>
+    <div class="stat-card"><a href="online.html"><strong>Online →</strong></a><div class="label">When hosts degrade and recover over time: what is adapting actually worth? Less than you would think.</div></div>
+    <div class="stat-card"><a href="migration.html"><strong>Migration Cost →</strong></a><div class="label">What moving a replica really costs, measured against a real flow table. Ten times our earlier assumption.</div></div>
     <div class="stat-card"><a href="overhead.html"><strong>Selection Overhead →</strong></a><div class="label">Does picking a backup take too long to be useful? No.</div></div>
     <div class="stat-card"><a href="throughput.html"><strong>Throughput &amp; Failure Rate →</strong></a><div class="label">The same story from DEFT's own two metrics.</div></div>
   </div>
@@ -139,7 +148,7 @@ python3 -m venv venv &amp;&amp; source venv/bin/activate &amp;&amp; pip install 
     under a controlled load, not a simulation. The full method page explains why and how.
   </p>
   <div class="grid-cards">
-    <div class="stat-card"><a href="assets/paper.pdf"><strong>The paper (PDF) →</strong></a><div class="label">The full write-up: related work, methods, results, discussion. 10 pages, IEEE format.</div></div>
+    <div class="stat-card"><a href="assets/paper.pdf"><strong>The paper (PDF) →</strong></a><div class="label">The full write-up: related work, methods, results, online analysis, bare-metal validation. IEEE format.</div></div>
     <div class="stat-card"><a href="reproduce.html"><strong>Reproduce →</strong></a><div class="label">Step-by-step commands for every table, with run times and common problems.</div></div>
     <div class="stat-card"><a href="code.html"><strong>Code walkthrough →</strong></a><div class="label">How the pipeline flows and what each file does, then the source on GitHub.</div></div>
     <div class="stat-card"><a href="downloads.html"><strong>Downloads →</strong></a><div class="label">Paper, code package, trained models, guides.</div></div>

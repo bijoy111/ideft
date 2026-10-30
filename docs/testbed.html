@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bare Metal: 128 Hosts on Real Hardware — iDEFT: Intelligent Backup-Node Selection for DEFT</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <nav class="site">
+    <span class="brand">iDEFT: Intelligent Backup-Node Selection for DEFT</span>
+    <a href="index.html">Overview</a>
+    <a href="homogeneous.html">9 Hosts</a>
+    <a href="scaled16.html">16 Hosts</a>
+    <a href="scaled32.html">32 Hosts</a>
+    <a href="scaled128.html">128 Hosts</a>
+    <a href="testbed.html" class="current">Bare Metal</a>
+    <a href="online.html">Online</a>
+    <a href="migration.html">Migration Cost</a>
+    <a href="overhead.html">Overhead</a>
+    <a href="throughput.html">Throughput</a>
+    <a href="reproduce.html">Reproduce</a>
+    <a href="code.html">Code</a>
+    <a href="downloads.html">Downloads</a>
+    <a href="https://github.com/bijoy111/ideft" target="_blank" rel="noopener">GitHub &#8599;</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <h1>Bare Metal: the 128-Host Measurement, Done Properly</h1>
+  <p class="lede">
+    The <a href="scaled128.html">128-host page</a> withdrew its latency numbers because one
+    machine cannot host 128 backup servers and the client measuring them. This is that
+    measurement repeated on <strong>ten bare-metal nodes</strong>, each backup pinned to its
+    own physical core, with degraded hosts slowed by the Linux kernel rather than by a sleep
+    inside the server. It confirms the central finding — and revises two magnitudes sharply
+    downward.
+  </p>
+  <div class="pill-row">
+    <span class="pill">CloudLab Utah, 11 &times; c6525-25g</span>
+    <span class="pill">16-core EPYC 7302P, 25 GbE</span>
+    <span class="pill">128 backups, 1 physical core each</span>
+    <span class="pill">5 seeds &times; 3 trials (15 runs)</span>
+    <span class="pill">degradation by tc netem</span>
+  </div>
+
+  <div class="card">
+    <strong>The setup.</strong> Ten nodes carry the 128 backup servers, thirteen per node
+    except the last; an eleventh node runs the client alone. Each server is launched under
+    <span class="mono">taskset</span> on a core of its own. Hyperthread siblings on this
+    processor pair as (0,16), (1,17), &hellip; so logical CPUs 2&ndash;14 are fourteen
+    <em>distinct physical cores</em> — no two servers share one core's two threads. The
+    claim that each backup owned a core is checked, not asserted: provisioning writes the
+    intended core into a manifest, and a verification pass reports the affinity each server
+    actually holds. All replication traffic crosses the 25 GbE experiment LAN.
+  </div>
+
+  <h2>Result 1: with identical hosts, selection does not matter</h2>
+  <p>
+    When every candidate backup is equivalent, a selector that reads node features has
+    nothing to read. All four sensible methods land within half a millisecond of each other.
+  </p>
+  <table>
+    <thead><tr><th>Method</th><th>Mean (ms)</th><th>p99 (ms)</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">random</td><td>41.55</td><td>79.24</td></tr>
+      <tr><td class="mono">optimal</td><td>41.73</td><td>78.81</td></tr>
+      <tr><td class="mono">heuristic</td><td>41.80</td><td>80.57</td></tr>
+      <tr><td class="mono">round_robin</td><td>41.97</td><td>80.09</td></tr>
+      <tr><td class="mono">PPO</td><td>46.53</td><td>89.26</td></tr>
+      <tr><td class="mono">concentrated</td><td>56.27</td><td>114.69</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The paired comparison between <span class="mono">optimal</span> and
+    <span class="mono">random</span> gives a median difference of <strong>0.002 ms</strong>
+    (p = 1.000 after Holm correction). Only concentration and PPO separate from the group.
+  </p>
+
+  <h2>Result 2: with degraded hosts, feature-aware selection earns its place</h2>
+  <p>
+    Sixteen of the 128 hosts slowed by <span class="mono">tc netem</span>. The rightmost
+    column is the mechanism: what share of each method's calls actually reached a degraded
+    backup.
+  </p>
+  <table>
+    <thead><tr><th>Method</th><th>Mean (ms)</th><th>p99 (ms)</th><th>Calls to a degraded backup</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">optimal</td><td>41.76</td><td>79.66</td><td>0.00%</td></tr>
+      <tr><td class="mono">heuristic</td><td>42.03</td><td>80.99</td><td>0.00%</td></tr>
+      <tr><td class="mono">PPO</td><td>45.04</td><td>83.26</td><td>0.00%</td></tr>
+      <tr><td class="mono">random</td><td>51.25</td><td>155.07</td><td>11.25%</td></tr>
+      <tr><td class="mono">round_robin</td><td>51.87</td><td>157.17</td><td>12.50%</td></tr>
+      <tr><td class="mono">concentrated</td><td>260.11</td><td>1282.18</td><td>100.00%</td></tr>
+    </tbody>
+  </table>
+
+  <div class="finding">
+    <strong>What this means:</strong> the feature-aware methods route around degraded hosts
+    completely, while the ordering-based ones meet them at the base rate of 12.5%, and the
+    latency follows — p99 roughly halves. Every one of these comparisons has r = &minus;1.000
+    over 15 paired runs, meaning not one run dissents. And
+    <span class="mono">heuristic</span> vs <span class="mono">optimal</span> is
+    <em>not significant</em> on either mean or p99: the cheap greedy scorer attains the
+    quality of the capacity-constrained Hungarian assignment without solving one.
+  </div>
+
+  <h2>Result 3: DEFT's accept queue, tested directly</h2>
+  <p>
+    DEFT builds its backup from Python's <span class="mono">SimpleXMLRPCServer</span> with
+    no arguments, so its TCP listen backlog is the library default of <strong>five</strong>,
+    while XML-RPC opens a fresh connection for every call. The paper already identified this
+    as the cause of the latency tail. The testbed lets us test it directly: hold everything
+    else fixed and change only that integer.
+  </p>
+  <table>
+    <thead><tr><th>Method</th><th>p95 @ backlog 5</th><th>p99 @ backlog 5</th><th>p95 @ backlog 512</th><th>p99 @ backlog 512</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">optimal</td><td>64.94</td><td>1040.06</td><td>65.71</td><td>78.81</td></tr>
+      <tr><td class="mono">heuristic</td><td>66.79</td><td>1042.47</td><td>65.54</td><td>80.57</td></tr>
+      <tr><td class="mono">round_robin</td><td>66.67</td><td>1039.96</td><td>66.05</td><td>80.09</td></tr>
+      <tr><td class="mono">random</td><td>65.49</td><td>1051.67</td><td>65.47</td><td>79.24</td></tr>
+    </tbody>
+  </table>
+  <div class="card warn">
+    <strong>Four methods whose p95 differs by under 2 ms have p99 values within 12 ms of
+    1040 ms.</strong> A constant that survives every change of method is an artifact, and
+    one second is Linux's initial TCP retransmission timeout. The kernel counters confirm it:
+    <strong>103,209 ListenOverflows</strong> on the most heavily selected node against just
+    116 retransmitted segments, with ListenDrops equal to ListenOverflows exactly. The
+    connections were refused at the server, not lost in the network. Raising the backlog to
+    512 took the overflow count to <strong>zero</strong>.
+  </div>
+
+  <h2>Why this matters for the placement result</h2>
+  <p>
+    The backlog does not just move the tail. It changes how expensive sharing a backup
+    appears to be:
+  </p>
+  <table>
+    <thead><tr><th>Primaries sharing one backup</th><th>Mean latency @ backlog 5</th><th>@ backlog 512</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>50.3 ms</td><td>41.9 ms</td></tr>
+      <tr><td>16</td><td>219.0 ms</td><td>42.4 ms</td></tr>
+      <tr><td>45</td><td>342.6 ms</td><td>49.7 ms</td></tr>
+      <tr><td>79</td><td>378.2 ms</td><td>56.4 ms</td></tr>
+    </tbody>
+  </table>
+  <div class="finding">
+    <strong>7.5&times; becomes 35%.</strong> Under the shipped backlog, piling 79 primaries
+    onto one backup looks catastrophic. With a properly sized accept queue the same sweep
+    costs about a third more. Most of the apparent penalty for concentration was
+    <em>connection setup being refused</em>, not queueing at the backup. The effect is real,
+    but considerably smaller than the shipped configuration suggests.
+  </div>
+
+  <h2>How degradation was imposed</h2>
+  <p>
+    The deployment refuses to simulate a degraded backup by sleeping inside a server it did
+    not start — a sleep is exactly as long as we said it would be, costs no CPU and queues
+    nothing. So the heterogeneous arm slows hosts physically with
+    <span class="mono">tc netem</span>.
+  </p>
+  <p>
+    <span class="mono">tc</span> attaches to an interface, but each node here carries
+    thirteen backups, and shaping the interface would degrade their healthy co-tenants — the
+    very hosts the comparison needs as controls. Each backup owns a distinct TCP port, so a
+    <span class="mono">prio</span> qdisc with a <span class="mono">u32</span> filter on
+    source port delays exactly the degraded servers. The fourth band of a four-band
+    <span class="mono">prio</span> is unreachable through the default priomap, so healthy
+    flows never enter the netem queue at all rather than being delayed by zero.
+  </p>
+  <table>
+    <thead><tr><th>Host</th><th>Node</th><th>Port</th><th>ms/call</th><th></th></tr></thead>
+    <tbody>
+      <tr><td class="mono">w1</td><td>node1</td><td>19000</td><td>101.6</td><td>degraded</td></tr>
+      <tr><td class="mono">w3</td><td>node1</td><td>19002</td><td>0.8</td><td>healthy</td></tr>
+      <tr><td class="mono">w27</td><td>node3</td><td>19000</td><td>101.3</td><td>degraded</td></tr>
+      <tr><td class="mono">w28</td><td>node3</td><td>19001</td><td>0.9</td><td>healthy</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Adjacent ports on the same NIC, two orders of magnitude apart. The 101 ms is itself
+    informative: netem delays every packet the server sends, so a connection-per-call
+    protocol pays the added latency twice — once on the SYN-ACK and once on the response.
+  </p>
+
+  <div class="card warn">
+    <strong>A caution worth publishing.</strong> An earlier execution degraded the first
+    sixteen backup-eligible hosts, a contiguous block, and reported
+    <span class="mono">round_robin</span> tied with <span class="mono">optimal</span> at
+    41.3 ms having touched a degraded host 0% of the time. That tie was an artifact of
+    <em>naming</em>. <span class="mono">round_robin</span> cycles a lexicographically sorted
+    host list, in which every name beginning w1&ndash;w7 precedes w8; with 80 primaries the
+    cursor advances 80 positions and never reaches the block. It scored zero by never
+    arriving, not by avoiding. Spreading the same sixteen degraded hosts evenly along that
+    ordering puts them inside every method's reach, after which round-robin meets them at the
+    base rate and its mean rises from 41.28 to 51.87 ms. A load-spreading baseline evaluated
+    against a contiguous impairment can appear to avoid it.
+  </div>
+
+  <div class="card">
+    <strong>Two things this page does not claim.</strong> First,
+    <span class="mono">concentrated</span>'s 260 ms in the degraded arm mixes concentration
+    with degradation, because the host it piles onto is itself degraded; the clean figure for
+    concentration alone is the homogeneous column, 56.27 against 41.73. Second, the 9-, 16-
+    and 32-host pages are still single-machine measurements over the shipped backlog, so
+    their concentration penalties should be read as upper bounds until re-run here.
+  </div>
+
+  <div class="scenario-nav">
+    <a href="scaled128.html">&larr; 128 Hosts (single machine)</a>
+    <a href="online.html">Next: Online &mdash; what happens when hosts change over time &rarr;</a>
+  </div>
+</div>
+</body>
+</html>

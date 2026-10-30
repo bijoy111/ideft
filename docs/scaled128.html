@@ -15,6 +15,9 @@
     <a href="scaled16.html">16 Hosts</a>
     <a href="scaled32.html">32 Hosts</a>
     <a href="scaled128.html" class="current">128 Hosts</a>
+    <a href="testbed.html">Bare Metal</a>
+    <a href="online.html">Online</a>
+    <a href="migration.html">Migration Cost</a>
     <a href="overhead.html">Overhead</a>
     <a href="throughput.html">Throughput</a>
     <a href="reproduce.html">Reproduce</a>
@@ -46,9 +49,18 @@
     identical gRPC configuration differ by 4.8× on <span class="mono">optimal</span> and
     6.1× on <span class="mono">PPO</span>, with confidence intervals spanning an order of
     magnitude. That is the machine being measured, not the placement policy. An earlier
-    version of this page published those numbers; it should not have. Validating placement
-    at this scale needs genuinely distributed hardware with real NICs and switches, which
-    is the most important remaining work.
+    version of this page published those numbers; it should not have.
+  </div>
+
+  <div class="card">
+    <strong>This has since been measured properly.</strong> The scenario was repeated on ten
+    bare-metal nodes, 128 backup servers with one physical core each, degraded hosts slowed
+    by the Linux kernel rather than by a sleep &mdash; see
+    <a href="testbed.html">Bare Metal</a>. The structural reading below is confirmed there,
+    but two magnitudes change sharply: with identical hosts no selection method beats random,
+    and most of the apparent cost of concentrating backups turns out to be DEFT's five-deep
+    accept queue rather than load on the backup. Read this page as the single-machine
+    account and that one as the measurement.
   </div>
 
   <div class="card">
@@ -91,7 +103,7 @@
 
   <div class="scenario-nav">
     <a href="scaled32.html">← 32 Hosts</a>
-    <a href="overhead.html">Next: Selection Overhead — is any of this too slow to use? →</a>
+    <a href="testbed.html">Next: Bare Metal — the same scenario on real hardware →</a>
   </div>
 </div>
 </body>

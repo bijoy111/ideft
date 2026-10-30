@@ -16,6 +16,9 @@
     <a href="scaled16.html">16 Hosts</a>
     <a href="scaled32.html">32 Hosts</a>
     <a href="scaled128.html">128 Hosts</a>
+    <a href="testbed.html">Bare Metal</a>
+    <a href="online.html">Online</a>
+    <a href="migration.html">Migration Cost</a>
     <a href="overhead.html">Overhead</a>
     <a href="throughput.html">Throughput</a>
     <a href="reproduce.html" class="current">Reproduce</a>
@@ -72,24 +75,24 @@ python3 rpc_contention_experiment.py --context-seeds 42 --trials 1 --calls 50 --
 
   <h2><span class="step-num">3</span>Per-call latency — the four scale points</h2>
 
-  <h3>9 hosts, homogeneous → <a href="homogeneous.html">results</a>, EXPERIMENTS.md §4.1, paper Table II</h3>
+  <h3>9 hosts, homogeneous → <a href="homogeneous.html">results</a>, EXPERIMENTS.md §4.1, paper Table IV</h3>
   <pre><code>rm -f results_rpc/rpc_contention_raw.csv
 python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 \
     --methods baseline concentrated random round_robin heuristic optimal rl</code></pre>
 
-  <h3>16 hosts, heterogeneous → <a href="scaled16.html">results</a>, EXPERIMENTS.md §4.2, paper Table III</h3>
+  <h3>16 hosts, heterogeneous → <a href="scaled16.html">results</a>, EXPERIMENTS.md §4.2, paper Table V</h3>
   <pre><code>rm -f results_rpc/rpc_contention_raw.csv
 python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 \
     --methods concentrated random round_robin heuristic optimal rl \
     --n-hosts 16 --n-primaries 10 --n-degraded 2 --scale-seed 0 --rl-model rl_model_scaled.zip</code></pre>
 
-  <h3>32 hosts → <a href="scaled32.html">results</a>, EXPERIMENTS.md §4.5, paper Table V</h3>
+  <h3>32 hosts → <a href="scaled32.html">results</a>, EXPERIMENTS.md §4.5, paper Table VI</h3>
   <pre><code>rm -f results_rpc/rpc_contention_raw.csv
 python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 \
     --methods concentrated random round_robin heuristic optimal rl \
     --n-hosts 32 --n-primaries 20 --n-degraded 4 --scale-seed 0 --rl-model rl_model_scaled32.zip</code></pre>
 
-  <h3>128 hosts → <a href="scaled128.html">results</a>, EXPERIMENTS.md §4.6, paper Table VI</h3>
+  <h3>128 hosts → <a href="scaled128.html">results</a>, EXPERIMENTS.md §4.6, paper Table VIII</h3>
   <pre><code>rm -f results_rpc/rpc_contention_raw.csv
 python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 \
     --methods concentrated random round_robin heuristic optimal rl \
@@ -101,10 +104,10 @@ python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --call
     <a href="scaled128.html">128-host page</a>.
   </p>
 
-  <h2><span class="step-num">4</span>Selection-time overhead → <a href="overhead.html">results</a>, EXPERIMENTS.md §4.4, paper Table X</h2>
+  <h2><span class="step-num">4</span>Selection-time overhead → <a href="overhead.html">results</a>, EXPERIMENTS.md §4.4, paper Table XVII</h2>
   <pre><code>python3 selection_overhead.py</code></pre>
 
-  <h2><span class="step-num">5</span>Throughput and failure rate → <a href="throughput.html">results</a>, EXPERIMENTS.md §4.7, paper Tables XI–XII</h2>
+  <h2><span class="step-num">5</span>Throughput and failure rate → <a href="throughput.html">results</a>, EXPERIMENTS.md §4.7, paper Tables XVIII–XIX</h2>
   <pre><code>rm -f results_rpc/throughput_raw.csv
 python3 throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration 3.0 --burst 10 \
     --methods baseline concentrated random round_robin heuristic optimal rl
@@ -114,7 +117,7 @@ python3 throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration
     --methods concentrated random round_robin heuristic optimal rl \
     --n-hosts 16 --n-primaries 10 --n-degraded 2 --scale-seed 0 --rl-model rl_model_scaled.zip</code></pre>
 
-  <h2><span class="step-num">6</span>Heuristic weight sensitivity &amp; decay calibration → paper §V-G, Table VIII</h2>
+  <h2><span class="step-num">6</span>Heuristic weight sensitivity &amp; decay calibration → paper §V-H, Table XV</h2>
   <p>
     This answers a natural question about the multi-criteria heuristic: are its scoring
     weights <span class="mono">(0.35, 0.35, 0.20, 0.10)</span> and its load-decay mechanics
@@ -150,7 +153,7 @@ python3 throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration
   </div>
 
   <p>
-    <strong>Decay-constant sweep (paper §V-G).</strong> A companion sweep varies
+    <strong>Decay-constant sweep (paper §V-H).</strong> A companion sweep varies
     the decay <em>mechanics</em> themselves — the capacity decrement
     (<span class="mono">cap -= 20</span>) over {5, 10, 20, 40, 80} and the health-decay
     (<span class="mono">health *= 0.95</span>) over {0.80…1.00} — with the scoring weights
@@ -179,7 +182,7 @@ python3 throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration
     <span class="mono">findings/decay_sensitivity.txt</span>.
   </div>
 
-  <h2><span class="step-num">7</span>Hash baselines, a fairer round-robin &amp; topology diversity → paper §V-H, Table IX</h2>
+  <h2><span class="step-num">7</span>Hash baselines, a fairer round-robin &amp; topology diversity → paper §V-I, Table XVI</h2>
   <p>
     Compares decentralized hash placements — the NFV analog of CRUSH/Dynamo — and a fairer
     round-robin against the feature-aware methods, structurally (degraded-host hits + max
@@ -215,7 +218,7 @@ python3 throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration
     <span class="mono">findings/baseline_comparison.txt</span>.
   </div>
 
-  <h2><span class="step-num">8</span>Cross-algorithm check: DQN vs PPO → paper §V-F, Table VII</h2>
+  <h2><span class="step-num">8</span>Cross-algorithm check: DQN vs PPO → paper §V-G, Table XIV</h2>
   <p>
     Is the load-balancing gap a PPO quirk, or a property of the problem? DQN answers that: it
     runs through the same environment, reward, and inference path as PPO, with only the learner
@@ -269,7 +272,94 @@ python3 rl_backup_selector.py --check-collapse --algorithm dqn \
     --model rl_model_dqn_scaled128.zip \
     --n-hosts 128 --n-primaries 80 --n-degraded 16 --scale-seed 0</code></pre>
 
-  <h2><span class="step-num">9</span>Optional: retrain the RL models</h2>
+  <h2><span class="step-num">9</span>Online selection under churn &rarr; <a href="online.html">results</a>, paper &sect;VI</h2>
+  <p>
+    Runs on a laptop; no testbed needed. Sweeps churn rate, degradation duration, pool
+    size and the hysteresis threshold, each against the exact offline optimum computed by
+    dynamic programming. Writes
+    <span class="mono">findings/online_competitive.txt</span> and
+    <span class="mono">.json</span>.
+  </p>
+  <pre><code>python3 competitive_analysis.py            # ~3.5 minutes
+
+# the proofs and the adversarial construction behind Theorem 1
+python3 test_online.py</code></pre>
+
+  <h2><span class="step-num">10</span>Migration cost of real state &rarr; <a href="migration.html">results</a>, paper &sect;VI-F</h2>
+  <p>
+    Builds a connection-tracking table, fills it to steady state, checks the occupancy
+    against Little's law, then measures serialization under three wire encodings and three
+    link speeds. Writes <span class="mono">findings/migration_cost.txt</span>.
+  </p>
+  <pre><code>python3 measure_migration_cost.py
+
+# flow table, delta replication, encodings, Little's law
+python3 test_flow_state.py</code></pre>
+
+  <h2><span class="step-num">11</span>Bare metal: 128 hosts on a real testbed &rarr; <a href="testbed.html">results</a>, paper &sect;V-F</h2>
+  <p>
+    This is the only step that needs hardware: eleven bare-metal nodes on a LAN, ten for
+    backups and one for the client. We used CloudLab
+    (<span class="mono">c6525-25g</span>, 16-core EPYC, 25 GbE), but any set of machines
+    with SSH between them and enough cores will do. Check your core count first &mdash;
+    <span class="mono">--per-node</span> must not exceed physical cores minus the reserve,
+    and on an SMT processor only one thread per physical core should be used.
+  </p>
+  <pre><code># from the client node, with agent forwarding or a key the nodes share
+python3 provision_remote.py \
+    --nodes node1 node2 node3 node4 node5 node6 node7 node8 node9 node10 \
+    --hosts 128 --per-node 13 --reserve-cores 2 \
+    --remote-dir /path/to/code --manifest ../findings/manifest.json \
+    --dry-run                      # read the plan before launching anything
+
+# same command without --dry-run, then prove each server owns a core
+python3 provision_remote.py --manifest ../findings/manifest.json --verify</code></pre>
+  <p>
+    <strong>Do not skip the verify step.</strong> It reports the CPU affinity each server
+    actually holds. If it warns that servers have no recorded core, the latency numbers
+    would measure CPU scheduling rather than backup placement &mdash; which is exactly why
+    the earlier 128-host result had to be withdrawn.
+  </p>
+  <pre><code># homogeneous arm
+python3 rpc_contention_experiment.py \
+    --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 \
+    --methods concentrated random round_robin heuristic optimal rl \
+    --n-hosts 128 --n-primaries 80 --n-degraded 0 --scale-seed 0 \
+    --rl-model rl_model_scaled128_v3.zip --manifest ../findings/manifest.json
+
+# DEFT ships a listen backlog of 5; re-provision with --backlog 512 to
+# measure placement without the accept-queue artifact
+python3 provision_remote.py ... --backlog 512 --manifest ../findings/m512.json</code></pre>
+  <p>
+    For the degraded arm, slow sixteen hosts with <span class="mono">tc netem</span> on the
+    server's source port, so healthy backups on the same NIC are untouched, then tell the
+    experiment the slowness is already physical:
+  </p>
+  <pre><code>python3 apply_degradation.py --manifest ../findings/m512.json \
+    --hosts w1 w2 w27 w34 w41 w49 w56 w63 w70 w78 w85 w92 w106 w113 w120 w128 \
+    --delay-ms 50 --iface &lt;your 10/25G NIC&gt; --apply
+
+python3 rpc_contention_experiment.py \
+    --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 \
+    --methods concentrated random round_robin heuristic optimal rl \
+    --n-hosts 128 --n-primaries 80 --n-degraded 16 --scale-seed 0 \
+    --degraded-selection spread --physical-degradation \
+    --rl-model rl_model_scaled128_v3.zip --manifest ../findings/m512.json
+
+python3 apply_degradation.py --manifest ../findings/m512.json \
+    --iface &lt;NIC&gt; --clear        # remove the shaping afterwards</code></pre>
+  <p>
+    <span class="mono">--degraded-selection spread</span> matters: with a contiguous block
+    of degraded hosts, round-robin can miss them entirely through lexicographic ordering
+    and appear to avoid them. The <a href="testbed.html">bare-metal page</a> explains.
+  </p>
+
+  <h2><span class="step-num">12</span>Regenerate the paper tables</h2>
+  <pre><code>python3 make_testbed_tables.py      # paper/tables_testbed.tex
+python3 make_online_tables.py       # paper/tables_online.tex
+python3 make_migration_tables.py    # paper/tables_migration.tex</code></pre>
+
+  <h2><span class="step-num">13</span>Optional: retrain the RL models</h2>
   <p>
     Trained models come with the package, so you only need this step if you want to check
     the training itself, or see the 128-host collapse for yourself.

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Online: Selection Under Churn — iDEFT: Intelligent Backup-Node Selection for DEFT</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <nav class="site">
+    <span class="brand">iDEFT: Intelligent Backup-Node Selection for DEFT</span>
+    <a href="index.html">Overview</a>
+    <a href="homogeneous.html">9 Hosts</a>
+    <a href="scaled16.html">16 Hosts</a>
+    <a href="scaled32.html">32 Hosts</a>
+    <a href="scaled128.html">128 Hosts</a>
+    <a href="testbed.html">Bare Metal</a>
+    <a href="online.html" class="current">Online</a>
+    <a href="migration.html">Migration Cost</a>
+    <a href="overhead.html">Overhead</a>
+    <a href="throughput.html">Throughput</a>
+    <a href="reproduce.html">Reproduce</a>
+    <a href="code.html">Code</a>
+    <a href="downloads.html">Downloads</a>
+    <a href="https://github.com/bijoy111/ideft" target="_blank" rel="noopener">GitHub &#8599;</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <h1>Online: When Hosts Change While You Watch</h1>
+  <p class="lede">
+    Every other page on this site answers a <em>one-shot</em> question: given the cluster as
+    it is right now, which backup should each primary use? Real clusters do not hold still.
+    Hosts degrade, recover and die, and moving a replica is not free — you have to ship the
+    state. This page asks what adaptation is actually worth, and the honest answer is
+    <strong>less than you would expect</strong>.
+  </p>
+  <div class="pill-row">
+    <span class="pill">16 hosts, 10 primaries, horizon 300</span>
+    <span class="pill">10 seeds per point</span>
+    <span class="pill">exact offline optimum by DP</span>
+    <span class="pill">competitive-ratio analysis</span>
+  </div>
+
+  <div class="card">
+    <strong>The setup.</strong> Each round, every host's health, capacity and latency drift;
+    a two-state Markov chain degrades and recovers hosts, and a smaller rate kills them
+    outright. A policy pays a service cost each round for the backup it is using, and a
+    migration cost <span class="mono">M</span> every time it moves one. We compare against
+    the <em>exact</em> offline optimum — computed by dynamic programming over the time&times;host
+    trellis, so it is a real lower bound and not another heuristic.
+  </div>
+
+  <h2>Re-solving every round is unboundedly bad</h2>
+  <div class="card warn">
+    <strong>Theorem 1.</strong> Let <span class="mono">snapshot</span> be the policy that
+    plays a cost-minimizing assignment for round <em>t</em> at every <em>t</em> — exactly
+    what this paper's Hungarian <span class="mono">optimal</span> baseline would do if you
+    deployed it and re-ran it each round. For every migration cost M and every &rho;, there is
+    an instance on which snapshot costs more than &rho; times the optimum. It is not
+    &rho;-competitive for <em>any</em> &rho;.
+  </div>
+  <p>
+    This is not a worst-case curiosity bolted on after the fact. Two hosts alternate as the
+    better choice by a vanishing margin &epsilon;; snapshot chases the margin and pays M each
+    time, while the optimum stands still and pays &epsilon; per round. We verified the
+    construction empirically — the measured ratio tracks 1/&epsilon; exactly, reaching
+    <strong>5940&times;</strong>:
+  </p>
+  <table>
+    <thead><tr><th>&epsilon;</th><th>Measured ratio</th><th>Predicted (1/&epsilon;)</th></tr></thead>
+    <tbody>
+      <tr><td>0.1</td><td>5.9</td><td>10</td></tr>
+      <tr><td>0.01</td><td>59.4</td><td>100</td></tr>
+      <tr><td>0.001</td><td>594</td><td>1000</td></tr>
+      <tr><td>0.0001</td><td>5940</td><td>10000</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The single-primary case reduces to a Metrical Task System on a uniform metric, so the
+    known lower bounds for that problem — Borodin&ndash;Linial&ndash;Saks for deterministic
+    policies, Karloff&ndash;Rabani&ndash;Ravid for randomized ones — transfer by citation
+    rather than needing fresh invention.
+  </p>
+
+  <h2>What adaptation is actually worth</h2>
+  <p>
+    Four policies, measured as excess over the offline optimum (1.00 = as good as the
+    optimum), at the most volatile churn setting with hard failures enabled:
+  </p>
+  <table>
+    <thead><tr><th>Policy</th><th>What it does</th><th>Excess ratio</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">static</td><td>never moves</td><td>42.25</td></tr>
+      <tr><td class="mono">failover</td><td>moves only when a host dies</td><td>4.64</td></tr>
+      <tr><td class="mono">hysteresis</td><td>full degradation-aware migration</td><td>4.59</td></tr>
+      <tr><td class="mono">snapshot</td><td>re-solves every round</td><td>unbounded</td></tr>
+    </tbody>
+  </table>
+  <div class="finding">
+    <strong>The main result is negative, and we report it that way.</strong> Adding failover
+    alone to a static policy closes <strong>91.2%</strong> of the distance to the offline
+    optimum. Adding full degradation-aware hysteresis on top of that closes a further
+    <strong>0.13 percentage points</strong>. Nearly all the value of adapting to churn comes
+    from the simplest possible rule — move when the host dies — and very little from
+    sophisticated degradation tracking. This mirrors what the
+    <a href="testbed.html">bare-metal measurement</a> found for the one-shot problem: the
+    cheap policy captures almost everything.
+  </div>
+
+  <h2>A certified migration budget</h2>
+  <p>
+    A hysteresis policy that only migrates when the accumulated regret exceeds &alpha;&middot;M
+    cannot spend more than 1/&alpha; of its service cost on migration. That is a proof, not an
+    observation, and it holds at every threshold we measured:
+  </p>
+  <table>
+    <thead><tr><th>&alpha;</th><th>Excess ratio</th><th>Budget used</th><th>Budget bound (1/&alpha;)</th><th>Migrations</th></tr></thead>
+    <tbody>
+      <tr><td>0.25</td><td>2.885</td><td>0.583</td><td>4.000</td><td>286.8</td></tr>
+      <tr><td>0.5</td><td>1.774</td><td>0.257</td><td>2.000</td><td>82.9</td></tr>
+      <tr><td>1.0</td><td>1.630</td><td>0.134</td><td>1.000</td><td>44.0</td></tr>
+      <tr><td>2.0</td><td>1.593</td><td>0.082</td><td>0.500</td><td>27.6</td></tr>
+      <tr><td>4.0</td><td>1.536</td><td>0.049</td><td>0.250</td><td>16.7</td></tr>
+      <tr><td>8.0</td><td>1.567</td><td>0.031</td><td>0.125</td><td>11.0</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Budget used stays under the bound at every &alpha;, with the tightest observation at
+    roughly half the permitted spend. The practical reading: you can pick a migration budget
+    in advance and the policy will respect it, which is what an operator actually needs.
+  </p>
+
+  <div class="card">
+    <strong>Why the migration cost matters so much.</strong> Every number here depends on M,
+    the cost of moving a replica measured in rounds of ordinary replication. The original
+    model assumed M = 3. The <a href="migration.html">migration-cost page</a> measures it
+    against a real connection-tracking table and finds <strong>M = 23&ndash;41</strong>. That
+    correction overturned an earlier conclusion of ours about when migration pays.
+  </div>
+
+  <div class="scenario-nav">
+    <a href="testbed.html">&larr; Bare Metal</a>
+    <a href="migration.html">Next: Migration Cost &mdash; what does moving a replica really cost? &rarr;</a>
+  </div>
+</div>
+</body>
+</html>

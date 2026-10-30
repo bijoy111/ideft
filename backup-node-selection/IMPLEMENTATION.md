@@ -89,8 +89,33 @@ code/
 ├── rl_model_scaled128_v3.zip        (trained model — 128-host, FINAL fix, used in reported results)
 ├── rl_algorithm_comparison.py       (NEW — structural PPO-vs-DQN comparison, all four scales)
 ├── rl_model_dqn*.zip                (trained DQN models — cross-algorithm check, EXPERIMENTS.md §4.10)
+│
+│   # Multi-node deployment (EXPERIMENTS.md §4.11)
+├── deployment.py                    (NEW — Endpoint + local/manifest-driven remote backends)
+├── backup_server.py                 (NEW — one backup as a standalone process, --backlog)
+├── provision_remote.py              (NEW — place servers on nodes, pin cores, write manifest)
+├── apply_degradation.py             (NEW — tc netem per source port; physical degradation)
+├── test_deployment.py               (NEW — 9 tests incl. a real trial through the remote path)
+│
+│   # Online selection under churn (EXPERIMENTS.md §4.12)
+├── online_model.py                  (NEW — churn process, service/migration cost model)
+├── online_selector.py               (NEW — policies + exact offline optimum by DP)
+├── competitive_analysis.py          (NEW — the sweeps; writes findings/online_competitive.*)
+├── test_online.py                   (NEW — 6 tests incl. Theorem 1's construction)
+│
+│   # Migration cost of real state (EXPERIMENTS.md §4.13)
+├── flow_state.py                    (NEW — connection-tracking table, delta replication)
+├── workload.py                      (NEW — flow arrivals; Little's-law validated)
+├── measure_migration_cost.py        (NEW — occupancy, encodings, M, crossover)
+├── test_flow_state.py               (NEW — 8 tests incl. lossless round-trip, Little's law)
+│
+│   # Table generators (findings -> paper/*.tex, no hand transcription)
+├── make_testbed_tables.py           (NEW)
+├── make_online_tables.py            (NEW)
+├── make_migration_tables.py         (NEW)
 └── results_rpc/                     (output — CSVs written by the experiments above)
 
+findings/                             (saved output of every run, with the command in its header)
 EXPERIMENTS.md                        (methodology + results narrative)
 paper/                                (LaTeX source, figures, compiled paper.pdf)
 IMPLEMENTATION.md                     (this file)
@@ -326,6 +351,158 @@ yourself quickly, instead of discovering it part-way through a full RPC experime
 `rl_algorithm_comparison.py` runs the same diagnosis for PPO and DQN across all four scales
 in one pass.
 
+### 4.10 `deployment.py`, `backup_server.py`, `provision_remote.py` (new — multi-node)
+
+The single-machine harness started its own backup servers with
+`multiprocessing.Process` and addressed them at `127.0.0.1:base_port+i`. That coupling —
+**topology host identity, OS process, and network address all being the same thing** — is
+what made a testbed run impossible, and it is what these three files separate.
+
+- `deployment.py`
+  - `Endpoint(host_id, ip, port)` — a topology host's address, with `.url()`/`.address()`.
+    Everything downstream takes an `Endpoint` instead of an `int` port.
+  - `LocalDeployment` — starts servers itself, `owns_servers = True`. Its port assignment
+    is byte-identical to the old rule, so every published single-machine result reproduces
+    unchanged.
+  - `RemoteDeployment` — reads a manifest; the servers already exist on other machines and
+    this only resolves addresses. **It raises on a `slow_hosts` argument** rather than
+    silently ignoring it: it cannot inject a per-call sleep into a server it did not start,
+    and reporting a degradation that was never applied would be worse than failing.
+  - `make_deployment()` picks between them from `--manifest` or `IDEFT_MANIFEST`.
+- `backup_server.py` — one backup as its own process, bound to a routable address. Prints
+  `host_id`, pid and `os.sched_getaffinity(0)` to stderr so pinning is visible in the log.
+  `--backlog N` sets `SimpleXMLRPCServer.request_queue_size` **before** `Backup` constructs
+  the server (it binds and calls `listen()` in `__init__`, so patching afterwards is too
+  late). Leaving it unset reproduces DEFT as shipped, which is the point of the comparison.
+  `--delay` exists for parity with the local harness and warns that `tc`/cgroups are the
+  right mechanism on a testbed.
+- `provision_remote.py` — assigns each host id a (node, port, core) slot, launches over SSH
+  under `taskset`, and writes the manifest. `--verify` reports the affinity each server
+  **actually holds**, which is what lets a paper claim one core per backup rather than
+  assert it. `--degrade HOST=KIND:ARG` records how a host was degraded so a run states the
+  mechanism. `--teardown` stops everything.
+
+**Three defects the single-machine harness could not expose**, all found on first contact
+with a real testbed and all fixed here:
+
+1. **SSH hung on the first server.** `cd X && nohup Y &` backgrounds the *whole AND-list*
+   in a subshell; that subshell holds the SSH channel's stdout until the server it waits on
+   exits, which is never. The server started correctly every time — only the acknowledgement
+   was stuck behind a `bash -c` wrapper. Now `cd X || exit 1; nohup Y &`, which keeps the
+   directory check and backgrounds the server directly.
+2. **`pkill -f "backup_server.py --host-id"` matched its own caller's command line** and
+   killed the invoking shell. Hardened to `backup_serve[r].py` in both the teardown path
+   and the docs.
+3. **`throughput_experiment.py` built its own hard-coded `127.0.0.1` proxy** and referenced
+   a now-undefined `port`, which would have been a runtime `NameError` on the first remote
+   run. It now uses `endpoint.url()`.
+
+`test_deployment.py` covers the slot planner (no core assigned twice, oversubscription
+refused), manifest round-tripping, the remote delay refusal, and — the decisive one —
+`test_real_trial_through_the_remote_path()`, which runs a real 36-call trial through a
+manifest against servers started outside the harness, treating localhost as the "remote"
+node. That is what made the remote path testable without a testbed.
+
+### 4.11 `apply_degradation.py` (new — physical degradation)
+
+Imposes degradation with `tc netem` instead of a sleep. The complication is that `tc`
+attaches to an **interface** while a node carries many backups: shaping the interface would
+degrade the healthy co-tenants the comparison needs as controls.
+
+Each backup owns a distinct TCP port, so the script installs a `prio` qdisc and a `u32`
+filter matching **source port**, delaying exactly the degraded servers:
+
+```
+tc qdisc add dev <iface> root handle 1: prio bands 4
+tc qdisc add dev <iface> parent 1:4 handle 40: netem delay 50ms
+tc filter add dev <iface> protocol ip parent 1:0 prio 4 u32 \
+    match ip sport <port> 0xffff flowid 1:4
+```
+
+Band 4 of a four-band `prio` is unreachable through the default priomap, so healthy flows
+never enter the netem queue at all rather than being delayed by zero. Measured on adjacent
+ports of one NIC: 101.4 ms for a shaped port against 1.0 ms for its neighbour.
+
+Dry-run by default; `--apply` executes, `--show` prints the live qdisc and filter counters,
+`--clear` removes the shaping. `tc qdisc del` failing because nothing is installed is
+treated as the normal first-run case, not an error.
+
+### 4.12 `online_model.py`, `online_selector.py`, `competitive_analysis.py` (new — online)
+
+- `online_model.py` — the problem instance. A two-state Markov chain degrades and recovers
+  hosts with within-regime drift, a smaller rate kills them, and `OnlineInstance` exposes
+  `service_cost`, `round_cost` and `total_cost` with a service cache.
+- `online_selector.py` — the policies (`static`, `failover`, `snapshot`, `periodic`,
+  `hysteresis` at several thresholds) and `offline_optimal()`, which solves the
+  time×host trellis by dynamic programming in **O(k) per round** using the uniform-switching
+  -cost trick `dp[t][b] = cost(t,b) + min(dp[t-1][b], M + min_b' dp[t-1][b'])`. Coordinate
+  descent handles the congestion coupling between primaries, and the decoupled relaxation
+  is kept as a certified lower bound. `cost_floor()` and `excess_ratio()` isolate decision
+  quality from the unavoidable floor, which otherwise compresses every ratio toward 1.
+- `competitive_analysis.py` — the sweeps (churn, persistence, migration cost, pool size,
+  α), with percentile bootstraps over seeds.
+
+**Two things that had to be corrected during development**, both worth knowing:
+
+- **The migration budget proposition failed at α=4** (0.282 against a 0.25 bound). The
+  cause was that migrations took effect *within* the round that triggered them, so a policy
+  could accumulate regret on a host and then dodge paying for it. Making migrations take
+  effect at `t+1` fixed it — and is also the physically correct semantics, since a primary
+  cannot retroactively have state on the new backup.
+- **`static` was a strawman.** It looks catastrophic only because it sits on hard-failed
+  replicas forever. `policy_static_failover` was added and became the honest comparator; it
+  is why the headline is "failover closes 91.2%" rather than a flattering number against a
+  policy nobody would deploy.
+
+`test_online.py` checks trace reproducibility, DP against brute force, joint-optimum
+feasibility, the migration budget, hysteresis boundedness, and Theorem 1 via
+`adversarial_alternating(eps)` — the proof's own construction, which measures 5.9 → 59.4 →
+594 → 5940 as ε shrinks, i.e. exactly 1/ε. An earlier version of that test perturbed a
+feature-derived instance instead and could not have failed, because such an instance has a
+cost floor the denominator never drops below.
+
+### 4.13 `flow_state.py`, `workload.py`, `measure_migration_cost.py` (new — migration cost)
+
+DEFT's backup discards the state it receives (`update_state` prints and returns `True`;
+the persistence code is commented out), so the migration cost `M` the online model depends
+on had no empirical basis. These supply one.
+
+- `flow_state.py` — a connection-tracking / NAT flow table keyed on the 5-tuple, with
+  incremental delta replication (`take_delta`/`apply_delta`), TCP state tracking and idle
+  eviction. Three wire encodings: `packed` (fixed-width binary, 13-byte key + 31-byte
+  value), `json`, and `xmlrpc` — the last being what DEFT actually sends.
+- `workload.py` — Poisson flow arrivals with truncated-Pareto lifetimes;
+  `expected_occupancy()` is the Little's-law prediction used to validate the generator.
+  `replay_trace()` accepts a pcap for future work.
+- `measure_migration_cost.py` — occupancy, serialized size per encoding, `M` in rounds, and
+  the crossover (`2M/gap`) at which migrating pays.
+
+**A genuine protocol limitation, not a bug in our code:** XML-RPC's `<int>` is a **signed
+32-bit** integer, so `nat_ip = 0xc0a80001` raises `OverflowError`. An IPv4 address of
+128.0.0.0 or above cannot be sent as an integer at all and must be stringified. That, plus
+per-value markup, is most of the 7.31× size inflation over `packed`.
+
+**The result that looks wrong and is the point:** `M` barely moves with encoding or link
+speed, because a costlier encoding inflates the full transfer and the per-round delta by
+the same factor. `M ≈ 1/delta-share ≈ 30` is a property of traffic churn. This measurement
+(23–41 rounds against the assumed 3) **overturned our own earlier conclusion** about when
+migrating away from a degraded backup pays.
+
+### 4.14 `make_*_tables.py` (new — table generators)
+
+`make_testbed_tables.py`, `make_online_tables.py` and `make_migration_tables.py` read the
+`findings/*.txt` files — which carry in their header the exact command that produced them —
+and emit the paper's `.tex` tables. Nothing in those tables is transcribed by hand, so a
+rerun regenerates them and a table cannot drift from the run it claims to report.
+`make_testbed_tables.py` also writes `findings/cloudlab_facts.json`, which the prose numbers
+are checked against programmatically.
+
+One gotcha worth recording: the findings files delimit blocks with `===== Title ... =====`
+banners, and the title may be followed by more words on the same line. Splitting on the
+title string alone returns the remainder of the banner, which parses as nothing and **fails
+silently** — producing an empty table rather than an error. The parser is line-oriented for
+that reason. (Same class of failure as the `grep -c` problem in §6.)
+
 ## 5. Full Reproduction Walkthrough, Mapped to EXPERIMENTS.md
 
 | # | Command | Produces |
@@ -342,12 +519,26 @@ in one pass.
 | 10 | `selection_overhead.py` | §4.4 table |
 | 11 | `throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration 3.0 --burst 10 --methods baseline concentrated random round_robin heuristic optimal rl` | §4.7 homogeneous table |
 | 12 | Same, with `--n-hosts 16 --n-primaries 10 --n-degraded 2 --rl-model rl_model_scaled.zip` (drop `baseline`) | §4.7 16-host table |
+| 13 | `competitive_analysis.py` (~3.5 min, no RPC) | §4.12 tables |
+| 14 | `measure_migration_cost.py` (no RPC) | §4.13 tables |
+| 15 | `provision_remote.py --nodes … --hosts 128 --per-node 13 --reserve-cores 2 --backlog 512 --manifest …` then `--verify` | §4.11 testbed, **needs 11 machines** |
+| 16 | `apply_degradation.py --manifest … --hosts w1 w2 w27 … --delay-ms 50 --iface … --apply` | §4.11.3 physical degradation |
+| 17 | Step 9's command plus `--degraded-selection spread --physical-degradation --manifest …` | §4.11.3 table |
+| 18 | `make_testbed_tables.py`, `make_online_tables.py`, `make_migration_tables.py` | the paper's `.tex` tables |
 
 Steps 6–9 each start by deleting `results_rpc/rpc_contention_raw.csv` (`rm -f`) before
 running, since every run appends to that one file — copy it aside first if you want to
 keep more than one scenario's raw per-call data at once. Same for
 `results_rpc/throughput_raw.csv` between steps 11 and 12. The exact `rm -f` + command
 pairs are spelled out in EXPERIMENTS.md §6 and in §1 above.
+
+Steps 13–14 need no testbed and no RPC; they run on a laptop. Steps 15–17 are the only
+ones requiring hardware. **Do not skip the `--verify` in step 15** — it reports the CPU
+affinity each backup actually holds, and a warning there means the run would measure CPU
+scheduling rather than placement, which is the failure that forced the §4.6 withdrawal.
+Step 17's `--degraded-selection spread` is likewise not optional: with a contiguous block
+of degraded hosts, `round_robin` can miss them entirely through lexicographic ordering and
+appear to avoid them (EXPERIMENTS.md §4.11.4).
 
 ## 6. Known Gotchas (things that actually broke during development)
 
@@ -362,19 +553,34 @@ pairs are spelled out in EXPERIMENTS.md §6 and in §1 above.
   conflict entirely by writing to a separate `results_rpc/` directory — no permission fix
   needed for the reproduction sequence in §5.
 - **`SimpleXMLRPCServer`'s default accept backlog is 5.** At high fan-in (e.g.
-  `concentrated` with ~80 primaries on one backup), this is a real, load-bearing finding
-  (see EXPERIMENTS.md §4.6), not a bug to "fix" by raising the backlog — raising it would
-  change what DEFT's actual shipped implementation is being measured against.
-  `rpc_contention_experiment.py`'s retry-with-backoff (§4.5) exists specifically to
-  survive this without crashing the harness, while still recording the resulting failures
-  as data.
+  `concentrated` with ~80 primaries on one backup) this is a real, load-bearing finding
+  (EXPERIMENTS.md §4.6), not a bug to "fix" silently — raising it would change what DEFT's
+  shipped implementation is being measured against.
+  `rpc_contention_experiment.py`'s retry-with-backoff (§4.5) exists to survive it without
+  crashing the harness, while recording the resulting failures as data.
+  **Resolved as an ablation, not a fix:** `backup_server.py --backlog N` now makes it a
+  controlled variable, and leaving it unset still reproduces DEFT exactly. The bare-metal
+  run (EXPERIMENTS.md §4.11.1) changes only that integer and shows it accounts for most of
+  the apparent cost of concentrating backups — 103,209 `ListenOverflows` on one node at
+  backlog 5, zero at 512, and the 1→79 load sweep falling from 7.5× to 35%. Both
+  configurations are reported; neither replaces the other.
 - **RL policy collapse is a real risk whenever you retrain at a new scale**, not just at
   128 hosts. Always run with `--check-collapse` immediately after training, before
   committing to a full RPC experiment run against a possibly-degenerate model.
-- **Trained model files are currently untracked in git** (not yet committed). Decide
-  whether to commit them (`rl_model*.zip`, up to ~6 MB for the largest) or add them to
-  `.gitignore` and have readers regenerate them via §5 steps 2–5 — either is reasonable,
-  but pick one explicitly so a fresh clone isn't missing files silently.
+- **Trained model files are committed** (`rl_model*.zip`, ten of them, up to ~6 MB for
+  the largest), so a fresh clone can reproduce every reported result without retraining.
+- **`grep -c` on some shells prints nothing and exits non-zero even with no match**, which
+  made "0 errors, 0 overfull boxes" build reports meaningless for a while — they were
+  reporting the absence of output, not the absence of errors. An `awk` pass over the same
+  log found nine real LaTeX errors, including a `tabular` declared with four columns
+  holding five. `paper/checkbuild.py` exists so this cannot recur: it reports pages,
+  errors, undefined and multiply-defined references and overfull boxes, and exits non-zero
+  on a real problem. The same failure mode bit the findings-file parser in §4.14 — a
+  silent empty result is worse than a loud failure, and both fixes are about converting
+  one into the other.
+- **The raw per-call CSVs in `results_rpc/` are gitignored** (each is ~128 MB). The
+  `findings/*.txt` summaries carry every reported number plus the command that produced
+  it, so results are reproducible from a clone; the raw records are not.
 
 ## 7. Where to Read More
 

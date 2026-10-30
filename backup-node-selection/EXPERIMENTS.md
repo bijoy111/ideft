@@ -292,6 +292,17 @@ reinforcing the concentrated/heuristic/optimal findings.
 
 ### 4.6 Scalability trend continued: 128 hosts (heterogeneous)
 
+> **The latency table in this section is withdrawn.** It was produced with 128 backup
+> servers and the client on a single 8-core machine, so it measures CPU scheduling as much
+> as backup placement: two independent executions of the identical gRPC configuration
+> differ by 4.8× on `optimal` and 6.1× on `rl`. The structural results below (distinct
+> backups used, peak load, degraded-host avoidance) are computed from the mapping and do
+> not depend on timing, so they stand. **§4.11 reports this scenario on ten bare-metal
+> nodes**, and the numbers there differ substantially — in particular, most of the
+> concentration penalty seen here is DEFT's five-deep accept queue rather than load on the
+> backup. The table is kept rather than deleted so the withdrawal is auditable.
+
+
 Same construction again (80 primaries, 48 backup-eligible hosts, 16 degraded), matched to
 the original 16-host trial count (5 context seeds × 3 trials, 200 calls/primary, burst=10)
 per the request to keep this point statistically comparable rather than reduced like the
@@ -477,7 +488,7 @@ primary metric and treat this throughput/failure-rate result as a corroborating,
 replacing, measurement. **Reproducers: expect the `concentrated` comparisons to hold every
 time and the finer degraded-host ones to be only partially resolved.**
 
-### 4.8 Heuristic weight sensitivity and decay calibration (paper §V-G, Table VIII)
+### 4.8 Heuristic weight sensitivity and decay calibration (paper §V-H, Table XV)
 
 The heuristic's scoring weights `(w_h, w_k, w_l, w_d) = (0.35, 0.35, 0.20, 0.10)` and its
 load-decay mechanics (`cap -= 20`; `health *= 0.95`) are otherwise chosen by intuition. To
@@ -518,7 +529,7 @@ these uniform-hop synthetic topologies — an artifact of the RPC-isolation test
 scoring design. Full run saved in `findings/weight_sensitivity.txt`.
 
 **Result 4 — the decay constants themselves are a characterized, monotone lever (paper
-Table IX).** `decay_sensitivity.py` sweeps the load-decay mechanics directly — the
+§V-H).** `decay_sensitivity.py` sweeps the load-decay mechanics directly — the
 capacity decrement (`cap -= 20`) over {5, 10, 20, 40, 80} and the health-decay factor
 (`health *= 0.95`) over {0.80, 0.90, 0.95, 0.99, 1.00} — with the scoring weights fixed, 5
 seeds per topology (100 decrement×decay×topology cells). Degraded-host avoidance is
@@ -542,7 +553,7 @@ variation, could trade host quality for balance). So `(20, 0.95)` is a principle
 monotone response surface, not an arbitrary constant. Full run saved in
 `findings/decay_sensitivity.txt`.
 
-### 4.9 Hash baselines, a fairer round-robin, and topology diversity (paper §V-H, Table IX)
+### 4.9 Hash baselines, a fairer round-robin, and topology diversity (paper §V-I, Table XVI)
 
 `baseline_comparison.py` broadens the baseline set — the NFV analogs of decentralized,
 load-aware replica placement (CRUSH, Dynamo, consistent-hashing variants) plus a fairer
@@ -579,7 +590,7 @@ deterministic round-robin's lucky 0-hit at 128 hosts was a naming coincidence. O
 topologies (16-host/3-hub, 32-host/3-hub) the numbers are identical — the findings are driven
 by host quality, not graph shape. Full run saved in `findings/baseline_comparison.txt`.
 
-### 4.10 Cross-algorithm check: DQN vs PPO (paper §V-F, Table VII)
+### 4.10 Cross-algorithm check: DQN vs PPO (paper §V-G, Table XIV)
 
 §4.6's load-balancing gap is measured on PPO alone, which leaves open whether it is a PPO
 quirk or a property of the problem formulation. DQN (`--algorithm dqn`) is trained and
@@ -634,6 +645,310 @@ cross-algorithm claim rests on the structural table above instead. The structura
 matches across both machines: PPO 24-30 distinct backups at 128 hosts here vs 24-29 there,
 DQN 1-3 vs 3.
 
+### 4.11 Bare-metal validation at 128 hosts (paper §V-F, Tables XI–XIII)
+
+§4.6's latency table was produced on one machine and is withdrawn (see the notice there).
+This section is that scenario repeated on real hardware.
+
+**Testbed.** Eleven bare-metal CloudLab nodes at the Utah cluster (`c6525-25g`: one 16-core
+AMD EPYC 7302P, 128 GB, 25 GbE, Ubuntu 22.04). Ten carry the 128 backup servers, thirteen
+per node except the last; the eleventh runs the client alone. Each server is launched under
+`taskset` on a core of its own. Hyperthread siblings on this part pair as (0,16), (1,17),
+…, so logical CPUs 2–14 are **fourteen distinct physical cores** and no two servers share
+one core's two threads. `provision_remote.py --verify` reports the affinity each server
+actually holds, so the "one core each" claim is checked rather than asserted. All
+replication traffic crosses the 25 GbE experiment LAN, confirmed with `ethtool`.
+
+**Three runs, each changing one variable.**
+
+#### 4.11.1 DEFT as shipped: the accept queue bounds p99
+
+| method | p95 (ms) | p99 (ms) |
+|---|---|---|
+| optimal | 64.94 | 1040.06 |
+| heuristic | 66.79 | 1042.47 |
+| round_robin | 66.67 | 1039.96 |
+| random | 65.49 | 1051.67 |
+
+Four methods whose p95 differs by under 2 ms have p99 within 12 ms of 1040 ms. A constant
+surviving every change of method is an artifact, and one second is Linux's initial TCP
+retransmission timeout. §3.1 and §4.6 already identified DEFT's five-deep accept backlog as
+the cause; the testbed permits the direct test, by changing only that integer and reading
+the kernel's own counters.
+
+```
+node1   TcpExtListenOverflows  103209      TcpRetransSegs  116
+node5   TcpExtListenOverflows   24705      TcpRetransSegs  225
+node10  TcpExtListenOverflows    1923      TcpRetransSegs  141
+```
+
+`ListenDrops` equals `ListenOverflows` exactly on every node: the connections were refused
+at the server, not lost in the network. The gradient across nodes tracks how heavily each
+node's backups were selected, so the artifact is *correlated with* the quantity being
+measured — which is why it cannot simply be noted and ignored.
+
+Raising the backlog to 512 (`provision_remote.py --backlog 512`, which sets
+`SimpleXMLRPCServer.request_queue_size` before the server binds, leaving DEFT's own code
+untouched) drove the overflow count to **zero** and p99 from 1040 ms to 79 ms.
+
+#### 4.11.2 Homogeneous hosts: no method separates from random
+
+5 context seeds × 3 trials, 200 calls/primary, burst=10, 128 hosts, 80 primaries, 0 degraded.
+
+| method | mean (ms) | median | p95 | p99 | fail % |
+|---|---|---|---|---|---|
+| random | 41.55 | 40.72 | 65.47 | 79.24 | 0.00 |
+| optimal | 41.73 | 40.97 | 65.71 | 78.81 | 0.00 |
+| heuristic | 41.80 | 40.87 | 65.54 | 80.57 | 0.00 |
+| round_robin | 41.97 | 41.10 | 66.05 | 80.09 | 0.00 |
+| rl | 46.53 | 46.05 | 71.40 | 89.26 | 0.00 |
+| concentrated | 56.27 | 56.28 | 83.43 | 114.69 | 0.00 |
+
+Paired Wilcoxon, Holm-corrected: `optimal` vs `random` has a median per-run difference of
+**0.002 ms** (p = 1.000); `optimal` vs `round_robin` and `optimal` vs `heuristic` are also
+n.s. Only `concentrated` and `rl` separate. This is the expected result and is worth
+stating plainly: where every candidate is equivalent, a selector that reads node features
+has nothing to read.
+
+The backup-load sweep tells the same story about the backlog:
+
+| primaries sharing one backup | mean @ backlog 5 | mean @ backlog 512 |
+|---|---|---|
+| 1 | 50.3 | 41.9 |
+| 16 | 219.0 | 42.4 |
+| 45 | 342.6 | 49.7 |
+| 79 | 378.2 | 56.4 |
+
+**7.5× becomes 35%.** Most of the apparent penalty for sharing a backup was connection
+setup being refused rather than queueing at the backup. This sharpens §4.6's claim that the
+shipped transport inflates the measured placement effect: the inflation is attributable to
+one configurable integer.
+
+#### 4.11.3 Degraded hosts: physical degradation, and the result that matters
+
+The deployment refuses a `slow_hosts` argument it cannot honour (`RemoteDeployment`
+raises rather than sleep inside a server it did not start), so degradation here is imposed
+by `tc netem`. `tc` attaches to an interface, but each node carries thirteen backups and
+shaping the interface would degrade their healthy co-tenants — the controls the comparison
+depends on. Each backup owns a distinct TCP port, so `apply_degradation.py` installs a
+`prio` qdisc with a `u32` filter on source port, delaying exactly the degraded servers. The
+fourth band of a four-band `prio` is unreachable through the default priomap, so healthy
+flows never enter the netem queue at all rather than being delayed by zero.
+
+Verified on adjacent ports of one interface:
+
+```
+ w1 on node1 port 19000:   101.6 ms/call   DEGRADED
+ w3 on node1 port 19002:     0.8 ms/call   healthy
+w27 on node3 port 19000:   101.3 ms/call   DEGRADED
+w28 on node3 port 19001:     0.9 ms/call   healthy
+```
+
+The 101 ms is itself informative: netem delays every packet the server sends, so a
+connection-per-call protocol pays the added latency twice — once on the SYN-ACK and once on
+the response. The degraded arm is therefore not numerically comparable to the simulated
+50 ms sleep of §4.2/§4.5; it is a more faithful model of a congested link, not the same one.
+
+16 of 128 hosts degraded, spread along the selection ordering (see §4.11.4):
+
+| method | mean (ms) | p99 (ms) | calls to a degraded backup |
+|---|---|---|---|
+| optimal | 41.76 | 79.66 | 0.00% |
+| heuristic | 42.03 | 80.99 | 0.00% |
+| rl | 45.04 | 83.26 | 0.00% |
+| random | 51.25 | 155.07 | 11.25% |
+| round_robin | 51.87 | 157.17 | 12.50% |
+| concentrated | 260.11 | 1282.18 | 100.00% |
+
+Paired Wilcoxon on per-run mean, Holm-corrected, all with **r = −1.000** (no run dissents):
+`optimal` vs `round_robin` d = −10.39, `optimal` vs `random` d = −8.11, `heuristic` vs
+`random` d = 7.96, `heuristic` vs `round_robin` d = 9.28, all p_holm = 0.0009. At p99 the
+gap is roughly 2× (80 ms against 156 ms).
+
+`optimal` vs `heuristic` is **not significant** on mean (p_holm = 0.909) or p99
+(p_holm = 1.000). The multi-criteria greedy scorer attains the quality of the
+capacity-constrained Hungarian assignment without solving one.
+
+**PPO avoids degraded hosts but does not spread load.** It reaches a degraded backup 0.00%
+of the time, matching the deterministic methods, and is still significantly slower than
+both (p_holm = 0.0009 against `heuristic`, r = 1.000). The structural measurement explains
+it: PPO used **44** distinct backups in this run where `heuristic` used 112 and `random`
+119. Host-quality discrimination and load balancing are separable properties, and PPO
+acquired the first without the second — the same split §4.6 reports structurally and §4.10
+traces to the anti-concentration term.
+
+#### 4.11.4 A contiguous degraded block makes the baselines look better than they are
+
+An earlier execution of this arm degraded the first sixteen backup-eligible hosts,
+`w81`–`w96`, and reported `round_robin` tied with `optimal` at 41.28 ms having selected a
+degraded host **0%** of the time. That tie was an artifact of naming, and it is the same
+"alphabetical-sort coincidence" §4.6 flags — but it needs stating as a methodology rule,
+not a curiosity.
+
+`round_robin_mapping()` cycles a **lexicographically** sorted host list, in which every name
+beginning `w1`–`w7` precedes `w8`. With 80 primaries the cursor advances 80 positions and
+never reaches `w81`–`w96`. The method scored zero by never arriving, not by avoiding.
+Natural-order sorting would not fix it either: `w81`–`w96` still sit beyond position 80.
+
+`--degraded-selection spread` samples the 16 degraded hosts evenly along that same ordering
+(positions 0, 8, 16, …, 120), putting them inside every method's reach. After that change
+`round_robin` meets them at the base rate of 12.50% and its mean rises from **41.28 to
+51.87 ms**.
+
+**Rule:** a load-spreading baseline evaluated against a contiguous impairment can appear to
+avoid it. Any scenario that marks a contiguous block of hosts as degraded must check what
+share of each method's calls actually reached one, or the comparison is uninterpretable.
+
+#### 4.11.5 What this section does not claim
+
+- `concentrated`'s 260 ms in the degraded arm mixes concentration with degradation, because
+  the host it piles onto (`w1`) is itself degraded. The clean figure for concentration alone
+  is the homogeneous column: 56.27 against 41.73, a 35% penalty.
+- §4.1, §4.2 and §4.5 (9, 16 and 32 hosts) remain single-machine measurements over the
+  shipped backlog. Their concentration penalties should be read as upper bounds until
+  re-run here.
+
+---
+
+### 4.12 Online selection under churn (paper §VI, Tables XX–XXV)
+
+Every scenario above is one-shot: given the cluster as it is, choose a backup. This section
+asks what *adaptation* is worth when hosts degrade, recover and fail over time and moving a
+replica costs a state transfer. It needs no RPC and runs on a laptop in about 3.5 minutes
+(`competitive_analysis.py`).
+
+**Model.** Each round, every host's health, capacity and latency drift; a two-state Markov
+chain degrades and recovers hosts, and a smaller rate kills them. A policy pays a service
+cost per round for the backup it uses, and a migration cost `M` whenever it moves one. The
+comparator is the **exact** offline optimum, computed by dynamic programming over the
+time×host trellis in O(k) per round using the uniform-switching-cost trick, so it is a real
+lower bound rather than another heuristic.
+
+**Re-solving every round is unboundedly bad.** `snapshot` — the policy that plays a
+cost-minimizing assignment at every round, which is exactly what §4.2's `optimal` would do
+if deployed and re-run each round — is not ρ-competitive for any ρ (paper Theorem 1). Two
+hosts alternate as the better choice by a vanishing margin ε; snapshot chases the margin and
+pays `M` each time while the optimum stands still and pays ε per round. `test_online.py`
+implements the proof's construction and measures the predicted 1/ε rate:
+
+| ε | measured ratio |
+|---|---|
+| 0.1 | 5.9 |
+| 0.01 | 59.4 |
+| 0.001 | 594 |
+| 0.0001 | 5940 |
+
+The single-primary case reduces to a Metrical Task System on a uniform metric, so the
+Borodin–Linial–Saks deterministic bound and the Karloff–Rabani–Ravid randomized bound
+transfer by citation.
+
+**The main empirical result is negative.** At the most volatile churn setting, with hard
+failures enabled (excess over the offline optimum; 1.00 = optimal):
+
+| policy | what it does | excess ratio |
+|---|---|---|
+| static | never moves | 42.25 |
+| failover | moves only on hard failure | 4.64 |
+| hysteresis (α=2) | full degradation-aware migration | 4.59 |
+| snapshot | re-solves every round | unbounded |
+
+Failover alone closes **91.2%** of the distance to the offline optimum. Adding full
+degradation-aware hysteresis on top closes a further **0.13 percentage points**. Nearly all
+the value of adapting comes from the simplest possible rule, and very little from
+sophisticated degradation tracking — the same shape as §4.11.2, where the cheap policy
+captures almost everything.
+
+Note that `static` is only this bad because it sits on *dead* replicas forever; an earlier
+draft compared against it alone and overstated the case for adaptation. `failover` is the
+honest baseline and is reported as such.
+
+**A certified migration budget (paper Proposition 2).** A hysteresis policy that migrates
+only when accumulated regret exceeds α·M cannot spend more than 1/α of its service cost on
+migration. This is a proof, and it holds at every threshold measured:
+
+| α | excess ratio | budget used | bound (1/α) | migrations |
+|---|---|---|---|---|
+| 0.25 | 2.885 | 0.583 | 4.000 | 286.8 |
+| 0.5 | 1.774 | 0.257 | 2.000 | 82.9 |
+| 1.0 | 1.630 | 0.134 | 1.000 | 44.0 |
+| 2.0 | 1.593 | 0.082 | 0.500 | 27.6 |
+| 4.0 | 1.536 | 0.049 | 0.250 | 16.7 |
+| 8.0 | 1.567 | 0.031 | 0.125 | 11.0 |
+
+The tightest observation is at roughly half the permitted spend. The practical reading: an
+operator can fix a migration budget in advance and the policy will respect it.
+
+Migrations take effect at `t+1`, not within the round that triggers them. This is both the
+physically correct semantics — a primary cannot retroactively have state on the new backup
+— and necessary for the budget proposition: with same-round effect a policy can accumulate
+regret on a host and then dodge paying for it, and the bound fails at α=4.
+
+---
+
+### 4.13 Migration cost of real network-function state (paper §VI-F, Tables XXVI–XXIX)
+
+Every number in §4.12 depends on `M`, the cost of moving a replica in rounds of ordinary
+replication. The model assumed `M = 3`. This section measures it
+(`measure_migration_cost.py`).
+
+**Why it could not be measured before.** DEFT's backup receives state and discards it — the
+persistence code is commented out and `update_state` does nothing but print. There was no
+table, so there was no size. We therefore built one: `flow_state.py` implements a
+connection-tracking / NAT flow table keyed on the 5-tuple, with incremental delta
+replication, TCP state tracking and idle eviction, driven by the flow-arrival workload in
+`workload.py`.
+
+**Workload validation.** Little's law predicts steady-state occupancy as arrival rate ×
+(mean lifetime + idle timeout), independently of the implementation:
+
+| flows/s | measured entries | Little's law | delta/round | delta share |
+|---|---|---|---|---|
+| 500 | 15,656 | 15,075 | 521 | 3.3% |
+| 2,000 | 62,045 | 60,298 | 2,053 | 3.3% |
+| 8,000 | 248,272 | 241,193 | 8,214 | 3.3% |
+
+Agreement within 3.3%. This is a check on the generator, not a second result.
+
+**Wire encoding.** The same table serialized three ways; `xmlrpc` is what DEFT puts on the
+wire.
+
+| encoding | bytes/entry | full table @ 2,000 flows/s | vs packed |
+|---|---|---|---|
+| packed | 44.0 | 2.7 MB | 1.00× |
+| json | 74.8 | 4.7 MB | 1.70× |
+| xmlrpc | 321.8 | 20.0 MB | 7.31× |
+
+A correctness finding, not only a size one: XML-RPC's `<int>` is a **signed 32-bit**
+integer, so an IPv4 address of 128.0.0.0 or above does not fit and raises `OverflowError`.
+Any NAT mapping in the upper half of the address space cannot be sent as an integer at all
+and must go as text. That, plus per-value markup, is where most of the 7.31× comes from.
+
+**M itself**, at 2,000 flows/s:
+
+| encoding | link | full migration | service/round | M (rounds) |
+|---|---|---|---|---|
+| packed | 1 Gb/s | 184.9 ms | 4.71 ms | 39.2 |
+| packed | 25 Gb/s | 163.9 ms | 4.01 ms | 40.9 |
+| json | 10 Gb/s | 342.5 ms | 9.15 ms | 37.4 |
+| xmlrpc | 10 Gb/s | 2143.4 ms | 92.53 ms | 23.2 |
+
+**M barely depends on the encoding or the link**, which looks wrong and is the most useful
+thing here. A costlier encoding inflates the full transfer *and* the per-round delta by the
+same factor, so the ratio is nearly unchanged. `M ≈ 1 / delta-share ≈ 1/3.3% ≈ 30` is a
+property of how fast the traffic churns, not of serialization or NIC speed. M cannot be
+engineered away by choosing a better wire format.
+
+**What this corrected.** At the assumed `M = 3`, migrating away from a degraded backup
+looked cheap and the degradation-aware policy looked worthwhile. At the measured
+`M = 23–41` the round trip — leave, then return when the host recovers — costs `2M`, and
+degradation must last a long time before that pays. We revised the conclusion rather than
+the measurement. The ordering is stable at the top of the measured range; at the bottom
+(`M = 7.7` under an earlier parameterization) static leads at four of six durations, is
+level at one and behind by 0.01 at one, which is stated precisely rather than rounded in
+our favour.
+
+---
+
 ## 5. Threats to validity / limitations
 
 - **RPC-isolation testbed, not the physical Mininet network.** The Mininet path
@@ -649,10 +964,38 @@ DQN 1-3 vs 3.
   backup RPC server under controlled concurrent load, gives a more direct and reproducible
   measurement of the mechanism in question, at the cost of not validating full end-to-end
   network behavior (switching, real link bandwidth, packet loss).
-- **Single physical machine.** All "hosts" are processes on one laptop; OS-level scheduling
-  noise is a real and visible component of the tail latency (see the p99 clusters
-  consistent with TCP retransmission backoff in raw data). Multi-seed aggregation and
-  large sample sizes mitigate this but don't eliminate it.
+- **Single physical machine below 128 hosts; bare metal at 128.** The 9-, 16- and 32-host
+  results are processes on one laptop; OS-level scheduling noise is a real and visible
+  component of the tail latency (see the p99 clusters consistent with TCP retransmission
+  backoff in raw data). Multi-seed aggregation and large sample sizes mitigate this but
+  don't eliminate it. At 128 hosts it fails outright, which is why that table is withdrawn
+  (§4.6). §4.11 removes the limitation at the scale where it binds: 128 backups on ten
+  bare-metal nodes over a 25 GbE LAN, one physical core each with the affinity verified,
+  and degradation imposed by `tc netem` rather than a sleep.
+- **What the bare-metal run revised, and what the smaller scales inherit.** §4.11 changed
+  more than it confirmed. (1) Most of the apparent cost of concentrating backups was DEFT's
+  five-deep accept queue, not load on the backup: holding everything else fixed and raising
+  the backlog took the 1→79 sweep from 7.5× to 35%. (2) With homogeneous hosts, no
+  selection method separates from random. (3) A load-spreading baseline that appeared to
+  avoid degraded hosts was missing them by lexicographic accident (§4.11.4). The claim that
+  survived all three is the load-bearing one: feature-aware selection avoids degraded hosts
+  and ordering-based selection does not. **§4.1, §4.2 and §4.5 have not been re-run on bare
+  metal**, so their absolute magnitudes inherit (1) — they are measured over the shipped
+  backlog, and their concentration penalties should be read as upper bounds.
+- **The degraded arm's mechanism changed with the hardware.** §4.2/§4.5 impose degradation
+  as a 50 ms sleep inside the server. §4.11.3 imposes it with `tc netem` on the server's
+  source port, which delays every packet the server sends; a connection-per-call protocol
+  therefore pays it twice (101 ms measured, not 50). The two arms are not numerically
+  comparable, and the physical one is the more faithful model of a congested link.
+- **`M` was assumed before it was measured.** The online analysis (§4.12) was first run at
+  `M = 3`. The measurement (§4.13) puts it at 23–41, which overturned an earlier conclusion
+  of ours about when migrating away from a degraded backup pays. Any result in §4.12 should
+  be read against the measured range, not the original assumption.
+- **The online model is a model.** §4.12's churn process (two-state Markov chain, Beta
+  severity, truncated-Pareto lifetimes) is parameterised plausibly rather than fitted to
+  operator traces, and the workload in §4.13 likewise. The flow table is validated against
+  Little's law, which checks the generator's internal consistency but not its realism.
+  `workload.replay_trace()` accepts a pcap and would close this; no trace was available.
 - **Synthetic resource values.** Health/capacity/CPU/storage are drawn from configured
   ranges, not measured from real workload telemetry.
 - **RL trained per-topology, and needs scale-dependent hyperparameters.** The PPO policy's
@@ -782,6 +1125,53 @@ python3 throughput_experiment.py \
     --context-seeds 1 2 3 4 5 --trials 3 --duration 3.0 --burst 10 \
     --methods concentrated random round_robin heuristic optimal rl \
     --n-hosts 16 --n-primaries 10 --n-degraded 2 --scale-seed 0 --rl-model rl_model_scaled.zip
+
+# Online selection under churn (§4.12). No RPC, no testbed; ~3.5 minutes.
+python3 competitive_analysis.py
+python3 test_online.py          # proofs + the adversarial construction behind Theorem 1
+
+# Migration cost of real NF state (§4.13). No RPC; builds a flow table and measures it.
+python3 measure_migration_cost.py
+python3 test_flow_state.py      # flow table, delta replication, encodings, Little's law
+
+# Bare-metal 128 hosts (§4.11). The only step that needs hardware: 11 machines with SSH
+# between them. Check nproc first -- --per-node must not exceed physical cores minus the
+# reserve, and on an SMT part only one thread per physical core may be used.
+python3 provision_remote.py \
+    --nodes node1 node2 node3 node4 node5 node6 node7 node8 node9 node10 \
+    --hosts 128 --per-node 13 --reserve-cores 2 \
+    --remote-dir /path/to/code --manifest ../findings/manifest.json --dry-run
+python3 provision_remote.py ... --backlog 512 --manifest ../findings/m512.json
+# DO NOT SKIP: reports the affinity each server actually holds. A warning here means the
+# run would measure CPU scheduling rather than placement -- the §4.6 failure mode.
+python3 provision_remote.py --manifest ../findings/m512.json --verify
+
+# Homogeneous arm (§4.11.2)
+python3 rpc_contention_experiment.py \
+    --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 \
+    --methods concentrated random round_robin heuristic optimal rl \
+    --n-hosts 128 --n-primaries 80 --n-degraded 0 --scale-seed 0 \
+    --rl-model rl_model_scaled128_v3.zip --manifest ../findings/m512.json
+
+# Degraded arm (§4.11.3). Slow 16 hosts by source port, then tell the experiment the
+# slowness is already physical so it does not also ask for a simulated delay.
+python3 apply_degradation.py --manifest ../findings/m512.json \
+    --hosts w1 w2 w27 w34 w41 w49 w56 w63 w70 w78 w85 w92 w106 w113 w120 w128 \
+    --delay-ms 50 --iface <10/25G NIC> --apply
+python3 rpc_contention_experiment.py \
+    --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 \
+    --methods concentrated random round_robin heuristic optimal rl \
+    --n-hosts 128 --n-primaries 80 --n-degraded 16 --scale-seed 0 \
+    --degraded-selection spread --physical-degradation \
+    --rl-model rl_model_scaled128_v3.zip --manifest ../findings/m512.json
+python3 apply_degradation.py --manifest ../findings/m512.json --iface <NIC> --clear
+# --degraded-selection spread is required: with a contiguous block, round_robin can miss
+# the degraded hosts entirely through lexicographic ordering (§4.11.4).
+
+# Regenerate the paper tables from the findings files
+python3 make_testbed_tables.py
+python3 make_online_tables.py
+python3 make_migration_tables.py
 
 # Retrain RL models from scratch
 python3 rl_backup_selector.py --train --timesteps 50000 --model rl_model.zip

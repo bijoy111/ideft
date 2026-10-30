@@ -12,6 +12,14 @@ reinforcement-learning policies (PPO, with DQN as a cross-algorithm check). All 
 measured by driving DEFT's **real, unmodified** two-phase-commit backup implementation
 under controlled concurrent load.
 
+Beyond the one-shot selection question, the package also covers: an **online**
+formulation in which hosts degrade, recover and fail over time and moving a replica costs
+a state transfer, with a competitive-ratio analysis against the exact offline optimum; a
+**measurement of that migration cost** against a real connection-tracking flow table,
+since DEFT's backup discards the state it receives and so could not supply one; and a
+**bare-metal validation** of the largest scale on eleven networked machines, which is
+where the single-machine 128-host latency numbers had to be withdrawn.
+
 ## Layout
 
 | Path | What it is |
@@ -27,7 +35,11 @@ All commands below are run from inside `code/`.
 
 - Linux (tested on Ubuntu under WSL2), Python 3.10
 - ~2 GB disk for the Python environment (PyTorch dominates)
-- No root, no Mininet, no SDN controller — everything runs as ordinary localhost processes
+- No root, no Mininet, no SDN controller — everything below runs as ordinary localhost
+  processes, with one exception
+- **Exception:** the bare-metal 128-host run (§4.11) needs eleven networked machines with
+  SSH between them, and root on those machines for `tc`. Everything else, including the
+  online analysis and the migration-cost measurement, runs on a laptop.
 
 ## Setup
 
@@ -76,7 +88,11 @@ python3 rpc_contention_experiment.py --context-seeds 1 2 3 --trials 2 --calls 15
     --methods concentrated random round_robin heuristic optimal rl \
     --n-hosts 32 --n-primaries 20 --n-degraded 4 --scale-seed 0 --rl-model rl_model_scaled32.zip
 
-# 128 hosts (§4.6)
+# 128 hosts (§4.6). NOTE: the latency table from this command is WITHDRAWN -- one machine
+# cannot host 128 backup servers and the client measuring them, and two identical runs
+# differ several-fold. What stands here is structural (distinct backups used, peak load,
+# degraded-host avoidance), which is computed from the mapping and does not depend on
+# timing. For the latency measurement, see section 6 below.
 rm -f results_rpc/rpc_contention_raw.csv
 python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 \
     --methods concentrated random round_robin heuristic optimal rl \
@@ -126,7 +142,109 @@ python3 throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration
     --n-hosts 16 --n-primaries 10 --n-degraded 2 --scale-seed 0 --rl-model rl_model_scaled.zip
 ```
 
-### 5. Retraining the RL models (optional — pre-trained models are included)
+### 5. Online selection under churn (§4.12)
+
+Every scenario above is one-shot. This asks what *adaptation* is worth when hosts degrade,
+recover and die over time and moving a replica costs a state transfer. No RPC, no testbed,
+about 3.5 minutes:
+
+```bash
+python3 competitive_analysis.py     # writes findings/online_competitive.{txt,json}
+python3 test_online.py              # proofs, plus the construction behind Theorem 1
+```
+
+Two results worth knowing before you run it. Re-solving the one-shot optimum every round —
+which is exactly what the `optimal` method above would do if deployed — has **unbounded**
+competitive ratio; `test_online.py` measures the predicted 1/ε rate up to 5940×. And the
+main empirical finding is **negative**: failover alone (move only when a host dies) closes
+91.2% of the distance to the offline optimum, and full degradation-aware hysteresis on top
+adds a further 0.13 percentage points.
+
+### 6. Migration cost of real NF state (§4.13)
+
+The online analysis depends on `M`, the cost of moving a replica in rounds of ordinary
+replication. The model assumed 3. DEFT's backup discards the state it receives, so there
+was no table to measure — this builds one and measures it. No RPC:
+
+```bash
+python3 measure_migration_cost.py   # writes findings/migration_cost.{txt,json}
+python3 test_flow_state.py          # flow table, deltas, encodings, Little's law
+```
+
+Measured `M = 23–41` rounds. It barely moves with encoding or link speed, because a
+costlier encoding inflates the full transfer and the per-round delta by the same factor:
+`M ≈ 1/delta-share` is a property of traffic churn, not of serialization. Along the way:
+DEFT's XML-RPC encoding is 7.31× the size of a packed one, and XML-RPC's `<int>` is signed
+32-bit, so an IPv4 address of 128.0.0.0 or above **cannot be sent as an integer at all**.
+
+### 7. Bare-metal 128 hosts (§4.11) — the one step that needs hardware
+
+Eleven machines with SSH between them: ten for backups, one for the client. We used
+CloudLab (`c6525-25g`, 16-core EPYC, 25 GbE). Check `nproc` first — `--per-node` must not
+exceed physical cores minus the reserve, and on an SMT processor only one thread per
+physical core may be used (check `/sys/devices/system/cpu/cpu0/topology/thread_siblings_list`).
+
+```bash
+# read the plan before launching anything
+python3 provision_remote.py \
+    --nodes node1 node2 node3 node4 node5 node6 node7 node8 node9 node10 \
+    --hosts 128 --per-node 13 --reserve-cores 2 \
+    --remote-dir /path/to/code --manifest ../findings/m512.json \
+    --backlog 512 --dry-run
+
+# same without --dry-run, then prove each server owns a core
+python3 provision_remote.py --manifest ../findings/m512.json --verify
+```
+
+**Do not skip `--verify`.** It reports the CPU affinity each backup *actually* holds. A
+warning there means the run would measure CPU scheduling rather than backup placement —
+the exact failure that forced the §4.6 withdrawal.
+
+```bash
+# homogeneous arm
+python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 \
+    --methods concentrated random round_robin heuristic optimal rl \
+    --n-hosts 128 --n-primaries 80 --n-degraded 0 --scale-seed 0 \
+    --rl-model rl_model_scaled128_v3.zip --manifest ../findings/m512.json
+
+# degraded arm: slow 16 hosts with tc netem on the server's source port, so healthy
+# backups on the same NIC are untouched, then tell the experiment it is already physical
+python3 apply_degradation.py --manifest ../findings/m512.json \
+    --hosts w1 w2 w27 w34 w41 w49 w56 w63 w70 w78 w85 w92 w106 w113 w120 w128 \
+    --delay-ms 50 --iface <your 10/25G NIC> --apply
+
+python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --calls 200 --burst 10 \
+    --methods concentrated random round_robin heuristic optimal rl \
+    --n-hosts 128 --n-primaries 80 --n-degraded 16 --scale-seed 0 \
+    --degraded-selection spread --physical-degradation \
+    --rl-model rl_model_scaled128_v3.zip --manifest ../findings/m512.json
+
+python3 apply_degradation.py --manifest ../findings/m512.json --iface <NIC> --clear
+python3 provision_remote.py --manifest ../findings/m512.json --teardown
+```
+
+`--degraded-selection spread` is **not optional**. With a contiguous block of degraded
+hosts, `round_robin` cycles a lexicographically sorted list and can miss them entirely,
+scoring 0% degraded by never arriving rather than by avoiding — and so tying with
+`optimal` for the wrong reason (EXPERIMENTS.md §4.11.4).
+
+`--backlog 512` is likewise deliberate. DEFT builds `SimpleXMLRPCServer` with no arguments,
+so its accept queue holds five connections; leaving the flag off reproduces that exactly.
+Both configurations are worth running — the difference between them is a result, not a
+nuisance (EXPERIMENTS.md §4.11.1).
+
+### 8. Regenerating the paper's tables
+
+Every table in the paper is generated from the `findings/*.txt` files, which carry in their
+header the exact command that produced them. Nothing is transcribed by hand:
+
+```bash
+python3 make_testbed_tables.py      # ../paper/tables_testbed.tex
+python3 make_online_tables.py       # ../paper/tables_online.tex
+python3 make_migration_tables.py    # ../paper/tables_migration.tex
+```
+
+### 9. Retraining the RL models (optional — pre-trained models are included)
 
 ```bash
 python3 rl_backup_selector.py --train --timesteps 50000  --model rl_model.zip
@@ -190,6 +308,17 @@ straight away instead of part-way through an experiment run.
 | `selection_overhead.py` | Per-mapping compute-time benchmark across all four scales |
 | `rl_model*.zip` | Pre-trained PPO models (9 / 16 / 32 / 128-host scenarios; the 128-host one is the fixed "v3") |
 | `rl_model_dqn*.zip` | Pre-trained DQN models used for the §4.10 cross-algorithm check (the 32-host `_mitigated` one is the post-fix checkpoint; the 128-host one still collapses, by design) |
+| `deployment.py` | `Endpoint` plus local and manifest-driven remote backends. The remote one **refuses** a simulated per-call delay rather than silently ignoring it |
+| `backup_server.py` | One backup as a standalone process on a routable address; `--backlog` makes DEFT's five-deep accept queue a controlled variable |
+| `provision_remote.py` | Places servers on nodes, pins each to a core with `taskset`, writes the manifest; `--verify` reports the affinity actually held |
+| `apply_degradation.py` | `tc netem` on the server's source port, so a degraded backup is slowed by the kernel and its healthy co-tenants are not |
+| `online_model.py`, `online_selector.py` | The churn process and cost model; the policies plus the exact offline optimum by dynamic programming |
+| `competitive_analysis.py` | The online sweeps (churn, persistence, migration cost, pool size, hysteresis threshold) |
+| `flow_state.py`, `workload.py` | A connection-tracking flow table with delta replication, and the flow-arrival workload validated against Little's law |
+| `measure_migration_cost.py` | Table occupancy, serialized size per encoding, `M` in rounds, and the migration crossover |
+| `make_*_tables.py` | Generate the paper's `.tex` tables from the findings files, so no number is transcribed by hand |
+| `test_deployment.py`, `test_online.py`, `test_flow_state.py` | Tests for the three new subsystems, including a real trial through the remote path and Theorem 1's adversarial construction |
+| `../findings/` | Saved output of every run, each file carrying in its header the command that produced it |
 | `EXPERIMENTS.md` | Full methodology and results reference |
 
 ## Notes on expected variance
@@ -197,7 +326,21 @@ straight away instead of part-way through an experiment run.
 Latency numbers are timing measurements on shared hardware: expect run-to-run variation,
 especially in tail percentiles (p99) and in `concentrated`'s extreme-contention numbers
 (EXPERIMENTS.md §4.6 documents a case where the failure rate swung between ~1% and zero
-across identical runs — that instability is itself one of the findings). The *qualitative*
+across identical runs — that instability is itself one of the findings).
+
+**The single-machine 128-host latency table is withdrawn** (§4.6). Two identical runs
+differ several-fold there, because 128 backup servers and the client contend for one
+machine's cores. Section 7 above reproduces that scale on eleven machines; the numbers
+differ substantially, and in particular most of the apparent cost of concentrating backups
+turns out to be DEFT's five-deep accept queue rather than load on the backup. The 9-, 16-
+and 32-host results have **not** been re-run on bare metal, so their concentration
+penalties should be read as upper bounds.
+
+The online (§4.12) and migration-cost (§4.13) results are deterministic given a seed and
+reproduce exactly; they involve no RPC and no timing of shared hardware. The migration
+cost does depend on the machine's serialization throughput, so `M` may shift by a few
+rounds — but the finding that `M` is 23–41 rather than 3, and that it is roughly
+independent of encoding and link speed, is robust. The *qualitative*
 results — degraded-host avoidance counts, method rankings by effect size, the monotonic
 latency-vs-backup_load relationship — are what reproduce reliably; exact milliseconds
 are not expected to match to the decimal.

@@ -59,43 +59,6 @@ $M$ & \textsc{failover} & \textsc{snapshot} & \textsc{periodic} & \textsc{hyst}(
 
 \begin{table}[t]
 \centering
-\caption{Share of each policy's total cost spent on migration, against $M$. This is the quantity Proposition~\ref{prop:budget} bounds for hysteresis and Theorem~\ref{thm:snapshot} shows is unbounded for \textsc{snapshot}.}
-\label{tab:online-migshare}
-\small
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{rrrrrr}
-\toprule
-$M$ & \textsc{failover} & \textsc{snapshot} & \textsc{periodic} & \textsc{hyst}($1$) & \textsc{hyst}($2$) \\
-\midrule
-0.5 & 0\% & 46\% & 2\% & 17\% & 5\% \\
-1.0 & 1\% & 63\% & 4\% & 10\% & 6\% \\
-3.0 & 2\% & 84\% & 10\% & 12\% & 8\% \\
-6.0 & 3\% & 91\% & 19\% & 14\% & 9\% \\
-12.0 & 6\% & 95\% & 31\% & 16\% & 11\% \\
-\bottomrule
-\end{tabular}}
-\end{table}
-
-\begin{table}[t]
-\centering
-\caption{Competitive ratio against topology size. The thrashing of \textsc{hyst}($0.5$) at 64 hosts, omitted here and reported in the text, is what a weak migration budget looks like in practice. 16 hosts, 10 primaries, horizon 300, 10 seeds. Entries are the excess-over-floor ratio: cost above the unavoidable floor divided by the offline optimum's, so $1.00$ means the policy decided as well as an algorithm that knew the entire trace in advance. Best in each row is bold.}
-\label{tab:online-hosts}
-\small
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{rrrrrr}
-\toprule
-hosts & \textsc{failover} & \textsc{snapshot} & \textsc{periodic} & \textsc{hyst}($1$) & \textsc{hyst}($2$) \\
-\midrule
-8 & 2.26 & 7.86 & 6.16 & 2.21 & \textbf{2.05} \\
-16 & \textbf{2.03} & 8.79 & 8.32 & 2.22 & 2.15 \\
-32 & \textbf{1.96} & 11.01 & 6.58 & 2.35 & 2.03 \\
-64 & \textbf{1.77} & 12.81 & 6.26 & 14.90 & 2.30 \\
-\bottomrule
-\end{tabular}}
-\end{table}
-
-\begin{table}[t]
-\centering
 \caption{Hysteresis threshold $\alpha$: competitive ratio, and the fraction of the Proposition~\ref{prop:budget} migration budget that is actually used. The bound $1/\alpha$ holds at every $\alpha$, with substantial slack, so the guarantee is not what limits the policy.}
 \label{tab:online-alpha}
 \small

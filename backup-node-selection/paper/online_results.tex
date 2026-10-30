@@ -23,7 +23,7 @@ strawman.
 \paragraph{Snapshot-chasing fails exactly as predicted.}
 Table~\ref{tab:online-migration} sweeps the migration cost $M$ over a $24\times$
 range. \textsc{snapshot}'s excess ratio rises from $2.44$ to $28.46$, an $11.7\times$
-degradation, and Table~\ref{tab:online-migshare} shows why: its migration spend
+degradation, and the reason is its migration spend:
 climbs from $46\%$ to $95\%$ of its total cost. At the largest $M$ it is paying
 nineteen-twentieths of its bill for the privilege of never being more than one
 round out of date. This is Theorem~\ref{thm:snapshot} in the feature-based model
@@ -76,7 +76,7 @@ to beat a simple deterministic rule, and this time there is a closed-form condit
 saying when it could.
 
 \paragraph{A weak migration budget is a real failure mode.}
-Table~\ref{tab:online-hosts} scales the topology from 8 to 64 hosts. The
+Scaling the topology from 8 to 64 hosts leaves the ordering unchanged. The
 well-provisioned policies are stable---\textsc{failover} improves from $2.26$ to
 $1.77$ and \textsc{hyst}($2$) stays between $2.03$ and $2.30$---but
 \textsc{hyst}($0.5$), whose Proposition~\ref{prop:budget} guarantee permits

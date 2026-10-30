@@ -61,19 +61,3 @@ flows/s & encoding & migration & service/round & $M$ (rounds) \\
 \end{tabular}}
 \end{table}
 
-\begin{table}[t]
-\centering
-\caption{How long degradation must persist before migrating away from it is worth the round trip, at 10\,Gb/s and 2000 flows/s. Columns are the extra per-round cost the degraded backup imposes, spanning the delay range of the failure kinds in \S\ref{sec:weights}. Under DEFT's own encoding even a severe degradation must outlast a minute before reacting to it pays.}
-\label{tab:crossover}
-\small
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrr}
-\toprule
-encoding & 5\,ms & 20\,ms & 60\,ms \\
-\midrule
-\texttt{packed} & 66\,s & 17\,s & 6\,s \\
-\texttt{json} & 137\,s & 34\,s & 11\,s \\
-\texttt{xmlrpc} (DEFT) & 857\,s & 214\,s & 71\,s \\
-\bottomrule
-\end{tabular}}
-\end{table}

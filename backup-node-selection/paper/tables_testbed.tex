@@ -44,27 +44,6 @@ Method & Mean & Degr.\% & Mean & Degr.\% & Mean & Degr.\% \\
 
 \begin{table}[t]
 \centering
-\caption{The effect of DEFT's listen backlog, all hosts homogeneous and every other variable held fixed. DEFT constructs \texttt{SimpleXMLRPCServer} unmodified, so its accept queue holds five connections. p99 in milliseconds.}
-\label{tab:backlog}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrr}
-\toprule
-& \multicolumn{2}{c}{Backlog 5 (as shipped)} & \multicolumn{2}{c}{Backlog 512} \\
-\cmidrule(lr){2-3}\cmidrule(lr){4-5}
-Method & p95 & p99 & p95 & p99 \\
-\midrule
-\texttt{optimal} & 64.94 & 1040.06 & 65.71 & 78.81 \\
-\texttt{heuristic} & 66.79 & 1042.47 & 65.54 & 80.57 \\
-\texttt{round\_robin} & 66.67 & 1039.96 & 66.05 & 80.09 \\
-\texttt{random} & 65.49 & 1051.67 & 65.47 & 79.24 \\
-\texttt{PPO} & 842.60 & 5293.69 & 71.40 & 89.26 \\
-\texttt{concentrated} & 1822.87 & 11039.43 & 83.43 & 114.69 \\
-\bottomrule
-\end{tabular}}
-\end{table}
-
-\begin{table}[t]
-\centering
 \caption{DEFT's accept backlog as the only variable, 16 hosts on bare metal with identical \texttt{tc netem} degradation. The five-deep queue sheds load rather than queueing it, which lowers the median and produces the one-second tail. Milliseconds.}
 \label{tab:backlog16}
 \resizebox{\columnwidth}{!}{%

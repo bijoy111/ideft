@@ -1,0 +1,123 @@
+\subsection{Bare-Metal Validation at 128 Hosts}
+\label{sec:testbed}
+
+\S\ref{sec:rl128} withheld every latency claim at 128 hosts because a single
+machine cannot produce one: 80 primaries at burst 10 contend with the backups
+they are measuring. This section supplies the measurement on hardware where
+that contention does not exist, and in doing so finds two further reasons the
+single-machine numbers could not have been trusted.
+
+\textbf{Testbed.} Eleven bare-metal CloudLab nodes at the Utah cluster
+(\texttt{c6525-25g}: one 16-core AMD EPYC 7302P, 128\,GB, 25\,GbE, Ubuntu
+22.04). Ten carry the 128 backup servers, thirteen per node except the last;
+the eleventh runs the client alone. Each server is launched under
+\texttt{taskset} on a core of its own. Hyperthread siblings on this part pair
+as $(0,16), (1,17), \dots$, so logical CPUs $2$--$14$ are fourteen distinct
+physical cores and no two servers share one core's two threads. The claim that
+each backup owned a core is checked rather than asserted: the provisioning tool
+records the intended core in a manifest and a verification pass reports the
+affinity each server actually holds, together with the ports it answers on. All
+replication traffic crosses the 25\,GbE experiment LAN; the control network is
+not used for measurement.
+
+\textbf{The accept-backlog pathology, tested directly.} \S\ref{sec:p99}
+identifies DEFT's five-deep accept backlog as the cause of the latency tail and
+infers the mechanism from the shape of the distribution and from the contrast
+with gRPC. The testbed permits the direct test that a single machine did not:
+hold every other variable fixed, change only that integer, and read the kernel's
+own counters.
+
+Reproducing DEFT as shipped gives a result that cannot be about placement. Four
+methods whose p95 differs by less than 2\,ms have p99 values within 12\,ms of
+$1040$\,ms (Table~\ref{tab:backlog}); a constant surviving every change of
+method is an artifact, and one second is the Linux initial retransmission
+timeout. The counters confirm the inferred mechanism rather than merely being
+consistent with it: $103{,}209$ \texttt{ListenOverflows} on the most heavily
+selected node against $116$ retransmitted segments, with \texttt{ListenDrops}
+equal to \texttt{ListenOverflows} exactly. The connections were refused at the
+server, not lost in the network.
+
+Raising the backlog to $512$ drove the overflow count to zero and p99 from
+$1040$\,ms to $79$\,ms. The consequence for the placement result is larger than
+the tail alone suggests (Table~\ref{tab:loadcurve}): under the shipped backlog,
+mean latency rises $7.5\times$ from one primary per backup to seventy-nine,
+which invites the reading that concentration is catastrophic; with a backlog of
+512 the same sweep costs $35\%$. Most of the apparent penalty for sharing a
+backup was connection setup being refused rather than queueing at the backup.
+This sharpens \S\ref{sec:p99}'s estimate that the shipped transport inflates the
+measured placement effect by about $4.3\times$: the inflation is attributable to
+one configurable integer, and removing it leaves an effect that is real but
+considerably smaller.
+
+\textbf{With homogeneous hosts, selection does not matter.}
+On identical hardware with no degraded hosts, \texttt{optimal},
+\texttt{heuristic}, \texttt{round\_robin} and \texttt{random} are statistically
+indistinguishable from one another at $41.5$--$42.0$\,ms mean
+(Table~\ref{tab:cloudlab}, left). The paired comparison between
+\texttt{optimal} and \texttt{random} gives a median difference of $0.002$\,ms
+($p_{\text{Holm}}=1.000$). Only \texttt{concentrated} ($56.27$\,ms) and
+\texttt{PPO} ($46.53$\,ms) separate from the group. This is the expected result
+and worth stating plainly: where every candidate is equivalent, a selector that
+reads node features has nothing to read, and the Hungarian assignment buys
+nothing over choosing uniformly at random.
+
+\textbf{Degradation is imposed by the kernel, not by the server.}
+The deployment refuses to simulate a degraded backup by sleeping inside a
+server it did not start, so the heterogeneous arm slows hosts physically.
+\texttt{tc netem} attaches to an interface, but a node here carries thirteen
+backups and shaping the interface would degrade their healthy co-tenants, which
+the comparison depends on as controls. Each backup owns a distinct TCP port, so
+a \texttt{prio} qdisc with a \texttt{u32} filter on source port delays exactly
+the degraded servers. The fourth band of a four-band \texttt{prio} is
+unreachable through the default priomap, so healthy flows never enter the netem
+queue at all rather than being delayed by zero. Measured on adjacent ports of
+one interface, a degraded backup costs $101.4$\,ms per call and its healthy
+neighbour $1.0$\,ms. The $101.4$ is itself informative: \texttt{netem} delays
+every packet the server sends, so a per-connection protocol pays the added
+latency twice, once on the SYN-ACK and once on the response.
+
+\textbf{With degraded hosts, feature-aware selection earns its place.}
+Sixteen of the 128 hosts degraded, \texttt{heuristic} and \texttt{optimal}
+route a primary to a degraded backup in $0.00\%$ of calls, while
+\texttt{round\_robin} reaches them at the base rate of $12.50\%$ and
+\texttt{random} at $11.25\%$ (Table~\ref{tab:cloudlab}, right). The latency
+follows the selection: $42.0$ and $41.8$\,ms against $51.9$ and $51.3$, and at
+p99 $81$ and $80$\,ms against $157$ and $155$. Every one of these comparisons
+has $r=-1.000$ over 15 paired runs, meaning no run dissents. The gap between
+\texttt{heuristic} and \texttt{optimal} is not significant on either mean
+($p_{\text{Holm}}=0.909$) or p99 ($p_{\text{Holm}}=1.000$), so the
+multi-criteria heuristic attains the quality of the capacity-constrained
+Hungarian assignment without solving one.
+
+\textbf{A contiguous degraded block makes the baselines look better than they
+are.} An earlier execution of this arm degraded the first sixteen
+backup-eligible hosts, \texttt{w81}--\texttt{w96}, and reported
+\texttt{round\_robin} tied with \texttt{optimal} at $41.3$\,ms having selected a
+degraded host $0\%$ of the time. That tie was an artifact of naming.
+\texttt{round\_robin} cycles a lexicographically sorted host list, in which
+every name beginning \texttt{w1}--\texttt{w7} precedes \texttt{w8}; with 80
+primaries the cursor advances 80 positions and never reaches the block. The
+method scored zero by never arriving, not by avoiding. Spreading the same
+sixteen degraded hosts evenly along that ordering puts them inside every
+method's reach, after which \texttt{round\_robin} meets them at the base rate
+and its mean rises from $41.28$ to $51.87$\,ms. We report the spread
+configuration and note the contiguous one only as a caution: a load-spreading
+baseline evaluated against a contiguous impairment can appear to avoid it.
+
+\textbf{PPO avoids degraded hosts but does not spread load.} The learned policy
+selects a degraded backup $0.00\%$ of the time, matching the deterministic
+methods, and is nonetheless significantly slower than both
+($p_{\text{Holm}}=0.0009$ against \texttt{heuristic}, $r=1.000$). The structural
+measurement explains it: across this run PPO used 44 distinct backups where
+\texttt{heuristic} used 112 and \texttt{random} 119. Host-quality
+discrimination and load balancing are separable, and PPO acquired the first
+without the second, which is the same split \S\ref{sec:rl128} reports
+structurally and Table~\ref{tab:rlablation} traces to the anti-concentration
+term.
+
+\textbf{What the concentrated arm now measures.} Under the spread
+configuration the host \texttt{concentrated} piles onto is itself degraded, so
+its $260$\,ms conflates concentration with degradation and is not a clean
+measure of either. The clean figure for concentration alone is the homogeneous
+column: $56.27$\,ms against $41.73$, a penalty of $35\%$ rather than the
+$7.4\times$ the as-shipped run reported.

@@ -78,9 +78,14 @@ the tail is ordinary queueing, carrying $240\times$ less mass beyond one second.
 placement effect by a consistent factor of about $4.3\times$, because it converts a
 degraded host's modest per-call service penalty into accept-queue overflow. Studies
 evaluating placement over connection-per-call RPC are subject to the same inflation
-(\S\ref{sec:p99}). We further report that a single machine cannot support a
-trustworthy latency measurement at 128 hosts on either transport, and confine that
-scale to structural results. The code,
+(\S\ref{sec:p99}). A single machine cannot support a trustworthy latency
+measurement at 128 hosts on either transport, so we repeat that scale on ten
+bare-metal nodes with every backup pinned to its own physical core and degraded
+hosts slowed by \texttt{tc netem} rather than by a sleep. There, feature-aware
+selection reaches a degraded backup in $0\%$ of calls against a base rate of
+$12.5\%$ for ordering-based selection, halving p99; the greedy heuristic matches
+the Hungarian assignment; and with homogeneous hosts no method separates from
+random. The code,
 trained models, raw per-call records, and the saved output of every experiment are
 available for reproduction at \url{https://bijoy111.github.io/ideft/}.
 \end{abstract}
@@ -156,6 +161,15 @@ shipped transport inflates it. We additionally characterize two limits of the
 harness: absolute latencies drift between identical executions as ephemeral-port
 TIME\_WAIT pressure accumulates, and a single machine cannot resolve latency at 128
 hosts on either transport.
+\item Validate the 128-host scale on bare-metal hardware (\S\ref{sec:testbed}): ten
+nodes on a 25\,GbE LAN, one physical core per backup with the affinity verified
+rather than assumed, and degraded hosts slowed by \texttt{tc netem} on the
+server's source port so that the impairment is produced by the kernel and leaves
+healthy co-tenants on the same interface untouched. This both confirms the
+central finding under real hardware and revises two magnitudes: holding
+everything else fixed and changing only DEFT's five-deep accept backlog accounts
+for most of the apparent cost of concentrating backups, and with homogeneous
+hosts no selection method separates from random.
 \item Report the measured behavior of RL on this problem: PPO matches the feature-aware
 methods up to 32 hosts and, at 128 hosts, avoids degraded hosts completely while
 load-balancing less tightly than the heuristic. A cross-algorithm check with DQN
@@ -865,7 +879,9 @@ Scenario & Load & $n$ units & Mean (ms) & 95\% CI \\
 \label{sec:rl128}
 
 At 128 hosts (80 primaries) a single machine can no longer produce a trustworthy
-latency measurement, and we report no latency claims at this scale. The arithmetic
+latency measurement, and we report no latency claims from it; \S\ref{sec:testbed}
+supplies the measurement on bare-metal hardware, where it is both possible and,
+as that section shows, different. The arithmetic
 is unforgiving: 80 primaries at burst 10 is 800 client threads, and on the gRPC arm
 roughly 75 backup processes with eight workers each add some 600 server threads, on
 eight cores. The symptom is that two independent executions of the identical gRPC
@@ -884,8 +900,10 @@ which is computed from the assignment and does not depend on timing at all
 and is the one this scenario was built to test: the deterministic heuristic spreads
 80 primaries across nearly as many distinct backups, while the learned policies do
 not. Validating the latency consequence of that structure at this scale requires
-genuinely distributed hardware, which we identify as the most important remaining
-work (\S\ref{sec:threats}).
+genuinely distributed hardware. \S\ref{sec:testbed} reports that validation on
+128 backups spread over ten bare-metal nodes, one physical core each, and it
+both confirms the structural reading and revises the magnitude of the effect
+substantially downward.
 
 \begin{table}[t]
 \centering
@@ -997,6 +1015,10 @@ $10$ & 16.8 & 2.1 & 5.9 & 62.6 \\
 \bottomrule
 \end{tabular}}
 \end{table}
+
+\input{tables_testbed}
+
+\input{testbed_results}
 
 \subsection{Cross-Algorithm Check: DQN}
 \label{sec:dqn}
@@ -1442,13 +1464,28 @@ again. The relative ordering of selection methods is driven by how many primarie
 share a backup, which we expect to be robust, but absolute magnitudes are specific to
 the transport measured.
 
-\textbf{Single physical machine, and its hard limit at 128 hosts.} All ``hosts'' are
-OS processes on one machine. Below 32 hosts this is a controlled way to isolate
-server-side contention, and the two transports agree. At 128 hosts it fails outright:
-independent executions of the identical configuration differ several-fold, so we
-report only structural results there (\S\ref{sec:rl128}). Validating the latency
-consequences of placement at that scale needs genuinely distributed hardware with real
-NICs and switches, and is the most important remaining work.
+\textbf{One machine below 128 hosts, bare metal at 128.} The 9-, 16- and
+32-host results are OS processes on one machine, which is a controlled way to
+isolate server-side contention and over which the two transports agree. At 128
+hosts that arrangement fails outright, with independent executions of the
+identical configuration differing several-fold, so the single-machine run
+reports structural results only (\S\ref{sec:rl128}). \S\ref{sec:testbed}
+removes this limitation at the scale where it binds: 128 backups on ten
+bare-metal nodes over a 25\,GbE LAN, each pinned to its own physical core with
+the affinity verified rather than assumed, and degradation imposed by
+\texttt{tc netem} rather than by a sleep inside the server.
+
+That exercise revised the single-machine findings more than it confirmed them.
+The steep cost of concentrating backups was substantially an accept queue of
+five connections rather than queueing at the backup (\S\ref{sec:testbed}); with
+homogeneous hosts no selection method separates from random; and a
+load-spreading baseline that appeared to avoid degraded hosts was found to be
+missing them by lexicographic accident. The claim that survived all three is the
+load-bearing one, that feature-aware selection avoids degraded hosts and
+ordering-based selection does not. The smaller scales have not been re-run on
+bare metal, so their absolute magnitudes inherit the first of these concerns:
+they are measured over the shipped backlog, and the concentration penalties
+reported there should be read as upper bounds.
 
 \textbf{Absolute latencies are not reproducible across executions.} Ephemeral-port
 TIME\_WAIT pressure shifts the mean of every method by of order 17\,ms between otherwise

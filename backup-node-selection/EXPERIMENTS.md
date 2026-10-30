@@ -881,7 +881,7 @@ our measurement.
 
 ---
 
-### 4.12 Online selection under churn (paper §VI, Tables XX–XXIII)
+### 4.12 Online selection under churn (paper §VI, Tables XIX–XXII)
 
 Every scenario above is one-shot: given the cluster as it is, choose a backup. This section
 asks what *adaptation* is worth when hosts degrade, recover and fail over time and moving a
@@ -956,7 +956,7 @@ regret on a host and then dodge paying for it, and the bound fails at α=4.
 
 ---
 
-### 4.13 Migration cost of real network-function state (paper §VI-F, Tables XXIV–XXVI)
+### 4.13 Migration cost of real network-function state (paper §VI-F, Table XXIII)
 
 Every number in §4.12 depends on `M`, the cost of moving a replica in rounds of ordinary
 replication. The model assumed `M = 3`. This section measures it

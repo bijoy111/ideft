@@ -107,7 +107,7 @@ python3 rpc_contention_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --call
   <h2><span class="step-num">4</span>Selection-time overhead → <a href="overhead.html">results</a>, EXPERIMENTS.md §4.4, paper Table XVII</h2>
   <pre><code>python3 selection_overhead.py</code></pre>
 
-  <h2><span class="step-num">5</span>Throughput and failure rate → <a href="throughput.html">results</a>, EXPERIMENTS.md §4.7, paper Tables XVIII–XIX</h2>
+  <h2><span class="step-num">5</span>Throughput and failure rate → <a href="throughput.html">results</a>, EXPERIMENTS.md §4.7, paper Table XVIII</h2>
   <pre><code>rm -f results_rpc/throughput_raw.csv
 python3 throughput_experiment.py --context-seeds 1 2 3 4 5 --trials 3 --duration 3.0 --burst 10 \
     --methods baseline concentrated random round_robin heuristic optimal rl

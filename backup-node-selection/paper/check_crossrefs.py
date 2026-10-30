@@ -29,7 +29,7 @@ DOCS = [
 # than assumed correct.
 EXPECTED = {
     "Selection-time overhead": ("tab:overhead", None),
-    "Throughput and failure rate": ("tab:throughput9", "tab:throughput16"),
+    "Throughput and failure rate": ("tab:throughput16", None),
     "Heuristic weight sensitivity": ("tab:terms", None),
     "Hash baselines": ("tab:hrw", None),
     "Cross-algorithm check": ("tab:ppodqn", None),

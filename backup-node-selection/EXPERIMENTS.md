@@ -488,7 +488,7 @@ primary metric and treat this throughput/failure-rate result as a corroborating,
 replacing, measurement. **Reproducers: expect the `concentrated` comparisons to hold every
 time and the finer degraded-host ones to be only partially resolved.**
 
-### 4.8 Heuristic weight sensitivity and decay calibration (paper §V-H, Table XII)
+### 4.8 Heuristic weight sensitivity and decay calibration (paper §V-H, Table VIII)
 
 The heuristic's scoring weights `(w_h, w_k, w_l, w_d) = (0.35, 0.35, 0.20, 0.10)` and its
 load-decay mechanics (`cap -= 20`; `health *= 0.95`) are otherwise chosen by intuition. To
@@ -553,7 +553,7 @@ variation, could trade host quality for balance). So `(20, 0.95)` is a principle
 monotone response surface, not an arbitrary constant. Full run saved in
 `findings/decay_sensitivity.txt`.
 
-### 4.9 Hash baselines, a fairer round-robin, and topology diversity (paper §V-I, Table XIII)
+### 4.9 Hash baselines, a fairer round-robin, and topology diversity (paper §V-I, Table IX)
 
 `baseline_comparison.py` broadens the baseline set — the NFV analogs of decentralized,
 load-aware replica placement (CRUSH, Dynamo, consistent-hashing variants) plus a fairer
@@ -645,7 +645,7 @@ cross-algorithm claim rests on the structural table above instead. The structura
 matches across both machines: PPO 24-30 distinct backups at 128 hosts here vs 24-29 there,
 DQN 1-3 vs 3.
 
-### 4.11 Bare-metal validation at 128 hosts (paper §V-F, Tables VIII–X)
+### 4.11 Bare-metal validation at 128 hosts (paper §V-F, Tables V–VII)
 
 §4.6's latency table was produced on one machine and is withdrawn (see the notice there).
 This section is that scenario repeated on real hardware.
@@ -881,7 +881,7 @@ our measurement.
 
 ---
 
-### 4.12 Online selection under churn (paper §VI, Tables XVI–XIX)
+### 4.12 Online selection under churn (paper §VI, Table XI)
 
 Every scenario above is one-shot: given the cluster as it is, choose a backup. This section
 asks what *adaptation* is worth when hosts degrade, recover and fail over time and moving a

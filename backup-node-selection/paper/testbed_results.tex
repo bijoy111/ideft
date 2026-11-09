@@ -1,7 +1,7 @@
 \subsection{Bare-Metal Validation at 128 Hosts}
 \label{sec:testbed}
 
-\S\ref{sec:rl128} withheld every latency claim at 128 hosts because a single
+\S\ref{sec:single128} withheld every latency claim at 128 hosts because a single
 machine cannot produce one: 80 primaries at burst 10 contend with the backups
 they are measuring. This section supplies the measurement on hardware where
 that contention does not exist, and in doing so finds two further reasons the
@@ -157,8 +157,8 @@ measurement explains it: across this run PPO used 44 distinct backups where
 \texttt{heuristic} used 112 and \texttt{random} 119. Host-quality
 discrimination and load balancing are separable, and PPO acquired the first
 without the second, which is the same split \S\ref{sec:rl128} reports
-structurally and Table~\ref{tab:rlablation} traces to the anti-concentration
-term.
+structurally and \S\ref{sec:rl128} traces to the reward's per-step credit
+assignment.
 
 \textbf{What the concentrated arm now measures.} Under the spread
 configuration the host \texttt{concentrated} piles onto is itself degraded, so

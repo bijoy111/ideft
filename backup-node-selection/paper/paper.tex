@@ -138,83 +138,52 @@ system, and we report them as such.
 
 \subsection{Contributions}
 
-We address backup-node selection directly, using DEFT as the concrete system
-under study, though the problem and the methods generalize to any primary/backup
-replication scheme. Our contributions are of two kinds: a solution to the
-selection problem, and a set of measurement results about how such solutions must
-be evaluated.
-
-\textbf{Measurement methodology.} Evaluating a placement policy means attributing
-a latency difference to the choice of host. We show three ways that attribution
-fails, each of which applies beyond this system:
+\S\ref{sec:intro} above names three ways the attribution breaks. Establishing
+each as a result, rather than as a caveat, is the first half of this paper:
 
 \begin{enumerate}
-\item \textbf{The RPC stack biases the measured effect, and not in a fixed
-direction} (\S\ref{sec:p99}, \S\ref{sec:testbed}). A connection-per-call
-transport whose server holds a short accept queue converts a degraded host's
-modest per-call penalty into accept-queue overflow and a one-second
-retransmission wait. Holding every other variable fixed and changing only that
-queue length, the measured concentration penalty falls from $7.5\times$ to
-$35\%$ at 128 hosts, while at 16 hosts the same change \emph{widens} the gap
-between placement methods. The bias tracks how concentrated the workload is, so
-it cannot be corrected by a constant factor. Any placement study conducted over
-connection-per-call RPC is subject to it.
+\item We make the RPC stack a controlled variable and show its bias is not a
+constant. Changing only the server's accept-queue length, the measured
+concentration penalty falls from $7.5\times$ to $35\%$ at 128 hosts while the
+gap between placement methods \emph{widens} at 16 (\S\ref{sec:p99},
+\S\ref{sec:testbed}). Any placement study over connection-per-call RPC inherits
+this.
 
-\item \textbf{A contiguous impairment lets an ordering-based baseline appear to
-avoid it} (\S\ref{sec:testbed}). Degrading a contiguous block of hosts and
-reporting only latency, we measured a round-robin policy matching an exact
-assignment while selecting a degraded host in $0\%$ of calls --- not by avoiding
-them, but because its traversal order never reached them. Reporting what share of
-each method's calls actually met the impairment is necessary for the comparison
-to mean anything.
+\item We show that a contiguous impairment lets an ordering-based baseline
+report avoidance it did not earn, and that reporting the share of each method's
+calls which met the impairment is what makes the comparison interpretable
+(\S\ref{sec:testbed}).
 
-\item \textbf{Re-solving the instantaneous optimum every round is not
-competitive for any ratio} (\S\ref{sec:online}). The natural way to deploy an
-exact one-shot method is to re-run it as conditions change. We prove this has
-unbounded competitive ratio against the offline optimum once migration costs
-anything, and confirm the construction empirically. An exact method evaluated
-one-shot therefore says little about its behaviour in operation.
+\item We prove that re-solving the instantaneous optimum every round --- the
+natural deployment of an exact one-shot method --- has unbounded competitive
+ratio once migration costs anything, and measure that cost against real network
+function state at $23$--$41$ rounds rather than the $3$ commonly assumed
+(\S\ref{sec:online}).
 \end{enumerate}
 
-\textbf{Backup selection.} Against that measurement background, we:
+\noindent
+The second half answers the original question under those conditions:
 
 \begin{enumerate}
 \setcounter{enumi}{3}
-\item Formulate backup selection as a feasibility- and load-aware assignment
-problem and design three methods: an exact capacity-constrained assignment via
-the Hungarian algorithm, used as an attainable bound rather than a deployment
-candidate; a deterministic multi-criteria greedy heuristic; and a PPO policy with
-invalid-action masking.
+\item We formulate backup selection as a feasibility- and load-aware assignment
+problem and give three methods: an exact capacity-constrained assignment used as
+an attainable bound, a multi-criteria greedy heuristic, and a learned policy
+(\S\ref{sec:methods}).
 
-\item Evaluate them on a bare-metal testbed where the attribution holds: 128
-backup servers across ten nodes, each pinned to a dedicated physical core with
-the affinity verified rather than assumed, on a 25\,GbE LAN, with degraded hosts
-impaired by \texttt{tc netem} on the server's own source port so the slowdown is
-produced by the kernel and healthy co-tenants on the same interface are
-untouched (\S\ref{sec:testbed}). Feature-aware selection reaches a degraded
-backup in $0\%$ of calls at 16, 32 and 128 hosts against a $10$--$12.5\%$ base
-rate for ordering-based selection, and the greedy heuristic is statistically
-indistinguishable from the exact assignment at every scale.
+\item We evaluate them on bare metal --- 128 backups across ten nodes, each on a
+dedicated physical core with the affinity verified, degraded hosts impaired by
+the kernel on their own source port (\S\ref{sec:testbed}). Feature-aware
+selection reaches a degraded backup in $0\%$ of calls at 16, 32 and 128 hosts
+against a $10$--$12.5\%$ base rate, roughly halving p99, and the greedy
+heuristic is statistically indistinguishable from the exact assignment at every
+scale.
 
-\item Characterize when selection matters and when it does not. With homogeneous
-hosts no method separates from random, with a median paired difference of
-$0.002$\,ms ($p_{\mathrm{Holm}} = 1.000$); the
-heuristic's advantage is specific to heterogeneous pools and grows with the pool.
-A sensitivity analysis over the scoring weights and decay constants
-(\S\ref{sec:weights}) shows which term carries the guarantee, and that one
-failure kind --- a host degraded only in its network path --- defeats the published
-scoring function until latency is measured rather than derived from topology.
-
-\item Report the measured behaviour of reinforcement learning on this problem
-without overstating it (\S\ref{sec:rl128}, \S\ref{sec:dqn}). PPO matches the
-feature-aware methods to 32 hosts and, at 128, learns degraded-host avoidance
-completely while load-balancing less tightly. A DQN cross-check reproduces the
-same concentration under the same remedy, which points at the problem
-formulation rather than at one algorithm.
-
-\item Release the harness, trained models, raw per-call records and the saved
-output of every run, including the configurations that produce the measurement
-artifacts above, so that each can be reproduced and checked.
+\item We bound the claim. With homogeneous hosts no method separates from
+random, and a sensitivity analysis over the scoring weights shows which term
+carries the guarantee: one failure kind, a host degraded only in its network
+path, defeats the published function until latency is measured rather than
+derived from topology (\S\ref{sec:weights}).
 \end{enumerate}
 
 \section{Related Work}
@@ -446,56 +415,23 @@ then applies a load penalty to the chosen host ($\mathrm{cap} \mathrel{-}= 20$;
 $\mathrm{health} \mathrel{*}= 0.95$) before moving to the next primary. This penalty is
 the mechanism that spreads load across the backup pool without any learning component.
 
-\subsection{RL: PPO with Invalid-Action Masking}
+\subsection{A Learned Policy}
+\label{sec:rlmethod}
 
-We train a Proximal Policy Optimization~\cite{schulman2017proximal} agent
-(\texttt{stable-baselines3}~\cite{raffin2021stable} over a
-\texttt{gymnasium}~\cite{towers2024gymnasium} environment) on the same scoring objective
-as the heuristic. One episode assigns a backup to every primary in sequence, under one
-random resource realization; the observation is each host's
-$[\mathrm{health}, \mathrm{cap}/\mathrm{cap}_{\max}, \mathrm{cpu}, \mathrm{storage}]$
-concatenated with a one-hot encoding of the currently-active primary, and the action
-space is $\mathrm{Discrete}(|H|)$ (observation dimension $4|H|+|H|$). The reward is
-$\mathrm{score}(p,c)$ for a feasible choice, minus an overload penalty of $-2$ for each
-primary already assigned to that backup (i.e.\ $-2(\ell-1)$ when the choice makes host $c$
-the $\ell$-th primary's backup), and a large fixed penalty ($-10$) for an infeasible
-choice, so invalid actions are discouraged \emph{during training}, not merely corrected at
-inference time as in a naive post-hoc-masking design. A fresh random resource realization
-is drawn every episode so the learned policy generalizes across resource realizations
-rather than memorizing one instance. At inference, the deterministic policy is rolled out
-once per primary, falling back to the best-scoring feasible candidate in the rare case the policy still selects an infeasible action.
-
-Table~\ref{tab:ppohparams} lists the full per-model training configuration; all other PPO
-settings are \texttt{stable-baselines3} defaults (learning rate $3\times10^{-4}$,
-$\gamma=0.99$, GAE $\lambda=0.95$, clip range $0.2$, 10 optimization epochs per update).
-Each model is trained for its own host count, so a differently-sized topology requires a
-freshly trained model (\S\ref{sec:threats}); the two 128-host variants are the collapsed
-default-hyperparameter baseline and the reported fix of \S\ref{sec:rl128}, both released as
-checkpoints. The 128-host \emph{intermediate} model (which only partially improved the
-spread) is listed for completeness but not shipped. \S\ref{sec:dqn} additionally trains a
-DQN agent on this same environment and reward, as a cross-algorithm check on the
-load-balancing behavior PPO exhibits at large host counts.
-
-\begin{table}[t]
-\centering
-\caption{PPO training configuration per model. Unlisted settings are
-\texttt{stable-baselines3} defaults. $[\,a,a\,]$ denotes a two-hidden-layer MLP policy and
-value network of width $a$.}
-\label{tab:ppohparams}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrrr}
-\toprule
-Model (scale) & Timesteps & ent.\ coef & net arch & $n_{\text{steps}}$ & batch \\
-\midrule
-9-host & 50\,k & 0.01 & $[128,128]$ & 2048 & 64 \\
-16-host & 80\,k & 0.01 & $[128,128]$ & 2048 & 64 \\
-32-host & 100\,k & 0.01 & $[128,128]$ & 2048 & 64 \\
-128-host (collapsed) & 400\,k & 0.00 & $[64,64]$ & 2048 & 64 \\
-128-host (intermediate) & 600\,k & 0.01 & $[128,128]$ & 2048 & 64 \\
-128-host (final, reported) & 1\,M & 0.02 & $[256,256]$ & 4096 & 256 \\
-\bottomrule
-\end{tabular}}
-\end{table}
+As a third method we train a Proximal Policy
+Optimization~\cite{schulman2017proximal} agent
+(\texttt{stable-baselines3}~\cite{raffin2021stable} over
+\texttt{gymnasium}~\cite{towers2024gymnasium}) on the same scoring objective. An
+episode assigns a backup to every primary in sequence under one random resource
+realization. The observation is each host's
+$[\mathrm{health}, \mathrm{cap}/\mathrm{cap}_{\max}, \mathrm{cpu},
+\mathrm{storage}]$ concatenated with a one-hot encoding of the active primary,
+and the action space is $\mathrm{Discrete}(|H|)$. The reward is
+$\mathrm{score}(p,c)$, less $2(\ell-1)$ when the choice makes host $c$ the
+$\ell$-th primary's backup, less $10$ for an infeasible choice, so invalid
+actions are discouraged during training rather than corrected post hoc. A fresh
+realization is drawn each episode. Each host count needs its own trained model;
+configurations and checkpoints are released with the artifact.
 
 \section{Experimental Methodology}
 \label{sec:methodology}
@@ -666,12 +602,6 @@ The gRPC curve decays smoothly, with \textbf{0.013\%} beyond 900\,ms, a $240\tim
 difference in tail mass, and a maximum of 1139\,ms. Percentiles follow: p95
 101.9 vs 360.6\,ms, p99 184.9 vs 1175.8\,ms, p99.9 277.9 vs 7261.6\,ms.
 
-The 500--900\,ms band itself is sparsely occupied on \emph{both} arms (0.042\% and
-0.057\%), which is the point: on the gRPC arm that sparsity is simply the thin
-end of a decaying distribution, whereas on the XML-RPC arm it is a gap with 3.2\%
-of the mass piled immediately beyond it. A queueing tail does not have that shape.
-p99 is a usable metric on the gRPC arm, and we report it there.
-
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/fig_tail_transport.pdf}
@@ -716,18 +646,12 @@ Hosts & $\Delta$ (ms) & $r$ & $p_{\mathrm{Holm}}$ & $\Delta$ (ms) & $r$ & $p_{\m
 \bottomrule
 \end{tabular}}
 \end{table}
-\textbf{Absolute latencies are not reproducible across executions; paired
-differences are.} Because every XML-RPC call consumes an ephemeral port,
-TIME\_WAIT entries accumulate rapidly: mid-session we measured 14{,}038 sockets in
-TIME\_WAIT against an ephemeral range of 28{,}231 ports. Two independent
-executions of the identical 9-host configuration differed by roughly 17\,ms in
-the mean of \emph{every} method, while the paired differences between methods
-moved by about 1\,ms. The drift is common-mode, so the paired design of
-\S\ref{sec:stats} cancels it, but it sets a resolution floor: on this harness,
-differences below roughly 10\,ms do not survive replication. We make no claim
-below that threshold. Four candidate effects of that size appeared significant in
-a single execution and vanished under replication, which is why every scale is run
-twice and the gRPC arm at $n=25$.
+\textbf{Absolute latencies are not reproducible across executions.} Every
+XML-RPC call consumes an ephemeral port, and accumulated TIME\_WAIT pressure
+shifts the mean of every method by of order $17$\,ms between otherwise identical
+runs. The drift is common-mode, so the paired design of \S\ref{sec:stats}
+cancels it, but it sets a resolution floor of roughly $10$\,ms below which we
+make no claim (\S\ref{sec:threats}).
 
 \begin{table}[t]
 \centering
@@ -866,161 +790,53 @@ Scenario & Load & $n$ units & Mean (ms) & 95\% CI \\
 \bottomrule
 \end{tabular}}
 \end{table}
-\subsection{128 Hosts on One Machine: Structural Results}
-\label{sec:rl128}
+\subsection{Why 128 Hosts Needs Real Hardware}
+\label{sec:single128}
 
-At 128 hosts (80 primaries) a single machine cannot produce a trustworthy latency
-measurement: 800 client threads and some 600 server threads contend on eight
-cores, and two independent executions of the identical gRPC configuration differ
-by $4.8\times$ on \texttt{optimal} and $6.1\times$ on PPO. We therefore report no
-latency from this configuration; \S\ref{sec:testbed} supplies that measurement on
-bare metal. One effect survives the noise --- \texttt{concentrated} is worse than
-every method with $r = 1.000$ on both transports and in both executions, and is
-the only configuration where client retries contribute measurably at all
-($3.53\%$ of calls, against $0.00\%$ everywhere else).
-
-What remains valid here is the \emph{structure} of the produced mapping, which is
-computed from the assignment and does not depend on timing
-(Table~\ref{tab:scaled128}). The deterministic heuristic spreads 80 primaries
-across 74--76 distinct backups while the learned policies use 24--30, and
-\S\ref{sec:testbed} confirms this reading on hardware.
-
-\begin{table}[t]
-\centering
-\caption{128 hosts (80 primaries, 16 degraded): structural outcome of the produced mapping. Per-call latency is not a usable measurement at this scale on a single machine (\S\ref{sec:p99}), but the mapping itself is exact and hardware-independent.}
-\label{tab:scaled128}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrr}
-\toprule
-Method & \multicolumn{2}{c}{Distinct backups used (of 80)} \\
-\cmidrule(lr){2-3}
- & XML-RPC & gRPC \\
-\midrule
-\texttt{concentrated} & 2--2 & 2--2 \\
-\texttt{random} & 54--62 & 54--62 \\
-\texttt{round\_robin} & 80--80 & 80--80 \\
-\texttt{heuristic} & 74--76 & 74--76 \\
-\texttt{optimal} & 80--80 & 80--80 \\
-\texttt{PPO} & 24--30 & 24--30 \\
-\bottomrule
-\end{tabular}}
-\end{table}
-
-\textbf{Why the learned policies concentrate.} PPO at this scale is sensitive to
-exploration and capacity in a way it is not at 32 hosts. With
-\texttt{stable-baselines3}'s default entropy coefficient of zero and a $[64,64]$
-network, the policy converged to 1--5 distinct backups of 80: nothing discourages
-locking onto one action that looks adequate on average, and a small network has
-limited capacity to condition on which of 80 one-hot primaries is active.
-Retraining with entropy $0.02$, a $[256,256]$ network and 1M timesteps widened
-the spread substantially; both checkpoints are released.
-
-\textbf{What the anti-concentration term is worth.} The reward already penalizes
-concentration directly, by $-2(\ell-1)$ for making a host the $\ell$-th primary's
-backup, so the question is whether that strength suffices.
-Table~\ref{tab:rlablation} sweeps it over two training seeds per setting. The
-term delivers a real benefit whose size depends sharply on scale: at 32 hosts
-removing it costs about three distinct backups and restoring even a small penalty
-recovers most of the benefit, so the published strength of $2$ sits on a flat part
-of the curve; at 128 hosts it is not optional, with the policy collapsing to $3.2$
-distinct backups at a peak load of $55$ without it against $13.7$ with it.
-
-The response is also \emph{non-monotone}, and this replicates across both training
-seeds: a penalty of $10$ is far worse than the published $2$ ($5.9$ distinct
-backups against $13.7$) and barely better than none. A plausible mechanism is that
-with 80 primaries sharing the pool some repetition is unavoidable, so a large
-penalty accumulates negative reward the agent cannot avoid and destabilizes value
-estimation. What the term does not do at either scale is close the gap to the
-untrained heuristic, which reaches 74--76 of 80 at no training cost. The agent is
-credited for concentration at the step where it occurs while the consequences
-accrue over the rest of the episode; scoring the assignment as a whole is the more
-promising direction (\S\ref{sec:conclusion}).
-
-\begin{table}[t]
-\centering
-\caption{Ablation of the reward's anti-concentration penalty. PPO, evaluated on five
-resource draws per setting. 32 hosts: 150k timesteps, averaged over two training seeds.
-128 hosts: 400k timesteps, $[256,256]$ network, entropy $0.02$, also averaged over two
-training seeds. No setting routed a primary to a degraded host.}
-\label{tab:rlablation}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrr}
-\toprule
-& \multicolumn{2}{c}{32 hosts (of 20)} & \multicolumn{2}{c}{128 hosts (of 80)} \\
-\cmidrule(lr){2-3}\cmidrule(lr){4-5}
-Penalty & Distinct & Peak load & Distinct & Peak load \\
-\midrule
-$0$ (no shaping) & 15.1 & 2.6 & 3.2 & 55.4 \\
-$0.5$ & 17.3 & 2.1 & -- & -- \\
-$2$ (published) & 17.3 & 2.0 & \textbf{13.7} & \textbf{40.2} \\
-$5$ & \textbf{18.0} & 2.1 & -- & -- \\
-$10$ & 16.8 & 2.1 & 5.9 & 62.6 \\
-\midrule
-\texttt{heuristic} & \textbf{20.0} & \textbf{1--2} & \textbf{74--76} & \textbf{2} \\
-\bottomrule
-\end{tabular}}
-\end{table}
+At 128 hosts (80 primaries) a single machine cannot produce a trustworthy
+latency measurement: 800 client threads and some 600 server threads contend on
+eight cores, and two independent executions of the identical configuration
+differ by $4.8\times$ on \texttt{optimal} and $6.1\times$ on the learned policy.
+We report no latency from this configuration. One effect survives the noise ---
+\texttt{concentrated} is worse than every method with $r = 1.000$ on both
+transports and in both executions --- and so does the \emph{structure} of the
+produced mapping, which is computed from the assignment and does not depend on
+timing: the heuristic spreads 80 primaries across 74--76 distinct backups at a
+peak load of 2, while the learned policy uses 24--30 at a peak of 9--28. The
+next section supplies the latency measurement on hardware where the attribution
+holds.
 
 \input{tables_testbed}
 
 \input{testbed_results}
 
-\subsection{Cross-Algorithm Check: DQN}
+\subsection{What the Learned Policy Does}
+\label{sec:rl128}
 \label{sec:dqn}
 
-The load-balancing gap of \S\ref{sec:rl128} is measured on one algorithm, which
-leaves open whether it reflects PPO or the problem formulation. We repeat the
-evaluation with Deep Q-Networks~\cite{mnih2015human}, a deliberately different
-design point --- off-policy with a replay buffer, value-based rather than
-actor-critic, exploring by $\epsilon$-greedy decay rather than an entropy bonus
---- through the same environment, reward and inference path, so only the learner
-differs. Both are scored \emph{structurally} (Table~\ref{tab:ppodqn}): these are
-properties of the produced mapping rather than of RPC timing, which makes them
-hardware-independent, and Table~\ref{tab:backupload} has already established backup
-load as what drives latency under contention.
+The learned policy avoids degraded hosts as completely as the deterministic
+methods --- $0\%$ of calls at 16 and 128 hosts, $1\%$ at 32 --- and is
+nonetheless slower than both at every scale (Table~\ref{tab:scales}). The
+structural measurement of \S\ref{sec:single128} explains why: at 128 hosts it
+used 44 distinct backups where the heuristic used 112. Host-quality
+discrimination and load balancing are acquired at different rates as the action
+space grows, and the policy acquires only the first.
 
-\begin{table}[t]
-\centering
-\caption{PPO vs.\ DQN policy structure, 5 context seeds per scale. ``Distinct'' is the range
-of distinct backups a policy assigns its primaries across seeds (higher is a wider spread),
-``Peak'' the largest number of primaries placed on any one backup (lower is better), and
-``Degraded'' the assignments landing on a deliberately degraded host, out of 5 seeds
-$\times$ $|P|$.}
-\label{tab:ppodqn}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{llrrr}
-\toprule
-Scale & Algorithm & Distinct & Peak & Degraded \\
-\midrule
-\multirow{2}{*}{9-host} & PPO & 5--5 of 5 & 1--1 & 0/25 \\
- & DQN & 5--5 of 5 & 1--1 & 0/25 \\
-\midrule
-\multirow{2}{*}{16-host} & PPO & 10--10 of 10 & 1--1 & 0/50 \\
- & DQN & 9--10 of 10 & 1--2 & 0/50 \\
-\midrule
-\multirow{2}{*}{32-host} & PPO & 15--19 of 20 & 2--2 & 0/100 \\
- & DQN & 12--16 of 20 & 2--3 & 1/100 \\
-\midrule
-\multirow{2}{*}{128-host} & PPO & 24--30 of 80 & 9--28 & 0/400 \\
- & DQN & \textbf{1--3 of 80} & \textbf{45--80} & \textbf{172/400} \\
-\bottomrule
-\end{tabular}}
-\end{table}
+Two observations suggest this is a property of the formulation rather than of
+one agent. The reward already penalizes concentration directly, by $2(\ell-1)$
+for making a host the $\ell$-th primary's backup; sweeping that strength over
+two training seeds shows it helps but saturates well short of the untrained
+heuristic's spread, with a non-monotone response in which a penalty of $10$ is
+far worse than the published $2$. And a DQN agent trained through the same
+environment, reward and inference path --- off-policy and value-based rather
+than on-policy and actor-critic --- concentrates in the same way under the same
+widened-exploration remedy, more sharply still. The agent is credited for
+concentration at the step where it occurs while the consequences accrue over the
+rest of the episode. Scoring an assignment as a whole rather than one primary at
+a time is the more promising formulation; the sweeps and the cross-algorithm
+comparison are released with the artifact.
 
-The two algorithms agree where the problem is easy and diverge where it is hard.
-Through 32 hosts both spread well and avoid degraded hosts. At 128 hosts DQN
-collapses further than PPO ever did, onto 1--3 of 80 backups with a peak load of
-45--80 and 172 of 400 assignments landing on degraded hosts --- the latter a
-failure PPO does not share. Widening exploration lifts DQN at 32 hosts from 2--4
-distinct backups to 16--19, the same remedy and the same partial success as PPO's
-entropy and capacity increase, and at 128 hosts it collapses regardless.
 
-That two algorithms with different exploration mechanisms, update rules and
-objectives fail in the same way under the same remedy points at the formulation
-rather than at either learner. The reward credits a policy for concentration at
-the step where it occurs while the consequences accrue over the remainder of the
-episode, and scoring the assignment as a whole rather than one primary at a time
-is the more promising direction (\S\ref{sec:conclusion}).
 
 \subsection{Degradation Realism, Weight Sensitivity, and What the Scoring Terms Buy}
 \label{sec:weights}
@@ -1131,42 +947,31 @@ small bounded amount of load-balancing unclaimed rather than spreading maximally
 aggressively, which on a pool with finer quality variation could trade host quality for
 balance.
 
-\subsection{Decentralized Baselines, a Fairer Round-Robin, and Topologies}
+\subsection{Decentralized Baselines and Topology Diversity}
 \label{sec:hrw}
 
-We broaden the baseline set along three axes the load-balancing and
-distributed-storage literature would expect, scored structurally (degraded-host
-hits and maximum per-backup load, 5-seed average) in the heterogeneous scenarios
+Replica placement is well studied where storage is the subject, so we add the
+baselines that literature would expect: rendezvous hashing, health- and
+capacity-weighted rendezvous hashing, and Dynamo-style weighted consistent
+hashing~\cite{weil2006crush,decandia2007dynamo}, scored structurally
 (Table~\ref{tab:hrw}).
 
-\textbf{Decentralized hash placement.} We add rendezvous hashing
-(\texttt{hrw}), health/capacity-weighted rendezvous hashing, and Dynamo-style
-weighted consistent hashing, in the style of
-CRUSH~\cite{weil2006crush} and Dynamo~\cite{decandia2007dynamo}. Plain HRW is
-quality-unaware and its degraded-host exposure is correspondingly uncontrolled.
-Both weighted variants avoid degraded hosts entirely at every scale, which
-establishes that \emph{quality-awareness, not centralization, is what buys
-degraded-host avoidance}. They are, however, coordination-free --- each primary
-hashes independently with no load penalty propagated --- so they spread load only
-statistically: mean peak per-backup load is $3.0/3.6/2.2$ and $2.8/3.0/3.2$ at
-16/32/128 hosts, against the greedy heuristic's $1.4/2.0/2.0$ and the exact
-assignment's $1.0$. A single coordinated greedy pass load-balances materially
-tighter than either weighted-hash family at equal degraded-host avoidance.
+Plain rendezvous hashing is quality-unaware and its degraded-host exposure is
+correspondingly uncontrolled. Both weighted variants avoid degraded hosts
+entirely at every scale, which establishes that \emph{quality-awareness, not
+centralization, is what buys avoidance}. They are coordination-free, however ---
+each primary hashes independently with no load penalty propagated --- so they
+spread load only statistically: mean peak per-backup load is $3.0/3.6/2.2$ and
+$2.8/3.0/3.2$ at 16/32/128 hosts, against the greedy heuristic's $1.4/2.0/2.0$
+and the exact assignment's $1.0$. A single coordinated pass load-balances
+materially tighter than either weighted-hash family at equal avoidance.
 
-\textbf{A fairer round-robin.} Deterministic round-robin's degraded-host exposure
-depends on the host-name sort order, an artifact we examine directly in
-\S\ref{sec:testbed}. A randomized-offset variant removes it: with a random
-starting offset it meets degraded hosts at \emph{every} scale, in proportion to
-how many there are ($1.2/2.6/10.8$ primaries at 16/32/128). Any quality-blind
-load-spreader is exposed in proportion to the degraded fraction; the feature-aware
-methods avoid them by construction.
-
-\textbf{Topology diversity.} Repeating the comparison on multi-hub topologies,
-where host-to-host hop count and latency vary, leaves the structural outcome
-unchanged: the heuristic still avoids degraded hosts entirely at a peak load the
-hash families do not match. Degraded-host avoidance and load balancing are driven
-by host quality rather than graph shape, so the findings do not depend on the
-single-hub star.
+Two robustness checks accompany this. A randomized-offset round-robin removes
+the naming dependence examined in \S\ref{sec:testbed}, and then meets degraded
+hosts at every scale in proportion to the degraded fraction. And repeating the
+comparison on multi-hub topologies, where host-to-host hop count and latency
+vary, leaves the structural outcome unchanged: avoidance and load balancing are
+driven by host quality rather than graph shape.
 
 \begin{table}[t]
 \centering
@@ -1196,21 +1001,14 @@ optimal & 0.0 & 1.0 & 0.0 & 1.0 & 0.0 & 1.0 \\
 \subsection{Selection Overhead}
 \label{sec:overhead}
 
-Elastic scaling requires the selection itself to be fast: a method that matches
-the optimal bound but takes seconds to compute is a worse deployment story than
-one that does not. Table~\ref{tab:overhead} reports mean wall-clock time per full
-mapping across all four scales (30 repeats, first call excluded), plotted on
-log--log axes in Fig.~\ref{fig:overhead}.
-
-Even the slowest method computes a 128-host mapping in about $60$\,ms (PPO,
-$61.6$\,ms), and every non-learned method in roughly $10$\,ms or less --- negligible
-against failure-detection intervals, which run from hundreds of milliseconds to
-seconds~\cite{gill2011understanding,potharaju2013demystifying}. PPO is
-consistently slowest, at one forward pass per primary plus framework overhead;
-its jump at 128 hosts is the direct cost of the wider $[256,256]$ network needed
-to avoid the collapse of \S\ref{sec:rl128}. The Hungarian assignment is $O(n^3)$
-but still near $10$\,ms at 128 hosts. No feature-aware method introduces a
-selection cost that would offset its placement advantage.
+Elastic scaling requires the selection itself to be fast. Table~\ref{tab:overhead}
+reports mean wall-clock time per full mapping across all four scales (30 repeats,
+first call excluded). Every non-learned method computes a 128-host mapping in
+roughly $10$\,ms or less and the learned policy in about $60$\,ms, against
+failure-detection intervals that run from hundreds of milliseconds to
+seconds~\cite{gill2011understanding,potharaju2013demystifying}. The Hungarian
+assignment is $O(n^3)$ but still near $10$\,ms at this size. No method's
+selection cost offsets its placement advantage.
 
 \begin{table}[t]
 \centering
@@ -1232,56 +1030,17 @@ Method & 9 hosts & 16 hosts & 32 hosts & 128 hosts \\
 \bottomrule
 \end{tabular}}
 \end{table}
-\begin{figure}[t]
-\centering
-\includegraphics[width=\columnwidth]{figures/fig_overhead.pdf}
-\caption{Selection overhead per full mapping computation (log--log axes; data of
-Table~\ref{tab:overhead}). Even the slowest method (\texttt{PPO}, 49.6\,ms at 128
-hosts) remains well below realistic failure-detection intervals.}
-\label{fig:overhead}
-\end{figure}
 
 \subsection{Throughput and Failure Rate}
 \label{sec:throughput}
 
-Table~\ref{tab:throughput16} complements service latency with the other two
-metrics DEFT's evaluation reports, in the heterogeneous scenario. Each primary's
-burst workers run for a fixed 3\,s window rather than a fixed call count, so
-throughput is directly meaningful; the testbed is RPC-level, so ``failure rate''
-is evidence of an overloaded backup failing to keep up rather than a literal
-reproduction of DEFT's packet-drop metric.
-
-We report only the part that replicates. \texttt{concentrated} is robustly worst
-on both metrics --- $r \in [0.63, 0.78]$ with every $p < 0.004$, and a failure
-rate of $2.57\%$ against $0.16$--$0.62\%$ elsewhere --- which is the ordering the
-latency results give. The comparisons among the remaining methods do not resolve
-at 15 aggregate measurements per method: \texttt{optimal} and PPO out-throughput
-\texttt{round\_robin} ($r \approx 0.63$--$0.65$, $p < 0.004$) while
-\texttt{heuristic} versus \texttt{round\_robin} does not reach significance
-($p = 0.38$). At homogeneous scale none of the 21 pairwise comparisons survives
-correction at all. We state this as a limit of a fixed-window throughput
-measurement rather than as a difference between methods; the latency results,
-with four orders of magnitude more observations behind them, are where the
-comparison is made.
-
-\begin{table}[t]
-\centering
-\caption{Throughput/failure rate, 16-host scaled scenario (15 runs).}
-\label{tab:throughput16}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrr}
-\toprule
-Method & Throughput (calls/s) & 95\% CI & Failure rate (\%) \\
-\midrule
-\texttt{concentrated} & 543.84 & [477.84, 616.58] & 5.821 \\
-\texttt{random} & 688.84 & [626.53, 757.76] & 1.224 \\
-\texttt{round\_robin} & 733.49 & [677.93, 795.25] & 0.428 \\
-\texttt{heuristic} & 752.64 & [689.98, 821.42] & 0.480 \\
-\texttt{optimal} & 740.11 & [691.78, 790.83] & 0.264 \\
-\texttt{PPO} & 780.96 & [721.91, 846.84] & 0.321 \\
-\bottomrule
-\end{tabular}}
-\end{table}
+Fixed-window throughput and post-retry failure rate give the same ordering as
+latency where they resolve: \texttt{concentrated} is robustly worst on both
+($r \in [0.63, 0.78]$, every $p < 0.004$; failure rate $2.57\%$ against
+$0.16$--$0.62\%$). The comparisons among the remaining methods do not reach
+significance at 15 aggregate measurements per method, which is a limit of a
+fixed-window measurement rather than a difference between methods, so we base
+the comparison on latency and release the throughput records with the artifact.
 
 \input{online_theory}
 

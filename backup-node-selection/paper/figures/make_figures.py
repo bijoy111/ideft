@@ -247,10 +247,13 @@ for col, (data, p95data, lo, hi, ttl) in enumerate([
         if row == 0:
             ax.set_title(ttl, loc="left", color=INK, pad=3, fontsize=7.5)
         if row == 0:
-            # Headroom above the tallest series so the "not reliable" label has
-            # somewhere to sit; without it the label lands on concentrated,
-            # whose 128-host point is within a few points of the panel top.
-            ax.set_ylim(top=2600)
+            # Both bounds set explicitly. The panels share a y-axis per row, so
+            # setting only the top freezes the limits while just the first
+            # column's data exists; the second column's smaller values then fall
+            # below the frame and, with clip_on off on the markers, draw outside
+            # it. The range spans both transports (12.1-577.6 ms) and leaves
+            # headroom above for the "not reliable" label.
+            ax.set_ylim(9, 2600)
         ax.yaxis.set_major_locator(FixedLocator([10, 30, 100, 300, 1000]))
         ax.set_yticklabels(["10", "30", "100", "300", "1000"])
         ax.yaxis.set_minor_formatter(NullFormatter())

@@ -767,9 +767,9 @@ differ by $4.8\times$ on \texttt{optimal} and $6.1\times$ on the learned policy.
 We report no latency from this configuration. Two things survive the noise. \texttt{concentrated} is worse than every
 method with $r = 1.000$ on both transports and in both executions. And so is the
 \emph{structure} of the produced mapping, which is computed from the assignment
-and does not depend on timing: the heuristic spreads 80 primaries across 74--76
-distinct backups at a peak load of 2, while the learned policy uses 24--30 at a
-peak of 9--28. The
+and does not depend on timing: per run the heuristic spreads 80 primaries
+across 74--76 distinct backups at a peak load of 2, while the learned policy
+uses 24--30 at a peak of 9--28. The
 next section supplies the latency measurement on hardware where the attribution
 holds.
 
@@ -783,14 +783,15 @@ holds.
 
 The learned policy avoids degraded hosts as completely as the deterministic
 methods --- $0\%$ of calls at 16 and 128 hosts, $1\%$ at 32 --- and is
-nonetheless slower than both at every scale (Table~\ref{tab:scales}). The
-structural measurement of \S\ref{sec:single128} explains why: at 128 hosts it
-used 44 distinct backups where the heuristic used 112. Host-quality
-discrimination and load balancing are acquired at different rates as the action
-space grows, and the policy acquires only the first.
+nonetheless slower than both at every scale (Table~\ref{tab:scales}). Its
+structure explains why. In the 128-host bare-metal runs it placed its 80
+primaries on 15--18 distinct backups per run, against the heuristic's 72--78
+and the exact assignment's 80. Host-quality discrimination and load balancing
+are acquired at different rates as the action space grows, and the policy
+acquires only the first.
 
-Two observations suggest this is a property of the formulation rather than of
-one agent. The reward already penalizes concentration directly, by $2(\ell-1)$
+Two further measurements, reported in full with the artifact, suggest this is
+a property of the formulation rather than of one agent. The reward already penalizes concentration directly, by $2(\ell-1)$
 for making a host the $\ell$-th primary's backup; sweeping that strength over
 two training seeds shows it helps but saturates well short of the untrained
 heuristic's spread, with a non-monotone response in which a penalty of $10$ is

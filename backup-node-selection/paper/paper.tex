@@ -790,19 +790,62 @@ and the exact assignment's 80. Host-quality discrimination and load balancing
 are acquired at different rates as the action space grows, and the policy
 acquires only the first.
 
-Two further measurements, reported in full with the artifact, suggest this is
-a property of the formulation rather than of one agent. The reward already penalizes concentration directly, by $2(\ell-1)$
-for making a host the $\ell$-th primary's backup; sweeping that strength over
-two training seeds shows it helps but saturates well short of the untrained
-heuristic's spread, with a non-monotone response in which a penalty of $10$ is
-far worse than the published $2$. And a DQN agent trained through the same
-environment, reward and inference path --- off-policy and value-based rather
-than on-policy and actor-critic --- concentrates in the same way under the same
-widened-exploration remedy, more sharply still. The agent is credited for
-concentration at the step where it occurs while the consequences accrue over the
-rest of the episode. Scoring an assignment as a whole rather than one primary at
-a time is the more promising formulation; the sweeps and the cross-algorithm
-comparison are released with the artifact.
+Two measurements suggest this is a property of the formulation rather than of
+one agent. The first is a cross-algorithm check. We train a DQN
+agent~\cite{mnih2015human} through the same environment, reward and inference
+path --- off-policy and value-based rather than on-policy and actor-critic, and
+exploring by $\epsilon$-greedy decay rather than an entropy bonus --- and score
+both structurally, which is exact and hardware-independent
+(Table~\ref{tab:ppodqn}). The two agree wherever the problem is easy and
+diverge where it is not: through 32 hosts both spread well and avoid degraded
+hosts, while at 128 DQN collapses onto 1--3 of 80 backups at a peak load of
+45--80, with 172 of 400 assignments landing on degraded hosts --- a failure PPO
+does not share. DQN needed its own exploration widening at 32 hosts to reach the spread shown,
+the same remedy and the same partial success as PPO's entropy and capacity
+increase, and at 128 hosts it collapses regardless of either.
+
+The second is an ablation of the anti-concentration term. The reward already
+penalizes concentration directly, by $2(\ell-1)$ for making a host the
+$\ell$-th primary's backup. Sweeping that strength over two training seeds
+shows it helps but saturates well short of the untrained heuristic's spread,
+with a non-monotone response in which a penalty of $10$ is far worse than the
+published $2$; the sweep is released with the artifact.
+
+That two algorithms with different update rules, exploration mechanisms and
+objectives fail in the same way under the same remedy points at the reward
+rather than at either learner. The agent is credited for concentration at the
+step where it occurs, while the consequences accrue over the rest of the
+episode. Scoring an assignment as a whole rather than one primary at a time is
+the more promising formulation.
+
+\begin{table}[t]
+\centering
+\caption{PPO vs.\ DQN policy structure, 5 context seeds per scale. ``Distinct'' is the range
+of distinct backups a policy assigns its primaries across seeds (higher is a wider spread),
+``Peak'' the largest number of primaries placed on any one backup (lower is better), and
+``Degraded'' the assignments landing on a deliberately degraded host, out of 5 seeds
+$\times$ $|P|$.}
+\label{tab:ppodqn}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{llrrr}
+\toprule
+Scale & Algorithm & Distinct & Peak & Degraded \\
+\midrule
+\multirow{2}{*}{9-host} & PPO & 5--5 of 5 & 1--1 & 0/25 \\
+ & DQN & 5--5 of 5 & 1--1 & 0/25 \\
+\midrule
+\multirow{2}{*}{16-host} & PPO & 10--10 of 10 & 1--1 & 0/50 \\
+ & DQN & 9--10 of 10 & 1--2 & 0/50 \\
+\midrule
+\multirow{2}{*}{32-host} & PPO & 15--19 of 20 & 2--2 & 0/100 \\
+ & DQN & 12--16 of 20 & 2--3 & 1/100 \\
+\midrule
+\multirow{2}{*}{128-host} & PPO & 24--30 of 80 & 9--28 & 0/400 \\
+ & DQN & \textbf{1--3 of 80} & \textbf{45--80} & \textbf{172/400} \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
 
 
 

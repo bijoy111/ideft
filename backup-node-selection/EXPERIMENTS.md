@@ -488,7 +488,7 @@ primary metric and treat this throughput/failure-rate result as a corroborating,
 replacing, measurement. **Reproducers: expect the `concentrated` comparisons to hold every
 time and the finer degraded-host ones to be only partially resolved.**
 
-### 4.8 Heuristic weight sensitivity and decay calibration (paper §V-H, Table VIII)
+### 4.8 Heuristic weight sensitivity and decay calibration (paper §V-H, Table IX)
 
 The heuristic's scoring weights `(w_h, w_k, w_l, w_d) = (0.35, 0.35, 0.20, 0.10)` and its
 load-decay mechanics (`cap -= 20`; `health *= 0.95`) are otherwise chosen by intuition. To
@@ -553,7 +553,7 @@ variation, could trade host quality for balance). So `(20, 0.95)` is a principle
 monotone response surface, not an arbitrary constant. Full run saved in
 `findings/decay_sensitivity.txt`.
 
-### 4.9 Hash baselines, a fairer round-robin, and topology diversity (paper §V-I, Table IX)
+### 4.9 Hash baselines, a fairer round-robin, and topology diversity (paper §V-I, Table X)
 
 `baseline_comparison.py` broadens the baseline set — the NFV analogs of decentralized,
 load-aware replica placement (CRUSH, Dynamo, consistent-hashing variants) plus a fairer
@@ -590,7 +590,7 @@ deterministic round-robin's lucky 0-hit at 128 hosts was a naming coincidence. O
 topologies (16-host/3-hub, 32-host/3-hub) the numbers are identical — the findings are driven
 by host quality, not graph shape. Full run saved in `findings/baseline_comparison.txt`.
 
-### 4.10 Cross-algorithm check: DQN vs PPO (paper §V-G, Table XI)
+### 4.10 Cross-algorithm check: DQN vs PPO (paper §V-G, Table VIII)
 
 §4.6's load-balancing gap is measured on PPO alone, which leaves open whether it is a PPO
 quirk or a property of the problem formulation. DQN (`--algorithm dqn`) is trained and
@@ -881,7 +881,7 @@ our measurement.
 
 ---
 
-### 4.12 Online selection under churn (paper §VI, Table XI)
+### 4.12 Online selection under churn (paper §VI, Table XII)
 
 Every scenario above is one-shot: given the cluster as it is, choose a backup. This section
 asks what *adaptation* is worth when hosts degrade, recover and fail over time and moving a

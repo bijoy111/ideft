@@ -720,9 +720,10 @@ The 9-host point is the homogeneous scenario (its \texttt{baseline} method, whic
 exists only there, is omitted). The p95 row shows the degraded-host penalty
 \texttt{round\_robin} and \texttt{random} pay at 16 and 32 hosts, which the gRPC
 arm separates more cleanly because its baseline latencies are an order of
-magnitude lower. The 128-host column is shaded: independent executions of that
-configuration differ several-fold on either transport, so it is not a usable
-latency measurement on a single machine (\S\ref{sec:rl128}).}
+magnitude lower. The 128-host column is shaded and its confidence
+intervals are drawn faded: independent executions of that configuration differ
+several-fold on either transport, so it is not a usable latency measurement on
+a single machine (\S\ref{sec:single128}).}
 \label{fig:latencyscale}
 \end{figure}
 

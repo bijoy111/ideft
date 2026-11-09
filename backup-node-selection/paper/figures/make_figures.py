@@ -202,14 +202,23 @@ def host_axis(ax):
     ax.xaxis.set_minor_formatter(NullFormatter())
 
 
-def plot_series(ax, data, lo=None, hi=None):
+def plot_series(ax, data, lo=None, hi=None, excluded_from=None):
     for m in METHODS:
         s = STYLE[m]
         if lo is not None:
-            err = [np.subtract(data[m], lo[m]), np.subtract(hi[m], data[m])]
-            ax.errorbar(HOSTS, data[m], yerr=err, color=s["color"], ecolor=s["color"],
-                        elinewidth=0.8, capsize=2, capthick=0.8, fmt="none",
-                        zorder=2, clip_on=False)
+            err = np.array([np.subtract(data[m], lo[m]), np.subtract(hi[m], data[m])])
+            # Error bars are drawn in two passes. In the excluded column the
+            # intervals are several-fold wide, which is the point being made
+            # there, but at full weight they read as stray vertical rules rather
+            # than as uncertainty. Fading them ties them to the shaded region.
+            keep = np.array([h < (excluded_from or 1e9) for h in HOSTS])
+            for mask, alpha in ((keep, 1.0), (~keep, 0.30)):
+                if not mask.any():
+                    continue
+                ax.errorbar(np.array(HOSTS)[mask], np.array(data[m])[mask],
+                            yerr=err[:, mask], color=s["color"], ecolor=s["color"],
+                            elinewidth=0.8, capsize=2, capthick=0.8, fmt="none",
+                            alpha=alpha, zorder=2, clip_on=True)
         ax.plot(HOSTS, data[m], color=s["color"], marker=s["marker"],
                 ls=s["ls"], lw=1.3, ms=4.2, markeredgecolor="white",
                 markeredgewidth=0.5, label=m, clip_on=False, zorder=3)
@@ -230,12 +239,18 @@ for col, (data, p95data, lo, hi, ttl) in enumerate([
         (GMEAN, GP95, GCI_LO, GCI_HI, "gRPC")]):
     for row, series in enumerate([data, p95data]):
         ax = axes[row][col]
-        plot_series(ax, series, lo if row == 0 else None, hi if row == 0 else None)
+        plot_series(ax, series, lo if row == 0 else None,
+                    hi if row == 0 else None, excluded_from=EXCLUDED_FROM)
         ax.set_yscale("log")
         strip(ax)
         ax.axvspan(EXCLUDED_FROM, 200, color=GRID, alpha=0.55, lw=0, zorder=0)
         if row == 0:
             ax.set_title(ttl, loc="left", color=INK, pad=3, fontsize=7.5)
+        if row == 0:
+            # Headroom above the tallest series so the "not reliable" label has
+            # somewhere to sit; without it the label lands on concentrated,
+            # whose 128-host point is within a few points of the panel top.
+            ax.set_ylim(top=2600)
         ax.yaxis.set_major_locator(FixedLocator([10, 30, 100, 300, 1000]))
         ax.set_yticklabels(["10", "30", "100", "300", "1000"])
         ax.yaxis.set_minor_formatter(NullFormatter())
@@ -246,8 +261,11 @@ for ax in axes[1]:
     ax.set_xlabel("hosts")
 # Label the shaded 128-host column once, at the top of the upper-right panel, so
 # it cannot collide with the curves or with the x-axis.
-axes[0][1].text(110, 700, "not reliable", fontsize=5.8, color=MUTED,
-                va="top", ha="center")
+# Placed in axes coordinates at the top of the shaded column: data coordinates
+# put it on the concentrated curve, which rises steeply across exactly this span.
+axes[0][1].text(0.985, 0.995, "not reliable", fontsize=5.8, color=MUTED,
+                va="top", ha="right",
+                transform=axes[0][1].transAxes, zorder=4)
 handles, labels = axes[0][0].get_legend_handles_labels()
 fig.legend(handles, labels, ncol=3, loc="upper center",
            bbox_to_anchor=(0.54, 1.06), columnspacing=1.0,
@@ -279,11 +297,12 @@ ax.axvline(1000, color=INK2, lw=0.8, ls=(0, (3, 2)), zorder=2)
 # "1 s" sits on the rule above the axes; the band is labelled inside itself,
 # rotated, so neither can collide with the other or with the curves.
 ax.text(1000, 1.25, "1 s", fontsize=6.2, color=INK2, va="bottom", ha="center")
-# The band is not empty in absolute terms on either arm (~0.05% of calls on
-# both). What distinguishes them is what sits just beyond it: XML-RPC piles 3.2%
-# of calls onto the timer quanta past 900 ms, gRPC 0.013% -- a 240x difference.
-ax.text(670, 1.3e-5, "0.04% / 0.06%", fontsize=5.4, color="#8a4b4b",
-        rotation=90, va="bottom", ha="center")
+# The band is what queueing would fill. Both arms leave it nearly empty
+# (~0.05% of calls), so the label goes at the top of the band, where neither
+# curve reaches: at 500-900 ms the XML-RPC curve is already below 0.04 and the
+# gRPC curve below 1e-3.
+ax.text(670, 0.45, "500--900 ms", fontsize=5.4, color="#8a4b4b",
+        rotation=90, va="center", ha="center", zorder=4)
 # The staircase is the finding; label it where there is room.
 ax.annotate("each step is one kernel\ntimer quantum: 3.2% of calls\nbeyond 1 s vs 0.013%",
             xy=(3100, 8.5e-3), xytext=(1250, 0.33), fontsize=5.6, color=INK2,

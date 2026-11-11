@@ -30,32 +30,30 @@ Measurement Pitfalls and a Bare-Metal Evaluation}
 \maketitle
 
 \begin{abstract}
-Fault-tolerant Network Function Virtualization (NFV) systems replicate a primary
-network function's state to a backup instance, but none of them specify how that
-backup instance is chosen. We close that gap, and in doing so show that
-evaluating such a choice is considerably harder than it appears.
-
-We design three selection strategies: a capacity-constrained Hungarian
-assignment used as an attainable bound, a multi-criteria greedy heuristic, and a
-reinforcement-learning policy. We evaluate them against a deployed system's
-unmodified two-phase-commit backup at four topology scales and over two RPC
-transports, then on a bare-metal testbed where 128 backups each hold a dedicated
-physical core and degraded hosts are impaired by the kernel rather than by
-simulation.
-
-Three measurement results generalize beyond this system. A connection-per-call
-RPC stack with a short accept queue biases measured placement effects with a sign
-that depends on workload concentration: it inflated a concentration penalty
-$7.5\times$ at 128 hosts while understating a placement gap at 16. Marking a
-contiguous block of hosts as degraded lets an ordering-based baseline appear to
-avoid an impairment it never encounters. And re-solving the instantaneous optimum
-every round, the natural deployment of an exact one-shot method, is not
-competitive for any ratio.
-
-The placement result is robust under all of these. Feature-aware selection reaches
-a degraded backup in $0\%$ of calls against a $10$--$12.5\%$ base rate at every
-scale, roughly halving p99, and a greedy heuristic is statistically
-indistinguishable from the exact assignment throughout.
+Fault-tolerant Network Function Virtualization (NFV) systems keep a service
+running across failures by replicating a network function's state to a backup
+instance. Published systems describe how that state is transferred, but none
+states which host should receive it, so the assignment is left static or
+arbitrary. An overloaded or unhealthy backup cannot take over cleanly. We
+formulate backup selection as a capacity-constrained assignment problem and
+compare three methods: an exact Hungarian assignment, a multi-criteria greedy
+heuristic, and a reinforcement-learning policy. All are measured against the
+system's shipped static mapping, random and round-robin placement, and weighted
+hashing, driving its unmodified two-phase-commit backup. Evaluation spans four
+topology sizes, two RPC transports, and a bare-metal testbed on which 128
+backups each hold a dedicated physical core and degraded hosts are slowed by the
+kernel rather than by a simulated delay. Feature-aware selection sends no calls
+to a degraded backup at 16, 32 and 128 hosts, against a $10$--$12.5\%$ base rate
+for order-based policies, and roughly halves tail latency. The greedy heuristic
+matches the exact assignment at every size, and the advantage disappears when
+hosts are equivalent. Three measurement effects also emerge that generalize
+beyond this system. A connection-per-call RPC stack biases the measured
+placement effect, with a sign set by how concentrated the workload is. A
+contiguous block of degraded hosts lets an order-based baseline appear to avoid
+an impairment it never meets. And re-solving the instantaneous optimum every
+round is not competitive for any ratio. Backup selection should therefore read
+host state but need not be optimal, and any comparison of such policies must
+report which hosts each one actually selected.
 \end{abstract}
 
 \begin{IEEEkeywords}

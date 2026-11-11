@@ -39,9 +39,9 @@ server, not lost in the network.
 
 Raising the backlog to $512$ drove the overflow count to zero and p99 from
 $1040$\,ms to $79$\,ms. The consequence for the placement result is larger than
-the tail alone suggests (Table~\ref{tab:loadcurve}): under the shipped backlog,
+the tail alone suggests (Table~\ref{tab:loadcurve}). Under the shipped backlog,
 mean latency rises $7.5\times$ from one primary per backup to seventy-nine,
-which invites the reading that concentration is catastrophic; with a backlog of
+which invites the reading that concentration is catastrophic. With a backlog of
 512 the same sweep costs $35\%$. Most of the apparent penalty for sharing a
 backup was connection setup being refused rather than queueing at the backup.
 This sharpens \S\ref{sec:p99}'s estimate that the shipped transport inflates the

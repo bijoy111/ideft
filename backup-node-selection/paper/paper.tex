@@ -286,20 +286,18 @@ features at their healthy draw, and gives healthy hosts a baseline utilisation s
 remaining capacity is a continuous measurement rather than a flag. Infrastructure hosts (client,
 stamper) are never sampled as backups.
 
-\textbf{From synthetic features to real telemetry.} These four features are deliberately
-chosen to correspond to signals a production NFV orchestrator already exposes, so the
-abstraction is a stand-in for measurable metrics rather than an idealization unavailable in
-practice. $\mathrm{health}$ maps to a composite liveness/health score: failure-detector
-confidence, recent error/drop rate, or hardware SMART/thermal indicators, as surfaced by an
-ETSI NFV-MANO VNF health indication or a Kubernetes readiness/liveness probe. The capacity
-ratio $\mathrm{cap}/\mathrm{cap}_{\max}$ maps to headroom in the NF's dominant scaling
-resource: free flow-table or connection-tracking entries, session/NAT-binding slots, or
-admission-control headroom against a provisioned limit. CPU and storage availability map to
-standard hypervisor/OS utilization ($1-\text{util}$, free state-store fraction) exported by
-cAdvisor, node-exporter, or libvirt; hop-count and latency map to the SDN controller's
-topology view and active RTT probing. Validating the selection against such real workload
-telemetry, rather than the synthetic draws used here, remains future work
-(\S\ref{sec:threats}).
+\textbf{From synthetic features to real telemetry.} The four features are
+chosen to correspond to signals a production NFV orchestrator already exposes,
+so the abstraction stands in for measurable metrics rather than for something
+unavailable in practice. $\mathrm{health}$ maps to a composite liveness score
+such as failure-detector confidence or a Kubernetes readiness probe. The
+capacity ratio maps to headroom in the NF's dominant scaling resource, for
+instance free connection-tracking or NAT-binding slots. CPU and storage
+availability map to ordinary hypervisor utilisation counters. Hop-count and
+latency map to the controller's topology view and to active RTT probing; which
+of the two is used turns out to matter, as \S\ref{sec:weights} shows.
+Validating selection against live telemetry rather than the synthetic draws used
+here remains future work (\S\ref{sec:threats}).
 
 \subsection{Baselines}
 
@@ -341,10 +339,10 @@ assignment problem exactly, using the same multi-criteria score $\mathrm{score}(
 defined in the next subsection (Eq.~\eqref{eq:score}: a weighted combination of health,
 remaining capacity, latency, and hop-count). Each feasible backup $h$ is expanded into
 $k = \lceil |P| / |H_{\mathrm{feas}}| \rceil$ capacity-constrained columns, where
-$H_{\mathrm{feas}}$ is the set of backup-eligible hosts (all hosts except the client and
-stamper); the cost-matrix entry for primary $p$ and column $j$ (backup $h$) is
-$-\mathrm{score}(p,h)$, or a large fixed penalty ($10^6$) if $h$ is infeasible for $p$
-(including $h=p$). Backup-eligible hosts always outnumber primaries in our topologies, so
+$H_{\mathrm{feas}}$ is the set of backup-eligible hosts, that is all hosts
+except the client and stamper. The cost-matrix entry for primary $p$ and column
+$j$ (backup $h$) is $-\mathrm{score}(p,h)$, or a large fixed penalty ($10^6$) if
+$h$ is infeasible for $p$, including $h=p$. Backup-eligible hosts always outnumber primaries in our topologies, so
 $k=1$ at every scale evaluated here. The solver therefore assigns each primary a
 distinct backup, and the optimum attains a uniform maximum load of one. The
 $k>1$ machinery is retained for denser regimes in which primaries would
@@ -705,6 +703,16 @@ cheap deterministic method attains the exact optimum's placement quality.
 XML-RPC arm it is \emph{not} significantly better than \texttt{concentrated}.
 Random placement is not merely mediocre on average; it is unstable, because
 whether a given draw lands on degraded hosts is uncontrolled.
+
+Two figures in this subsection are specific to how it was run, and
+\S\ref{sec:testbed} revises both. The degraded hosts here are the first $n$ of
+the backup-eligible set, which is why \texttt{concentrated} never meets one: the
+host it piles onto happens to be healthy. Spreading the degraded hosts through
+the selection order instead makes it meet them on every call. And the percentage
+improvements above are measured over DEFT's shipped accept queue on a single
+machine; on bare metal with that queue sized the same comparison is worth about
+a fifth rather than a half. The ordering is unchanged in both cases; the
+magnitudes are not.
 Figure~\ref{fig:latencyscale} plots both arms across the full scale sweep; the
 p95 row shows the degraded-host penalty that \texttt{round\_robin} and
 \texttt{random} pay at 16 and 32 hosts while the feature-aware methods stay flat.
@@ -857,7 +865,10 @@ test whether those are principled, we sweep 287 weight configurations (286 point
 0.1-step grid over the 4-simplex, plus the published default, which does not fall on that
 grid) across four topologies with five context-seed draws each. The sweep is
 \emph{structural}: it evaluates the produced mapping directly, with no RPC calls, so it is
-exact and reproducible.
+exact and reproducible. Because no calls are made, degradation here is a
+property of the host's feature vector rather than the kernel-imposed slowdown of
+\S\ref{sec:testbed}; what is being tested is whether the scoring function can
+\emph{see} a degraded host, not what it costs to use one.
 
 \textbf{How degraded hosts are constructed determines what the sweep can tell us.} Our
 first model marked a host degraded by pinning it to one extreme point: health $0.05$
@@ -1135,7 +1146,7 @@ harder problem is establishing the answer rather than producing one.
 On a bare-metal testbed where 128 backups each hold a dedicated physical core and
 degraded hosts are impaired by the kernel, feature-aware selection routes a
 primary to a degraded backup in $0\%$ of calls at 16, 32 and 128 hosts, against a
-$10$--$12.5\%$ base rate for ordering-based selection, roughly halving p99 with
+$10$--$12.5\%$ base rate for order-based selection, roughly halving p99 with
 $r = -1.000$ across paired runs. A multi-criteria greedy heuristic is
 statistically indistinguishable from the exact capacity-constrained assignment at
 every scale, so the exact solve is a useful bound rather than a necessary
@@ -1148,7 +1159,7 @@ measured placement effect with a sign that depends on workload concentration:
 holding everything else fixed, raising the queue length took a measured
 concentration penalty from $7.5\times$ to $35\%$ at 128 hosts while \emph{widening}
 the gap between placement methods at 16. Degrading a contiguous block of hosts
-allows an ordering-based baseline to report perfect avoidance it did not earn,
+allows an order-based baseline to report perfect avoidance it did not earn,
 which is why we report the share of each method's calls that met the impairment
 alongside its latency. And re-solving the instantaneous optimum every round, the
 natural way to deploy an exact one-shot method, has unbounded competitive ratio

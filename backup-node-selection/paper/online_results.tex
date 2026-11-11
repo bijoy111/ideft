@@ -34,8 +34,8 @@ Proposition~\ref{prop:budget} bounds migration spend at $1/\alpha$ of service
 cost. It holds at every threshold measured, with the tightest observation at
 roughly half the permitted spend. Ratio is best near $\alpha = 4$ and is
 insensitive between $1$ and $8$, so an operator can fix a migration budget in
-advance and the policy will respect it. Migrations take effect at $t+1$ rather
-than within the round that triggers them, which is both the physically correct
-semantics --- a primary cannot retroactively hold state on the new backup --- and
-necessary for the bound: with same-round effect a policy accumulates regret on a
-host and then avoids paying for it, and the budget fails at $\alpha = 4$.
+advance and the policy will respect it. Migrations take effect at $t+1$, not within the round that triggers them.
+That is the physically correct semantics: a primary cannot retroactively hold
+state on the new backup. It is also necessary for the bound. With same-round
+effect a policy accumulates regret on a host and then avoids paying for it, and
+the budget fails at $\alpha = 4$.

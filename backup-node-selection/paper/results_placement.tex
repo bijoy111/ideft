@@ -290,16 +290,26 @@ symmetric. The heuristic needs no training. The policy needs a model per host
 count and tuning that grows with scale. We therefore state the tuning it
 received and keep the claim narrow.
 
-\textbf{Tuning effort.} At 9, 16 and 32 hosts PPO was trained once per scale
-with one configuration: a $[128,128]$ network, entropy coefficient $0.01$, and
-50k, 80k and 100k timesteps. At 128 hosts three configurations were tried in
-sequence. Library defaults ($[64,64]$, entropy $0$, 400k steps) collapsed onto
-1--5 backups. A $[128,128]$ network with entropy $0.01$ and 600k steps improved
-only partly. A $[256,256]$ network with entropy $0.02$, larger rollouts and 1M
-steps is the one reported. DQN used library defaults at 9 and 16 hosts, needed
-widened exploration at 32, and at 128 was given a $[256,256]$ network and 1M
-steps. This is a targeted search rather than an exhaustive one, and a larger
-budget might do better.
+\textbf{Tuning effort.} Both learners were given comparable budgets, and we
+state them so the comparison can be judged. Through 32 hosts each was trained
+once per scale on a single configuration: a $[128,128]$ network for both, with
+entropy $0.01$ for PPO and $\epsilon$-greedy decay over the first $30\%$ of
+training for DQN, at 50k, 80k and 100k timesteps. These are our defaults, not
+the library's, which are smaller on both counts. Two scales then needed more.
+DQN at 32 hosts collapsed onto 2--4 of 20 backups under that configuration, a
+figure we measured directly from the released checkpoint rather than inferred.
+It was retrained with exploration widened to $70\%$ of training, a final
+$\epsilon$ of $0.15$, a doubled replay buffer and 150k timesteps, which lifted
+it to 12--16 and is the checkpoint Table~\ref{tab:ppodqn} reports. At 128 hosts PPO was trained three times: once at the library
+defaults ($[64,64]$, entropy $0$, 400k steps), which collapsed onto 1--5
+backups; once at $[128,128]$ with entropy $0.01$ and 600k steps, which improved
+only partly and is not released; and once at $[256,256]$ with entropy $0.02$,
+larger rollouts and 1M timesteps, which is the configuration reported. DQN at
+128 hosts received the matching $[256,256]$ network, a widened exploration
+schedule and the same 1M timesteps. Counting training runs, PPO received six
+and DQN five, with DQN given the larger budget at the one scale where both were
+retuned. This is a targeted search rather than an exhaustive one, and a larger
+budget might do better for either.
 
 \textbf{Result.} The policy avoids degraded hosts as well as the deterministic
 methods: $0\%$ of calls at 16 and 128 hosts and $1\%$ at 32

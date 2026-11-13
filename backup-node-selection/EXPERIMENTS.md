@@ -622,7 +622,9 @@ about a minute).
 **Up to 32 hosts the two algorithms behave alike.** Both spread across nearly every available
 backup at 9 and 16 hosts, and at 32 hosts DQN stays within a few backups of PPO at comparable
 peak load. But DQN only reaches that after the same class of fix PPO needed at 128 hosts:
-with SB3 defaults it collapsed to 2-4 distinct backups of 20, and widening exploration
+with the harness defaults -- a [128,128] network, exploration decayed over the first
+30% of training -- it collapsed to 2-4 distinct backups of 20 (measured; see
+findings/dqn_collapse_check_32hosts_unmitigated.txt), and widening exploration
 (fraction 0.5→0.7, final eps 0.05→0.15), enlarging the replay buffer (50k→100k), and training
 longer (100k→150k steps) recovered the spread reported above. That mitigated checkpoint is
 `rl_model_dqn_scaled32_mitigated.zip`.
@@ -1278,7 +1280,7 @@ python3 rl_backup_selector.py --train --algorithm dqn --timesteps 80000 \
     --model rl_model_dqn_scaled.zip \
     --n-hosts 16 --n-primaries 10 --n-degraded 2 --scale-seed 0
 
-# 32 hosts: DQN collapses to 2-4 of 20 backups on SB3 defaults. This is the mitigated
+# 32 hosts: DQN collapses to 2-4 of 20 backups on the harness defaults. This is the mitigated
 # config that lifts it to 16-19 (the rl_model_dqn_scaled32_mitigated.zip used in §4.10).
 python3 rl_backup_selector.py --train --algorithm dqn --check-collapse --timesteps 150000 \
     --model rl_model_dqn_scaled32_mitigated.zip \

@@ -273,7 +273,8 @@ python3 rl_backup_selector.py --train --algorithm dqn --timesteps 80000 \
     --model rl_model_dqn_scaled.zip \
     --n-hosts 16 --n-primaries 10 --n-degraded 2 --scale-seed 0
 
-# 32 hosts: DQN collapses to 2-4 of 20 backups on SB3 defaults. This mitigated config
+# 32 hosts: DQN collapses to 2-4 of 20 backups on the harness defaults (not SB3's,
+# which are smaller still). This mitigated config
 # lifts it to 16-19 and is the checkpoint used in §4.10.
 python3 rl_backup_selector.py --train --algorithm dqn --check-collapse --timesteps 150000 \
     --model rl_model_dqn_scaled32_mitigated.zip \

@@ -1,0 +1,56 @@
+\appendices
+\section{Proofs}
+\label{app:proofs}
+
+The statements are repeated for convenience; numbering follows the main
+text.
+
+\begin{theorem}
+Let \textsc{snapshot} be the policy that plays a cost-minimizing assignment for
+round $t$ at every $t$. For every $M > 0$ and every $\rho$, there is an instance on
+which $\mathrm{cost}(\textsc{snapshot}) > \rho \cdot \mathrm{cost}(\mathrm{OPT})$.
+\textsc{snapshot} is therefore not $\rho$-competitive for any $\rho$.
+\end{theorem}
+
+\begin{proof}
+Take $|P| = 1$, two feasible backups $b_1, b_2$, and $\lambda = 0$. Let
+$c_t(p,b_1) = 0$ and $c_t(p,b_2) = \varepsilon$ for odd $t$, and the reverse for
+even $t$. The instantaneous minimizer alternates every round, so \textsc{snapshot}
+migrates at every round after the first and pays at least $M(T-1)$. The static
+schedule that holds $b_1$ throughout pays $\varepsilon \lceil T/2 \rceil$, so
+$\mathrm{cost}(\mathrm{OPT}) \le \varepsilon \lceil T/2 \rceil$ and the ratio is at
+least $2M(T-1)/(\varepsilon T) \to 2M/\varepsilon$. Choosing
+$\varepsilon < 2M/\rho$ gives the claim.
+\end{proof}
+
+\begin{proposition}
+On every instance, \textsc{hysteresis}($\alpha$) spends at most a $1/\alpha$
+fraction of its own service-plus-congestion cost on migration.
+\end{proposition}
+
+\begin{proof}
+Each migration is preceded by at least $\alpha M$ of accumulated regret, and the
+counter is reset on each migration, so regret is never counted twice. After $N$
+migrations the policy has therefore accumulated at least $\alpha M N$ regret, giving
+$MN \le R/\alpha$ where $R$ is its total regret. The regret charged at round $t$ for
+primary $p$ held on $b$ is $c_t(p,b) - \min_{b'}c_t(p,b') \le c_t(p,b)$, because
+costs are non-negative, and because migrations take effect only at $t+1$ the policy
+actually pays $c_t(p,b)$ in that round. Summing, $R$ is at most the policy's total
+service-plus-congestion cost $S$, so the migration spend $MN \le S/\alpha$.
+\end{proof}
+
+\begin{proposition}
+With $|P| = 1$ and $\lambda = 0$, online backup selection is exactly the metrical
+task system (MTS) problem on the uniform metric over $k$ states with switching cost
+$M$. Consequently no deterministic online algorithm is better than
+$(2k-1)$-competitive, and no randomized algorithm is better than
+$\Omega(\log k / \log\log k)$-competitive against an oblivious adversary.
+\end{proposition}
+
+\begin{proof}
+The states are the $k$ feasible backups; the task vector at round $t$ is
+$(c_t(p,b))_{b}$; the distance between any two distinct states is $M$, which is a
+uniform metric. The correspondence is cost-preserving in both directions, so the
+deterministic lower bound of Borodin, Linial and Saks~\cite{borodin1992mts} and the
+randomized lower bound of Karloff et al.~\cite{karloff1994mts} transfer.
+\end{proof}

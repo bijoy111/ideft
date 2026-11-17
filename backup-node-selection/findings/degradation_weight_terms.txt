@@ -1,29 +1,318 @@
----------------------------------------------------------------------------------------------------
-Which scoring terms provide degraded-host avoidance?
-287 weight configurations x 5 seeds, realistic degradation.
+# iDEFT findings: degradation_weight_terms
+# command: analyze_degradation_terms.py
+# generated: 2026-11-17 06:20:41 UTC
+# (reproducing this scenario overwrites this file)
 
---- 32 hosts (4 degraded of 12 eligible) ---
-  80/286 configurations route at least one primary to a degraded host
-    weight(health  ) = 0 ->   0/66  of those configs hit a degraded host
-    weight(capacity) = 0 ->  12/66  of those configs hit a degraded host
-    weight(latency ) = 0 ->  55/66  of those configs hit a degraded host
-    weight(hops    ) = 0 ->  18/66  of those configs hit a degraded host
-    published default (0.35,0.35,0.20,0.10): 0 degraded assignments
+Share of assignments that go to a degraded host (%), by weight configuration.
+286 configurations x 30 seeds; each seed redraws features, the degraded hosts
+(1 in 8, uniformly at random) and their failure kinds and severities.
 
---- 128 hosts (16 degraded of 48 eligible) ---
-  111/286 configurations route at least one primary to a degraded host
-    weight(health  ) = 0 ->   0/66  of those configs hit a degraded host
-    weight(capacity) = 0 ->  35/66  of those configs hit a degraded host
-    weight(latency ) = 0 ->  55/66  of those configs hit a degraded host
-    weight(hops    ) = 0 ->  25/66  of those configs hit a degraded host
-    published default (0.35,0.35,0.20,0.10): 0 degraded assignments
+=== binary degradation, 16 hosts, 10 primaries, 2 degraded per seed ===
+--- latency feature: derived from topology ---
+    configurations                          mean %  median     max     above 1%
+    all                                       0.38    0.00   10.00       11/286
+    w(health) = 0                             1.67    0.00   10.00       11/66 
+    w(health) > 0                             0.00    0.00    0.00        0/220
+    w(capacity) = 0                           1.67    0.00   10.00       11/66 
+    w(capacity) > 0                           0.00    0.00    0.00        0/220
+    w(latency) = 0                            0.15    0.00   10.00        1/66 
+    w(latency) > 0                            0.45    0.00   10.00       10/220
+    w(hops) = 0                               0.15    0.00   10.00        1/66 
+    w(hops) > 0                               0.45    0.00   10.00       10/220
+    w(latency) > 0, w(health) = 0             1.82    0.00   10.00       10/55 
+    w(latency) > 0, w(health) > 0             0.00    0.00    0.00        0/165
+    w(latency) > 0, w(capacity) = 0           1.82    0.00   10.00       10/55 
+    w(latency) > 0, w(capacity) > 0           0.00    0.00    0.00        0/165
+    w(latency) = 0, w(health) = 0             0.91    0.00   10.00        1/11 
+    w(latency) = 0, w(health) > 0             0.00    0.00    0.00        0/55 
+    w(latency) = 0, w(capacity) = 0           0.91    0.00   10.00        1/11 
+    w(latency) = 0, w(capacity) > 0           0.00    0.00    0.00        0/55 
+    only health                               0.00
+    only capacity                             0.00
+    only latency                             10.00
+    only hops                                10.00
+    default (0.35,0.35,0.20,0.10)             0.00   by kind: -
+--- latency feature: measured RTT ---
+    configurations                          mean %  median     max     above 1%
+    all                                       0.03    0.00   10.00        1/286
+    w(health) = 0                             0.15    0.00   10.00        1/66 
+    w(health) > 0                             0.00    0.00    0.00        0/220
+    w(capacity) = 0                           0.15    0.00   10.00        1/66 
+    w(capacity) > 0                           0.00    0.00    0.00        0/220
+    w(latency) = 0                            0.15    0.00   10.00        1/66 
+    w(latency) > 0                            0.00    0.00    0.00        0/220
+    w(hops) = 0                               0.00    0.00    0.00        0/66 
+    w(hops) > 0                               0.05    0.00   10.00        1/220
+    w(latency) > 0, w(health) = 0             0.00    0.00    0.00        0/55 
+    w(latency) > 0, w(health) > 0             0.00    0.00    0.00        0/165
+    w(latency) > 0, w(capacity) = 0           0.00    0.00    0.00        0/55 
+    w(latency) > 0, w(capacity) > 0           0.00    0.00    0.00        0/165
+    w(latency) = 0, w(health) = 0             0.91    0.00   10.00        1/11 
+    w(latency) = 0, w(health) > 0             0.00    0.00    0.00        0/55 
+    w(latency) = 0, w(capacity) = 0           0.91    0.00   10.00        1/11 
+    w(latency) = 0, w(capacity) > 0           0.00    0.00    0.00        0/55 
+    only health                               0.00
+    only capacity                             0.00
+    only latency                              0.00
+    only hops                                10.00
+    default (0.35,0.35,0.20,0.10)             0.00   by kind: -
 
-Reading: the latency term, evaluated against measured RTT, is what provides
-degraded-host avoidance. The health term is dispensable. This inverts the
-conclusion drawn under the binary degradation model, where every configuration
-avoided degraded hosts and the sweep could not discriminate at all.
+=== binary degradation, 32 hosts, 20 primaries, 4 degraded per seed ===
+--- latency feature: derived from topology ---
+    configurations                          mean %  median     max     above 1%
+    all                                       0.89    0.00   23.17       11/286
+    w(health) = 0                             3.86    0.00   23.17       11/66 
+    w(health) > 0                             0.00    0.00    0.00        0/220
+    w(capacity) = 0                           3.86    0.00   23.17       11/66 
+    w(capacity) > 0                           0.00    0.00    0.00        0/220
+    w(latency) = 0                            0.35    0.00   23.17        1/66 
+    w(latency) > 0                            1.05    0.00   23.17       10/220
+    w(hops) = 0                               0.35    0.00   23.17        1/66 
+    w(hops) > 0                               1.05    0.00   23.17       10/220
+    w(latency) > 0, w(health) = 0             4.21    0.00   23.17       10/55 
+    w(latency) > 0, w(health) > 0             0.00    0.00    0.00        0/165
+    w(latency) > 0, w(capacity) = 0           4.21    0.00   23.17       10/55 
+    w(latency) > 0, w(capacity) > 0           0.00    0.00    0.00        0/165
+    w(latency) = 0, w(health) = 0             2.11    0.00   23.17        1/11 
+    w(latency) = 0, w(health) > 0             0.00    0.00    0.00        0/55 
+    w(latency) = 0, w(capacity) = 0           2.11    0.00   23.17        1/11 
+    w(latency) = 0, w(capacity) > 0           0.00    0.00    0.00        0/55 
+    only health                               0.00
+    only capacity                             0.00
+    only latency                             23.17
+    only hops                                23.17
+    default (0.35,0.35,0.20,0.10)             0.00   by kind: -
+--- latency feature: measured RTT ---
+    configurations                          mean %  median     max     above 1%
+    all                                       0.08    0.00   23.17        1/286
+    w(health) = 0                             0.35    0.00   23.17        1/66 
+    w(health) > 0                             0.00    0.00    0.00        0/220
+    w(capacity) = 0                           0.35    0.00   23.17        1/66 
+    w(capacity) > 0                           0.00    0.00    0.00        0/220
+    w(latency) = 0                            0.35    0.00   23.17        1/66 
+    w(latency) > 0                            0.00    0.00    0.00        0/220
+    w(hops) = 0                               0.00    0.00    0.00        0/66 
+    w(hops) > 0                               0.11    0.00   23.17        1/220
+    w(latency) > 0, w(health) = 0             0.00    0.00    0.00        0/55 
+    w(latency) > 0, w(health) > 0             0.00    0.00    0.00        0/165
+    w(latency) > 0, w(capacity) = 0           0.00    0.00    0.00        0/55 
+    w(latency) > 0, w(capacity) > 0           0.00    0.00    0.00        0/165
+    w(latency) = 0, w(health) = 0             2.11    0.00   23.17        1/11 
+    w(latency) = 0, w(health) > 0             0.00    0.00    0.00        0/55 
+    w(latency) = 0, w(capacity) = 0           2.11    0.00   23.17        1/11 
+    w(latency) = 0, w(capacity) > 0           0.00    0.00    0.00        0/55 
+    only health                               0.00
+    only capacity                             0.00
+    only latency                              0.00
+    only hops                                23.17
+    default (0.35,0.35,0.20,0.10)             0.00   by kind: -
 
-Caveat: in this model every degradation kind carries some latency signature,
-so measured RTT is close to a sufficient statistic here. A failure mode with
-no latency signature (a host that is currently fast but about to fail) would
-not be caught by it, and would need the health signal instead.
+=== binary degradation, 128 hosts, 80 primaries, 16 degraded per seed ===
+--- latency feature: derived from topology ---
+    configurations                          mean %  median     max     above 1%
+    all                                       0.26    0.00    6.75       11/286
+    w(health) = 0                             1.12    0.00    6.75       11/66 
+    w(health) > 0                             0.00    0.00    0.00        0/220
+    w(capacity) = 0                           1.12    0.00    6.75       11/66 
+    w(capacity) > 0                           0.00    0.00    0.00        0/220
+    w(latency) = 0                            0.10    0.00    6.75        1/66 
+    w(latency) > 0                            0.31    0.00    6.75       10/220
+    w(hops) = 0                               0.10    0.00    6.75        1/66 
+    w(hops) > 0                               0.31    0.00    6.75       10/220
+    w(latency) > 0, w(health) = 0             1.23    0.00    6.75       10/55 
+    w(latency) > 0, w(health) > 0             0.00    0.00    0.00        0/165
+    w(latency) > 0, w(capacity) = 0           1.23    0.00    6.75       10/55 
+    w(latency) > 0, w(capacity) > 0           0.00    0.00    0.00        0/165
+    w(latency) = 0, w(health) = 0             0.61    0.00    6.75        1/11 
+    w(latency) = 0, w(health) > 0             0.00    0.00    0.00        0/55 
+    w(latency) = 0, w(capacity) = 0           0.61    0.00    6.75        1/11 
+    w(latency) = 0, w(capacity) > 0           0.00    0.00    0.00        0/55 
+    only health                               0.00
+    only capacity                             0.00
+    only latency                              6.75
+    only hops                                 6.75
+    default (0.35,0.35,0.20,0.10)             0.00   by kind: -
+--- latency feature: measured RTT ---
+    configurations                          mean %  median     max     above 1%
+    all                                       0.02    0.00    6.75        1/286
+    w(health) = 0                             0.10    0.00    6.75        1/66 
+    w(health) > 0                             0.00    0.00    0.00        0/220
+    w(capacity) = 0                           0.10    0.00    6.75        1/66 
+    w(capacity) > 0                           0.00    0.00    0.00        0/220
+    w(latency) = 0                            0.10    0.00    6.75        1/66 
+    w(latency) > 0                            0.00    0.00    0.00        0/220
+    w(hops) = 0                               0.00    0.00    0.00        0/66 
+    w(hops) > 0                               0.03    0.00    6.75        1/220
+    w(latency) > 0, w(health) = 0             0.00    0.00    0.00        0/55 
+    w(latency) > 0, w(health) > 0             0.00    0.00    0.00        0/165
+    w(latency) > 0, w(capacity) = 0           0.00    0.00    0.00        0/55 
+    w(latency) > 0, w(capacity) > 0           0.00    0.00    0.00        0/165
+    w(latency) = 0, w(health) = 0             0.61    0.00    6.75        1/11 
+    w(latency) = 0, w(health) > 0             0.00    0.00    0.00        0/55 
+    w(latency) = 0, w(capacity) = 0           0.61    0.00    6.75        1/11 
+    w(latency) = 0, w(capacity) > 0           0.00    0.00    0.00        0/55 
+    only health                               0.00
+    only capacity                             0.00
+    only latency                              0.00
+    only hops                                 6.75
+    default (0.35,0.35,0.20,0.10)             0.00   by kind: -
+
+=== realistic degradation, 16 hosts, 10 primaries, 2 degraded per seed ===
+    degraded hosts drawn over all seeds, by kind: capacity_exhausted 15, cpu_starved 8, link_congested 13, storage_pressured 11, unhealthy 13
+--- latency feature: derived from topology ---
+    configurations                          mean %  median     max     above 1%
+    all                                       5.54    4.00   10.33      286/286
+    w(health) = 0                            10.28   10.33   10.33       66/66 
+    w(health) > 0                             4.12    3.67    8.33      220/220
+    w(capacity) = 0                           5.00    4.00   10.00       66/66 
+    w(capacity) > 0                           5.70    3.67   10.33      220/220
+    w(latency) = 0                            5.26    4.00   10.33       66/66 
+    w(latency) > 0                            5.62    4.00   10.33      220/220
+    w(hops) = 0                               5.26    4.00   10.33       66/66 
+    w(hops) > 0                               5.62    4.00   10.33      220/220
+    w(latency) > 0, w(health) = 0            10.27   10.33   10.33       55/55 
+    w(latency) > 0, w(health) > 0             4.07    3.67    8.33      165/165
+    w(latency) > 0, w(capacity) = 0           5.09    4.00   10.00       55/55 
+    w(latency) > 0, w(capacity) > 0           5.80    3.67   10.33      165/165
+    w(latency) = 0, w(health) = 0            10.30   10.33   10.33       11/11 
+    w(latency) = 0, w(health) > 0             4.25    3.67    8.33       55/55 
+    w(latency) = 0, w(capacity) = 0           4.55    4.00   10.00       11/11 
+    w(latency) = 0, w(capacity) > 0           5.41    3.67   10.33       55/55 
+    only health                               4.00
+    only capacity                            10.33
+    only latency                             10.00
+    only hops                                10.00
+    default (0.35,0.35,0.20,0.10)             3.33   by kind: link_congested 10
+--- latency feature: measured RTT ---
+    configurations                          mean %  median     max     above 1%
+    all                                       1.50    0.00   10.33       82/286
+    w(health) = 0                             2.34    0.33   10.33       19/66 
+    w(health) > 0                             1.24    0.00    8.33       63/220
+    w(capacity) = 0                           0.81    0.00   10.00       13/66 
+    w(capacity) > 0                           1.70    0.33   10.33       69/220
+    w(latency) = 0                            5.26    4.00   10.33       66/66 
+    w(latency) > 0                            0.37    0.00    5.67       16/220
+    w(hops) = 0                               1.23    0.00   10.33       16/66 
+    w(hops) > 0                               1.58    0.00   10.33       66/220
+    w(latency) > 0, w(health) = 0             0.75    0.33    5.67        8/55 
+    w(latency) > 0, w(health) > 0             0.24    0.00    4.33        8/165
+    w(latency) > 0, w(capacity) = 0           0.06    0.00    1.33        2/55 
+    w(latency) > 0, w(capacity) > 0           0.47    0.00    5.67       14/165
+    w(latency) = 0, w(health) = 0            10.30   10.33   10.33       11/11 
+    w(latency) = 0, w(health) > 0             4.25    3.67    8.33       55/55 
+    w(latency) = 0, w(capacity) = 0           4.55    4.00   10.00       11/11 
+    w(latency) = 0, w(capacity) > 0           5.41    3.67   10.33       55/55 
+    only health                               4.00
+    only capacity                            10.33
+    only latency                              0.00
+    only hops                                10.00
+    default (0.35,0.35,0.20,0.10)             0.00   by kind: -
+
+=== realistic degradation, 32 hosts, 20 primaries, 4 degraded per seed ===
+    degraded hosts drawn over all seeds, by kind: capacity_exhausted 26, cpu_starved 20, link_congested 26, storage_pressured 24, unhealthy 24
+--- latency feature: derived from topology ---
+    configurations                          mean %  median     max     above 1%
+    all                                       6.54    6.17   23.17      286/286
+    w(health) = 0                            12.19   10.00   23.17       66/66 
+    w(health) > 0                             4.85    4.83    8.50      220/220
+    w(capacity) = 0                           9.00    6.17   23.17       66/66 
+    w(capacity) > 0                           5.81    4.83   10.00      220/220
+    w(latency) = 0                            5.91    5.33   23.17       66/66 
+    w(latency) > 0                            6.73    6.17   23.17      220/220
+    w(hops) = 0                               5.91    5.33   23.17       66/66 
+    w(hops) > 0                               6.73    6.17   23.17      220/220
+    w(latency) > 0, w(health) = 0            12.39   10.00   23.17       55/55 
+    w(latency) > 0, w(health) > 0             4.85    5.00    8.17      165/165
+    w(latency) > 0, w(capacity) = 0           9.26    6.17   23.17       55/55 
+    w(latency) > 0, w(capacity) > 0           5.89    5.00   10.00      165/165
+    w(latency) = 0, w(health) = 0            11.20   10.00   23.17       11/11 
+    w(latency) = 0, w(health) > 0             4.85    4.67    8.50       55/55 
+    w(latency) = 0, w(capacity) = 0           7.71    6.17   23.17       11/11 
+    w(latency) = 0, w(capacity) > 0           5.55    4.67   10.00       55/55 
+    only health                               6.17
+    only capacity                            10.00
+    only latency                             23.17
+    only hops                                23.17
+    default (0.35,0.35,0.20,0.10)             2.83   by kind: link_congested 16, storage_pressured 1
+--- latency feature: measured RTT ---
+    configurations                          mean %  median     max     above 1%
+    all                                       1.99    0.67   23.17      111/286
+    w(health) = 0                             2.99    0.67   23.17       29/66 
+    w(health) > 0                             1.69    0.67    8.50       82/220
+    w(capacity) = 0                           1.66    0.33   23.17       16/66 
+    w(capacity) > 0                           2.09    0.67   10.00       95/220
+    w(latency) = 0                            5.91    5.33   23.17       66/66 
+    w(latency) > 0                            0.81    0.33    6.83       45/220
+    w(hops) = 0                               1.65    0.67   10.00       25/66 
+    w(hops) > 0                               2.09    0.67   23.17       86/220
+    w(latency) > 0, w(health) = 0             1.35    0.33    6.83       18/55 
+    w(latency) > 0, w(health) > 0             0.64    0.33    6.17       27/165
+    w(latency) > 0, w(capacity) = 0           0.45    0.00    2.50        5/55 
+    w(latency) > 0, w(capacity) > 0           0.94    0.33    6.83       40/165
+    w(latency) = 0, w(health) = 0            11.20   10.00   23.17       11/11 
+    w(latency) = 0, w(health) > 0             4.85    4.67    8.50       55/55 
+    w(latency) = 0, w(capacity) = 0           7.71    6.17   23.17       11/11 
+    w(latency) = 0, w(capacity) > 0           5.55    4.67   10.00       55/55 
+    only health                               6.17
+    only capacity                            10.00
+    only latency                              0.00
+    only hops                                23.17
+    default (0.35,0.35,0.20,0.10)             0.00   by kind: -
+
+=== realistic degradation, 128 hosts, 80 primaries, 16 degraded per seed ===
+    degraded hosts drawn over all seeds, by kind: capacity_exhausted 96, cpu_starved 93, link_congested 96, storage_pressured 97, unhealthy 98
+--- latency feature: derived from topology ---
+    configurations                          mean %  median     max     above 1%
+    all                                       5.72    5.42    9.67      286/286
+    w(health) = 0                             9.18    9.67    9.67       66/66 
+    w(health) > 0                             4.68    4.54    8.42      220/220
+    w(capacity) = 0                           5.64    5.42    6.75       66/66 
+    w(capacity) > 0                           5.75    4.54    9.67      220/220
+    w(latency) = 0                            5.50    5.23    9.67       66/66 
+    w(latency) > 0                            5.79    5.42    9.67      220/220
+    w(hops) = 0                               5.50    5.23    9.67       66/66 
+    w(hops) > 0                               5.79    5.42    9.67      220/220
+    w(latency) > 0, w(health) = 0             9.14    9.67    9.67       55/55 
+    w(latency) > 0, w(health) > 0             4.67    5.04    8.33      165/165
+    w(latency) > 0, w(capacity) = 0           5.66    5.42    6.75       55/55 
+    w(latency) > 0, w(capacity) > 0           5.83    5.04    9.67      165/165
+    w(latency) = 0, w(health) = 0             9.40    9.67    9.67       11/11 
+    w(latency) = 0, w(health) > 0             4.72    4.17    8.42       55/55 
+    w(latency) = 0, w(capacity) = 0           5.54    5.42    6.75       11/11 
+    w(latency) = 0, w(capacity) > 0           5.50    4.17    9.67       55/55 
+    only health                               5.42
+    only capacity                             9.67
+    only latency                              6.75
+    only hops                                 6.75
+    default (0.35,0.35,0.20,0.10)             3.17   by kind: cpu_starved 2, link_congested 71, storage_pressured 3
+--- latency feature: measured RTT ---
+    configurations                          mean %  median     max     above 1%
+    all                                       2.15    0.96    9.67      140/286
+    w(health) = 0                             2.97    0.96    9.67       31/66 
+    w(health) > 0                             1.90    1.00    8.42      109/220
+    w(capacity) = 0                           1.50    0.54    6.75       26/66 
+    w(capacity) > 0                           2.34    1.12    9.67      114/220
+    w(latency) = 0                            5.50    5.23    9.67       66/66 
+    w(latency) > 0                            1.14    0.54    7.38       74/220
+    w(hops) = 0                               1.91    0.88    9.67       30/66 
+    w(hops) > 0                               2.22    1.02    9.67      110/220
+    w(latency) > 0, w(health) = 0             1.68    0.38    7.38       20/55 
+    w(latency) > 0, w(health) > 0             0.96    0.54    6.42       54/165
+    w(latency) > 0, w(capacity) = 0           0.69    0.29    3.38       15/55 
+    w(latency) > 0, w(capacity) > 0           1.29    0.62    7.38       59/165
+    w(latency) = 0, w(health) = 0             9.40    9.67    9.67       11/11 
+    w(latency) = 0, w(health) > 0             4.72    4.17    8.42       55/55 
+    w(latency) = 0, w(capacity) = 0           5.54    5.42    6.75       11/11 
+    w(latency) = 0, w(capacity) > 0           5.50    4.17    9.67       55/55 
+    only health                               5.42
+    only capacity                             9.67
+    only latency                              0.00
+    only hops                                 6.75
+    default (0.35,0.35,0.20,0.10)             0.58   by kind: link_congested 13, storage_pressured 1
+
+Reading. The reference is the share of hosts that are degraded, 12.5%: what a
+score that reads no host state is expected to give. 'only hops' is such a score
+in a star (every candidate is the same distance away), but it sends all of a
+seed's primaries to one host, so its 30-seed estimate is noisy and the analytic
+12.5% is the figure to compare against. Read health and capacity in the
+'w(latency) > 0' and 'w(latency) = 0' strata, not in the marginal groups.

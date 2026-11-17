@@ -43,7 +43,7 @@ DEGRADED = {"w1", "w2", "w27", "w34", "w41", "w49", "w56", "w63", "w70", "w78",
             "w85", "w92", "w106", "w113", "w120", "w128"}
 
 ORDER = ["optimal", "heuristic", "round_robin", "random", "rl", "concentrated"]
-TEX = {"optimal": r"\texttt{optimal}", "heuristic": r"\texttt{heuristic}",
+TEX = {"optimal": r"\texttt{exact}", "heuristic": r"\texttt{heuristic}",
        "round_robin": r"\texttt{round\_robin}", "random": r"\texttt{random}",
        "rl": r"\texttt{PPO}", "concentrated": r"\texttt{concentrated}"}
 

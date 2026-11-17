@@ -21,6 +21,7 @@ import argparse
 import copy
 
 import backup_selector
+import degradation
 import topology_features
 from weight_sensitivity import build_topologies, evaluate
 
@@ -35,11 +36,13 @@ METHODS = {
     "heuristic":      lambda pr, ho, ctx, sd: backup_selector.select_backups(pr, ho, ctx=copy.deepcopy(ctx)),
     "optimal":        lambda pr, ho, ctx, sd: backup_selector.optimal_mapping(pr, ho, ctx=copy.deepcopy(ctx)),
 }
+RANDOMISED = ("random", "rr_random")
+RANDOM_DRAWS = 200
 ORDER = ["random", "round_robin", "rr_random", "hrw", "weighted_hrw", "weighted_chash",
          "heuristic", "optimal"]
 
 
-def build_multihub_topologies():
+def build_multihub_topologies(selection="prefix"):
     """Multi-hub variants (topology diversity) with the same degraded-host construction as
     the star scenarios. Returns list of (name, hosts, primaries, graph, overrides, degraded)."""
     topos = []
@@ -47,49 +50,73 @@ def build_multihub_topologies():
         hosts, primaries, graph = topology_features.generate_multihub_topology(
             n_hosts=n_hosts, n_primaries=n_primaries, n_hubs=n_hubs, seed=0)
         pool = [h for h in hosts if h not in primaries]
-        degraded = set(pool[:len(pool) // 3])
+        degraded = set(topology_features.pick_degraded(
+            hosts, primaries, len(pool) // 3, selection))
         overrides = {h: {"health": 0.05, "capacity": 2, "max_capacity": 60} for h in degraded}
         topos.append(("{}-host/{}-hub".format(n_hosts, n_hubs),
                       hosts, primaries, graph, overrides, degraded))
     return topos
 
 
-def run(n_seeds=5):
+def run(n_seeds=5, selection="prefix"):
     import run_logging
-    run_logging.capture_to_findings("baseline_comparison")
+    run_logging.capture_to_findings(
+        "baseline_comparison" + ("" if selection == "prefix" else "_" + selection))
 
-    topos = build_topologies() + build_multihub_topologies()
+    layout = "spread" if selection == "random" else selection   # sizes only, when random
+    topos = build_topologies(selection=layout) + build_multihub_topologies(layout)
+    print("degraded-host selection: {}".format(selection))
     print("Structural baseline comparison: {} methods x {} topologies x {} seeds\n".format(
         len(ORDER), len(topos), n_seeds))
-    print("Per method (5-seed avg): degraded-host hits (of |P|), max per-backup load, "
+    print("Per method (mean over seeds; {} also over {} draws per seed): "
+          "degraded-host hits (of |P|), max per-backup load, ".format(
+              " and ".join(RANDOMISED), RANDOM_DRAWS) +
           "distinct backups used.\n")
 
     for name, hosts, primaries, graph, overrides, degraded in topos:
         n_prim = len(primaries)
-        ctxs = [
-            topology_features.build_feature_context(
-                hosts=hosts, seed=s, graph=graph, overrides=overrides)
-            for s in range(n_seeds)
-        ]
+        # (ctx, degraded set) per seed. With 'random' the degraded hosts are redrawn
+        # for every seed, so a method that reads no host state (round_robin, hrw)
+        # is scored over many layouts and not over one layout repeated.
+        cases = []
+        for s in range(n_seeds):
+            deg_s, ov_s = degraded, overrides
+            if selection == "random" and degraded:
+                deg_s, ov_s, _, _ = degradation.scenario(
+                    hosts, primaries, len(degraded), selection="random",
+                    model="binary", seed=s)
+                deg_s = set(deg_s)
+            cases.append((topology_features.build_feature_context(
+                hosts=hosts, seed=s, graph=graph, overrides=ov_s), deg_s))
         print("=== {} ({} primaries, {} degraded backup hosts) ===".format(
             name, n_prim, len(degraded)))
         print("{:<16} {:>14} {:>10} {:>16}".format(
             "method", "degraded hits", "max load", "distinct backups"))
         for m in ORDER:
             dh = ml = di = 0.0
-            for sd, ctx in enumerate(ctxs):
-                mapping = METHODS[m](primaries, hosts, ctx, sd)
-                d, l, i = evaluate(mapping, degraded)
-                dh += d; ml += l; di += i
+            # A randomised method is averaged over many draws per layout. One draw
+            # per seed left `random` 1.5 to 2.5 standard errors under the base rate
+            # at 30 seeds, at all three scales at once because the scales share
+            # their seeds; over 2000 seeds the same code gives the base rate.
+            draws = RANDOM_DRAWS if m in RANDOMISED else 1
+            for sd, (ctx, deg_s) in enumerate(cases):
+                for r in range(draws):
+                    mapping = METHODS[m](primaries, hosts, ctx, sd if draws == 1
+                                         else 100003 * (r + 1) + sd)
+                    d, l, i = evaluate(mapping, deg_s)
+                    dh += d / draws; ml += l / draws; di += i / draws
             print("{:<16} {:>14.2f} {:>10.2f} {:>16.2f}".format(
                 m, dh / n_seeds, ml / n_seeds, di / n_seeds))
         print()
 
-    print("[output captured to findings/baseline_comparison.txt]")
+    print("[output captured to findings/]")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--seeds", type=int, default=5)
+    ap.add_argument("--degraded-selection", choices=["prefix", "spread", "random"], default="prefix",
+                    help="see topology_features.pick_degraded; 'spread' matches the "
+                         "bare-metal runs, 'prefix' reproduces the original output")
     args = ap.parse_args()
-    run(n_seeds=args.seeds)
+    run(n_seeds=args.seeds, selection=args.degraded_selection)

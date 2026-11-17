@@ -1,0 +1,98 @@
+# iDEFT findings: seed_level_analysis
+# command: seed_level_analysis.py
+# generated: 2026-11-16 08:23:59 UTC
+# (reproducing this scenario overwrites this file)
+
+Seed-level analysis of the bare-metal runs: per-run statistics averaged over
+the 3 trials of each context seed, then compared across the 5 seeds.
+Differences are a - b in ms with a 95% paired-t interval (4 d.f.).
+
+=== 16 hosts (seeds [1, 2, 3, 4, 5]) ===
+method             mean       p99   distinct       peak load 
+exact             23.17      49.5   10-10 of 10    1-1       
+heuristic         23.82      56.8   8-10 of 10     1-2       
+round_robin       29.89     120.6   10-10 of 10    1-1       
+random            36.45      95.4   7-8 of 10      3-3       
+PPO               23.49      49.8   8-9 of 10      2-2       
+concentrated     101.71     104.5   2-2 of 10      9-9       
+
+  mean  round_robin - exact         6.73  [   6.07,    7.39]  5/5 seeds agree in sign
+  mean       random - exact        13.29  [  -1.62,   28.20]  5/5 seeds agree in sign
+  mean    heuristic - exact         0.66  [  -0.30,    1.62]  3/5 seeds agree in sign
+  mean          PPO - exact         0.32  [  -0.14,    0.78]  3/5 seeds agree in sign
+  mean          PPO - heuristic    -0.34  [  -0.95,    0.27]  4/5 seeds agree in sign
+  mean concentrated - exact        78.54  [  78.08,   79.00]  5/5 seeds agree in sign
+  p99   round_robin - exact        71.17  [  63.76,   78.58]  5/5 seeds agree in sign
+  p99        random - exact        45.94  [  -1.83,   93.72]  5/5 seeds agree in sign
+  p99     heuristic - exact         7.31  [ -12.14,   26.76]  3/5 seeds agree in sign
+  p99           PPO - exact         0.39  [  -1.20,    1.98]  3/5 seeds agree in sign
+  p99           PPO - heuristic    -6.92  [ -25.79,   11.96]  3/5 seeds agree in sign
+  p99  concentrated - exact        55.07  [  53.01,   57.14]  5/5 seeds agree in sign
+
+=== 32 hosts (seeds [1, 2, 3, 4, 5]) ===
+method             mean       p99   distinct       peak load 
+exact             31.27      68.2   20-20 of 20    1-1       
+heuristic         31.59      77.0   17-19 of 20    2-2       
+round_robin       38.65     136.6   20-20 of 20    1-1       
+random            40.88     121.1   14-16 of 20    2-3       
+PPO               32.37      79.7   14-15 of 20    2-3       
+concentrated      98.35     129.3   2-2 of 20      19-19     
+
+  mean  round_robin - exact         7.37  [   6.35,    8.40]  5/5 seeds agree in sign
+  mean       random - exact         9.61  [   2.87,   16.35]  5/5 seeds agree in sign
+  mean    heuristic - exact         0.32  [  -0.27,    0.91]  4/5 seeds agree in sign
+  mean          PPO - exact         1.10  [  -1.41,    3.60]  3/5 seeds agree in sign
+  mean          PPO - heuristic     0.78  [  -1.65,    3.21]  3/5 seeds agree in sign
+  mean concentrated - exact        67.08  [  65.11,   69.04]  5/5 seeds agree in sign
+  p99   round_robin - exact        68.43  [  50.25,   86.60]  5/5 seeds agree in sign
+  p99        random - exact        52.94  [  13.63,   92.26]  5/5 seeds agree in sign
+  p99     heuristic - exact         8.89  [  -9.45,   27.23]  4/5 seeds agree in sign
+  p99           PPO - exact        11.50  [ -27.75,   50.75]  3/5 seeds agree in sign
+  p99           PPO - heuristic     2.61  [ -45.79,   51.00]  3/5 seeds agree in sign
+  p99  concentrated - exact        61.12  [  20.68,  101.56]  5/5 seeds agree in sign
+
+=== 128 hosts (seeds [1, 2, 3, 4, 5]) ===
+method             mean       p99   distinct       peak load 
+exact             41.76      79.7   80-80 of 80    1-1       
+heuristic         42.03      81.0   72-78 of 80    2-2       
+round_robin       51.87     157.2   80-80 of 80    1-1       
+random            51.25     155.1   54-62 of 80    3-5       
+PPO               45.04      83.3   15-18 of 80    20-36     
+concentrated     260.11    1282.2   2-2 of 80      79-79     
+
+  mean  round_robin - exact        10.11  [   9.03,   11.19]  5/5 seeds agree in sign
+  mean       random - exact         9.49  [   5.59,   13.40]  5/5 seeds agree in sign
+  mean    heuristic - exact         0.27  [  -0.71,    1.25]  4/5 seeds agree in sign
+  mean          PPO - exact         3.28  [   2.72,    3.84]  5/5 seeds agree in sign
+  mean          PPO - heuristic     3.01  [   1.72,    4.30]  5/5 seeds agree in sign
+  mean concentrated - exact       218.35  [ 213.18,  223.53]  5/5 seeds agree in sign
+  p99   round_robin - exact        77.51  [  71.65,   83.38]  5/5 seeds agree in sign
+  p99        random - exact        75.41  [  70.92,   79.91]  5/5 seeds agree in sign
+  p99     heuristic - exact         1.33  [  -3.09,    5.75]  4/5 seeds agree in sign
+  p99           PPO - exact         3.60  [   1.86,    5.35]  5/5 seeds agree in sign
+  p99           PPO - heuristic     2.27  [  -3.18,    7.72]  4/5 seeds agree in sign
+  p99  concentrated - exact      1202.52  [1146.58, 1258.46]  5/5 seeds agree in sign
+
+=== 128 hosts, homogeneous (seeds [1, 2, 3, 4, 5]) ===
+method             mean       p99   distinct       peak load 
+exact             41.73      78.8   80-80 of 80    1-1       
+heuristic         41.80      80.6   76-80 of 80    1-2       
+round_robin       41.97      80.1   80-80 of 80    1-1       
+random            41.55      79.2   54-62 of 80    3-5       
+PPO               46.53      89.3   10-29 of 80    16-57     
+concentrated      56.27     114.7   2-2 of 80      79-79     
+
+  mean  round_robin - exact         0.25  [  -1.11,    1.61]  3/5 seeds agree in sign
+  mean       random - exact        -0.17  [  -1.69,    1.34]  3/5 seeds agree in sign
+  mean    heuristic - exact         0.08  [  -1.29,    1.44]  3/5 seeds agree in sign
+  mean          PPO - exact         4.81  [   0.86,    8.75]  5/5 seeds agree in sign
+  mean          PPO - heuristic     4.73  [   1.68,    7.78]  5/5 seeds agree in sign
+  mean concentrated - exact        14.54  [  12.59,   16.50]  5/5 seeds agree in sign
+  p99   round_robin - exact         1.28  [  -4.89,    7.44]  3/5 seeds agree in sign
+  p99        random - exact         0.43  [  -2.60,    3.46]  3/5 seeds agree in sign
+  p99     heuristic - exact         1.76  [  -2.04,    5.55]  3/5 seeds agree in sign
+  p99           PPO - exact        10.45  [  -4.73,   25.63]  4/5 seeds agree in sign
+  p99           PPO - heuristic     8.70  [  -3.18,   20.57]  5/5 seeds agree in sign
+  p99  concentrated - exact        35.88  [  23.96,   47.80]  5/5 seeds agree in sign
+
+wrote ../paper/tab_seedlevel.tex

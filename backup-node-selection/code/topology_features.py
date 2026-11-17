@@ -50,6 +50,34 @@ def generate_scaled_topology(n_hosts=20, n_primaries=15, seed=0):
     return hosts, primaries, graph
 
 
+def pick_degraded(hosts, primaries, n_degraded, selection="prefix", seed=0):
+    """Which hosts a scenario marks degraded.
+
+    'prefix' takes the first n hosts that are not primaries: a contiguous block of
+    names, which an order-based baseline can miss entirely and so appear to avoid.
+    'spread' samples n hosts evenly along the lexicographic order those baselines
+    cycle, which is the construction the bare-metal runs use
+    (rpc_contention_experiment.py --degraded-selection spread). Under 'spread' a
+    degraded host may itself be a primary; it is still a backup candidate for
+    every other primary.
+    'random' draws n hosts uniformly from all hosts, keyed by `seed`, so that a
+    set of seeds covers a set of layouts and a method's exposure is not a
+    property of one arrangement."""
+    if n_degraded <= 0:
+        return []
+    if selection == "spread":
+        ordered = sorted(hosts)
+        step = len(ordered) / float(n_degraded)
+        return sorted({ordered[min(int(i * step), len(ordered) - 1)]
+                       for i in range(n_degraded)})
+    if selection == "random":
+        rng = random.Random("layout-{}".format(seed))
+        return sorted(rng.sample(sorted(hosts), n_degraded))
+    if selection == "prefix":
+        return [h for h in hosts if h not in primaries][:n_degraded]
+    raise ValueError("unknown degraded selection: {}".format(selection))
+
+
 def generate_multihub_topology(n_hosts=32, n_primaries=20, n_hubs=3, seed=0):
     """Synthetic multi-hub topology: n_hubs hubs connected in a line, with hosts distributed
     round-robin across the hubs. Unlike the single-hub star (generate_scaled_topology), where

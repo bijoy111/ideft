@@ -103,7 +103,10 @@ HEALTHY_CAPACITY_RATIO = (0.55, 1.0)
 
 def healthy_overrides(healthy_hosts, seed=0):
     """Baseline utilisation for hosts that are not degraded (realistic model only)."""
-    rng = random.Random(("healthy", seed).__hash__() & 0xFFFFFFFF)
+    # A string seed, not hash(("healthy", seed)): hashing a str is salted per
+    # process, which made this draw, and every count derived from it, differ
+    # between two executions of the same command.
+    rng = random.Random("healthy-{}".format(seed))
     return {h: {"capacity_ratio": round(rng.uniform(*HEALTHY_CAPACITY_RATIO), 3)}
             for h in sorted(healthy_hosts)}
 
@@ -126,6 +129,12 @@ def realistic_profiles(degraded_hosts, seed=0):
     """
     rng = random.Random(seed)
     kinds = sorted(KINDS)
+    # Which kinds a small degraded set receives must depend on the seed. Seed 0
+    # keeps the original fixed order so that existing scenarios are unchanged;
+    # any other seed shuffles it. Kinds are still dealt in rotation, so a set of
+    # five or more covers all of them.
+    if seed != 0:
+        rng.shuffle(kinds)
     overrides, delays, profiles = {}, {}, {}
 
     for i, host in enumerate(sorted(degraded_hosts)):
@@ -172,8 +181,37 @@ def build(degraded_hosts, model="binary", seed=0, healthy_hosts=()):
         overrides, delays, profiles = realistic_profiles(degraded_hosts, seed=seed)
         overrides.update(healthy_overrides(
             [h for h in healthy_hosts if h not in set(degraded_hosts)], seed=seed))
+        # A degraded host whose failure kind does not touch capacity is in use like
+        # any other host. Left at its initial draw it would read as completely
+        # empty, which made it *more* attractive on capacity than every healthy
+        # host that carries a baseline.
+        base = healthy_overrides(
+            [h for h in degraded_hosts if "capacity_ratio" not in overrides[h]],
+            seed="{}-degraded".format(seed))
+        for h, fields in base.items():
+            overrides[h].update(fields)
         return overrides, delays, profiles
     raise ValueError("unknown degradation model: {}".format(model))
+
+
+def scenario(hosts, primaries, n_degraded, selection="spread", model="binary", seed=0):
+    """Which hosts a run degrades, what the selectors are told, and how slow each is.
+
+    The experiment client (rpc_contention_experiment.py) and the tool that imposes
+    the slowdown on the testbed (apply_degradation.py) both call this, so the hosts
+    the selectors see as degraded are exactly the hosts tc slows, by exactly the
+    model's delay. Returns (degraded, overrides, delays_s, profiles).
+    """
+    import topology_features
+    degraded = topology_features.pick_degraded(hosts, primaries, n_degraded, selection,
+                                               seed=seed)
+    # Every host that is not degraded carries a baseline utilisation under the
+    # realistic model, primaries included: a primary is a backup candidate for the
+    # others, and one left completely empty would win on capacity for no reason.
+    overrides, delays, profiles = build(
+        degraded, model=model, seed=seed,
+        healthy_hosts=[h for h in hosts if h not in degraded])
+    return degraded, overrides, delays, profiles
 
 
 def describe(profiles):

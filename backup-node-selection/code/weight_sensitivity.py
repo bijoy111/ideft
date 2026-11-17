@@ -50,7 +50,7 @@ def all_configs():
     return grid + [DEFAULT]
 
 
-def build_topologies(degradation_model="binary"):
+def build_topologies(degradation_model="binary", selection="prefix"):
     """Returns list of (name, hosts, primaries, graph, overrides, degraded_set).
 
     `degradation_model` selects how degraded hosts are constructed; see
@@ -74,7 +74,8 @@ def build_topologies(degradation_model="binary"):
             n_hosts=n_hosts, n_primaries=n_primaries, seed=0)
         backup_pool = [h for h in hosts if h not in primaries]
         n_degraded = len(backup_pool) // 3
-        degraded = set(backup_pool[:n_degraded])
+        degraded = set(topology_features.pick_degraded(
+            hosts, primaries, n_degraded, selection))
         overrides, _, _ = degradation.build(
             sorted(degraded), model=degradation_model, seed=0,
             healthy_hosts=[h for h in backup_pool if h not in degraded])

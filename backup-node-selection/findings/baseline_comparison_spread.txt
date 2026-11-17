@@ -1,0 +1,77 @@
+# iDEFT findings: baseline_comparison_spread
+# command: baseline_comparison.py --seeds 30 --degraded-selection spread
+# generated: 2026-11-14 14:35:39 UTC
+# (reproducing this scenario overwrites this file)
+
+degraded-host selection: spread
+Structural baseline comparison: 8 methods x 6 topologies x 30 seeds
+
+Per method (5-seed avg): degraded-host hits (of |P|), max per-backup load, distinct backups used.
+
+=== 9-host (real) (5 primaries, 0 degraded backup hosts) ===
+method            degraded hits   max load distinct backups
+random                     0.00       1.93             3.87
+round_robin                0.00       1.00             5.00
+rr_random                  0.00       1.00             5.00
+hrw                        0.00       1.00             5.00
+weighted_hrw               0.00       1.73             4.27
+weighted_chash             0.00       3.40             2.60
+heuristic                  0.00       1.50             4.43
+optimal                    0.00       1.00             5.00
+
+=== 16-host (10 primaries, 2 degraded backup hosts) ===
+method            degraded hits   max load distinct backups
+random                     1.27       2.50             7.53
+round_robin                1.00       1.00            10.00
+rr_random                  1.13       1.00            10.00
+hrw                        0.00       3.00             8.00
+weighted_hrw               0.00       2.80             7.60
+weighted_chash             0.00       3.47             6.37
+heuristic                  0.00       1.57             9.27
+optimal                    0.00       1.00            10.00
+
+=== 32-host (20 primaries, 4 degraded backup hosts) ===
+method            degraded hits   max load distinct backups
+random                     2.70       2.57            14.93
+round_robin                2.00       1.00            20.00
+rr_random                  2.63       1.00            20.00
+hrw                        2.00       3.00            14.00
+weighted_hrw               0.00       3.40            12.80
+weighted_chash             0.00       2.87            14.63
+heuristic                  0.00       1.90            18.33
+optimal                    0.00       1.00            20.00
+
+=== 128-host (80 primaries, 16 degraded backup hosts) ===
+method            degraded hits   max load distinct backups
+random                    10.33       3.57            59.43
+round_robin               10.00       1.00            80.00
+rr_random                  9.97       1.00            80.00
+hrw                       12.00       2.00            66.00
+weighted_hrw               0.00       3.00            62.27
+weighted_chash             0.00       3.37            60.67
+heuristic                  0.00       2.00            74.30
+optimal                    0.00       1.00            80.00
+
+=== 16-host/3-hub (10 primaries, 2 degraded backup hosts) ===
+method            degraded hits   max load distinct backups
+random                     1.27       2.50             7.53
+round_robin                1.00       1.00            10.00
+rr_random                  1.13       1.00            10.00
+hrw                        0.00       3.00             8.00
+weighted_hrw               0.00       2.80             7.60
+weighted_chash             0.00       3.47             6.37
+heuristic                  0.00       1.63             9.30
+optimal                    0.00       1.00            10.00
+
+=== 32-host/3-hub (20 primaries, 4 degraded backup hosts) ===
+method            degraded hits   max load distinct backups
+random                     2.70       2.57            14.93
+round_robin                2.00       1.00            20.00
+rr_random                  2.63       1.00            20.00
+hrw                        2.00       3.00            14.00
+weighted_hrw               0.00       3.40            12.80
+weighted_chash             0.00       2.87            14.63
+heuristic                  0.00       1.90            18.37
+optimal                    0.00       1.00            20.00
+
+[output captured to findings/]

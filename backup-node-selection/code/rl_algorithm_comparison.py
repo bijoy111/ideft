@@ -22,6 +22,7 @@ import argparse
 import os
 from collections import Counter
 
+import degradation
 import rl_backup_selector
 import topology_features
 
@@ -34,10 +35,16 @@ SCENARIOS = [
 ]
 
 
-def evaluate(model, hosts, primaries, graph, overrides, degraded, n_seeds):
+def evaluate(model, hosts, primaries, graph, overrides, degraded, n_seeds, selection="prefix"):
     """Returns (distinct_range, peak_load_range, degraded_hits, total_assignments)."""
     distinct, peak, deg_hits = [], [], 0
+    n_degraded = len(degraded)
     for seed in range(n_seeds):
+        if selection == "random" and n_degraded:
+            # a new degraded layout per seed, as in baseline_comparison.py
+            degraded, overrides, _, _ = degradation.scenario(
+                hosts, primaries, n_degraded, selection="random", model="binary", seed=seed)
+            degraded = set(degraded)
         ctx = topology_features.build_feature_context(
             hosts=hosts, seed=seed, graph=graph, overrides=overrides)
         mapping = rl_backup_selector.predict_mapping(model, hosts, primaries, ctx)
@@ -48,9 +55,11 @@ def evaluate(model, hosts, primaries, graph, overrides, degraded, n_seeds):
     return (min(distinct), max(distinct)), (min(peak), max(peak)), deg_hits, n_seeds * len(primaries)
 
 
-def run(n_seeds=5):
+def run(n_seeds=5, selection="prefix"):
     import run_logging
-    run_logging.capture_to_findings("rl_algorithm_comparison")
+    run_logging.capture_to_findings(
+        "rl_algorithm_comparison" + ("" if selection == "prefix" else "_" + selection))
+    print("degraded-host selection: {}".format(selection))
 
     print("PPO vs DQN, structural comparison over {} context seeds per scenario.\n".format(n_seeds))
     print("Metrics are properties of the mapping (not RPC timing), so they are")
@@ -66,8 +75,9 @@ def run(n_seeds=5):
         else:
             hosts, primaries, graph = topology_features.generate_scaled_topology(
                 n_hosts=n_hosts, n_primaries=n_primaries, seed=0)
-            pool = [h for h in hosts if h not in primaries]
-            degraded = set(pool[:n_degraded])
+            degraded = set(topology_features.pick_degraded(
+                hosts, primaries, n_degraded,
+                "spread" if selection == "random" else selection))
             overrides = {h: {"health": 0.05, "capacity": 2, "max_capacity": 60} for h in degraded}
 
         for algo_label, path, algo in [("PPO", ppo_path, "ppo"), ("DQN", dqn_path, "dqn")]:
@@ -76,7 +86,7 @@ def run(n_seeds=5):
                 continue
             model = rl_backup_selector.load_rl_model(path, algo)
             (d_lo, d_hi), (p_lo, p_hi), hits, total = evaluate(
-                model, hosts, primaries, graph, overrides, degraded, n_seeds)
+                model, hosts, primaries, graph, overrides, degraded, n_seeds, selection)
             print("{:<10} {:<5} {:>12} {:>12} {:>14}".format(
                 label, algo_label,
                 "{}-{} of {}".format(d_lo, d_hi, n_primaries),
@@ -84,11 +94,14 @@ def run(n_seeds=5):
                 "{}/{}".format(hits, total)))
         print()
 
-    print("[output captured to findings/rl_algorithm_comparison.txt]")
+    print("[output captured to findings/]")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--seeds", type=int, default=5)
+    ap.add_argument("--degraded-selection", choices=["prefix", "spread", "random"], default="prefix",
+                    help="see topology_features.pick_degraded; 'spread' matches the "
+                         "bare-metal runs, 'prefix' reproduces the original output")
     args = ap.parse_args()
-    run(n_seeds=args.seeds)
+    run(n_seeds=args.seeds, selection=args.degraded_selection)

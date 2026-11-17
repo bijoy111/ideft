@@ -1,0 +1,62 @@
+# iDEFT findings: oversubscription
+# command: oversubscription.py
+# generated: 2026-11-16 15:58:39 UTC
+# (reproducing this scenario overwrites this file)
+
+Oversubscribed pool: backups restricted to hosts that are not primaries.
+30 seeds, default weights, structural. Score gap = (exact - heuristic) / |exact|.
+
+=== degradation: none      10 primaries on 6 backups (k=2), 0 degraded, forced onto degraded by the cap: 0 ===
+method          score       degraded  peak load   distinct
+exact            6.27           0.00  2.0 (2-2)       5.13
+heuristic        6.26           0.00  2.3 (2-3)       6.00
+score gap: mean 0.13%  max 1.96%  (heuristic above exact in 8/30 seeds)
+
+=== degradation: none      20 primaries on 12 backups (k=2), 0 degraded, forced onto degraded by the cap: 0 ===
+method          score       degraded  peak load   distinct
+exact           12.42           0.00  2.0 (2-2)      10.20
+heuristic       12.45           0.00  2.7 (2-3)      12.00
+score gap: mean -0.23%  max 1.03%  (heuristic above exact in 17/30 seeds)
+
+=== degradation: none      80 primaries on 48 backups (k=2), 0 degraded, forced onto degraded by the cap: 0 ===
+method          score       degraded  peak load   distinct
+exact           50.26           0.00  2.0 (2-2)      40.40
+heuristic       50.24           0.00  2.9 (2-3)      48.00
+score gap: mean 0.02%  max 0.83%  (heuristic above exact in 14/30 seeds)
+
+=== degradation: binary    10 primaries on 6 backups (k=2), 1 degraded, forced onto degraded by the cap: 0 ===
+method          score       degraded  peak load   distinct
+exact            6.16           0.00  2.0 (2-2)       5.00
+heuristic        6.24           0.00  2.5 (2-3)       5.00
+score gap: mean -1.21%  max 0.00%  (heuristic above exact in 17/30 seeds)
+
+=== degradation: binary    20 primaries on 12 backups (k=2), 3 degraded, forced onto degraded by the cap: 2 ===
+method          score       degraded  peak load   distinct
+exact           10.60           2.00  2.0 (2-2)      10.87
+heuristic       12.35           0.00  3.2 (3-4)       9.00
+score gap: mean -16.54%  max -14.61%  (heuristic above exact in 30/30 seeds)
+
+=== degradation: binary    80 primaries on 48 backups (k=2), 12 degraded, forced onto degraded by the cap: 8 ===
+method          score       degraded  peak load   distinct
+exact           42.93           8.00  2.0 (2-2)      41.03
+heuristic       49.86           0.00  3.2 (3-4)      36.00
+score gap: mean -16.14%  max -15.30%  (heuristic above exact in 30/30 seeds)
+
+=== degradation: realistic 10 primaries on 6 backups (k=2), 1 degraded, forced onto degraded by the cap: 0 ===
+method          score       degraded  peak load   distinct
+exact            5.45           0.00  2.0 (2-2)       5.00
+heuristic        5.62           0.00  2.9 (2-4)       5.00
+score gap: mean -3.24%  max 0.00%  (heuristic above exact in 27/30 seeds)
+
+=== degradation: realistic 20 primaries on 12 backups (k=2), 3 degraded, forced onto degraded by the cap: 2 ===
+method          score       degraded  peak load   distinct
+exact           10.23           2.00  2.0 (2-2)      10.00
+heuristic       10.79           0.87  3.3 (3-4)       9.77
+score gap: mean -5.44%  max -0.75%  (heuristic above exact in 30/30 seeds)
+
+=== degradation: realistic 80 primaries on 48 backups (k=2), 12 degraded, forced onto degraded by the cap: 8 ===
+method          score       degraded  peak load   distinct
+exact           42.07           8.13  2.0 (2-2)      40.00
+heuristic       43.98           4.47  3.7 (3-4)      39.80
+score gap: mean -4.55%  max -3.15%  (heuristic above exact in 30/30 seeds)
+

@@ -1,0 +1,77 @@
+# iDEFT findings: baseline_comparison_random
+# command: baseline_comparison.py --seeds 30 --degraded-selection random
+# generated: 2026-11-17 06:22:32 UTC
+# (reproducing this scenario overwrites this file)
+
+degraded-host selection: random
+Structural baseline comparison: 8 methods x 6 topologies x 30 seeds
+
+Per method (mean over seeds; random and rr_random also over 200 draws per seed): degraded-host hits (of |P|), max per-backup load, distinct backups used.
+
+=== 9-host (real) (5 primaries, 0 degraded backup hosts) ===
+method            degraded hits   max load distinct backups
+random                     0.00       2.01             3.78
+round_robin                0.00       1.00             5.00
+rr_random                  0.00       1.00             5.00
+hrw                        0.00       1.00             5.00
+weighted_hrw               0.00       1.73             4.27
+weighted_chash             0.00       3.40             2.60
+heuristic                  0.00       1.50             4.43
+optimal                    0.00       1.00             5.00
+
+=== 16-host (10 primaries, 2 degraded backup hosts) ===
+method            degraded hits   max load distinct backups
+random                     1.26       2.32             7.63
+round_robin                1.40       1.00            10.00
+rr_random                  1.25       1.00            10.00
+hrw                        1.47       3.00             8.00
+weighted_hrw               0.00       2.83             7.30
+weighted_chash             0.00       2.77             6.53
+heuristic                  0.00       1.60             9.07
+optimal                    0.00       1.00            10.00
+
+=== 32-host (20 primaries, 4 degraded backup hosts) ===
+method            degraded hits   max load distinct backups
+random                     2.48       2.68            15.06
+round_robin                2.50       1.00            20.00
+rr_random                  2.49       1.00            20.00
+hrw                        2.60       3.00            14.00
+weighted_hrw               0.00       3.40            14.03
+weighted_chash             0.00       2.93            14.87
+heuristic                  0.00       1.87            18.23
+optimal                    0.00       1.00            20.00
+
+=== 128-host (80 primaries, 16 degraded backup hosts) ===
+method            degraded hits   max load distinct backups
+random                     9.95       3.42            59.68
+round_robin                9.97       1.00            80.00
+rr_random                  9.99       1.00            80.00
+hrw                       10.10       2.00            66.00
+weighted_hrw               0.00       2.83            61.93
+weighted_chash             0.00       3.37            60.50
+heuristic                  0.00       2.00            74.40
+optimal                    0.00       1.00            80.00
+
+=== 16-host/3-hub (10 primaries, 2 degraded backup hosts) ===
+method            degraded hits   max load distinct backups
+random                     1.26       2.32             7.63
+round_robin                1.40       1.00            10.00
+rr_random                  1.25       1.00            10.00
+hrw                        1.47       3.00             8.00
+weighted_hrw               0.00       2.83             7.30
+weighted_chash             0.00       2.77             6.53
+heuristic                  0.00       1.63             9.20
+optimal                    0.00       1.00            10.00
+
+=== 32-host/3-hub (20 primaries, 4 degraded backup hosts) ===
+method            degraded hits   max load distinct backups
+random                     2.48       2.68            15.06
+round_robin                2.50       1.00            20.00
+rr_random                  2.49       1.00            20.00
+hrw                        2.60       3.00            14.00
+weighted_hrw               0.00       3.40            14.03
+weighted_chash             0.00       2.93            14.87
+heuristic                  0.00       1.90            18.53
+optimal                    0.00       1.00            20.00
+
+[output captured to findings/]

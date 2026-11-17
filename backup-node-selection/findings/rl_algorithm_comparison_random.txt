@@ -1,0 +1,25 @@
+# iDEFT findings: rl_algorithm_comparison_random
+# command: rl_algorithm_comparison.py --seeds 30 --degraded-selection random
+# generated: 2026-11-16 08:18:51 UTC
+# (reproducing this scenario overwrites this file)
+
+degraded-host selection: random
+PPO vs DQN, structural comparison over 30 context seeds per scenario.
+
+Metrics are properties of the mapping (not RPC timing), so they are
+hardware-independent and reproduce across machines.
+
+scale      algo      distinct    peak load       degraded
+9-host     PPO       5-5 of 5          1-1          0/150
+9-host     DQN       5-5 of 5          1-1          0/150
+
+16-host    PPO     7-10 of 10          1-2          0/300
+16-host    DQN      6-9 of 10          2-3          0/300
+
+32-host    PPO    12-16 of 20          2-4          0/600
+32-host    DQN     9-16 of 20          2-8          1/600
+
+128-host   PPO     3-28 of 80        13-77        48/2400
+128-host   DQN      2-2 of 80        79-79       632/2400
+
+[output captured to findings/]

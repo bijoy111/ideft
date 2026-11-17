@@ -149,7 +149,7 @@ def ssh(node, command, user=None, dry_run=False):
     return done.stdout.strip()
 
 
-def launch_local(slots, transport, grpc_workers):
+def launch_local(slots, transport, grpc_workers, backlog=None):
     """Start the servers on this machine as ordinary subprocesses.
 
     This is not a substitute for a testbed -- it reintroduces exactly the core
@@ -164,6 +164,8 @@ def launch_local(slots, transport, grpc_workers):
                 "--transport", transport]
         if grpc_workers is not None:
             argv += ["--grpc-workers", str(grpc_workers)]
+        if backlog is not None:
+            argv += ["--backlog", str(backlog)]
         log = open("/tmp/ideft_backup_{}.log".format(host_id), "w")
         proc = subprocess.Popen(argv, stdout=log, stderr=log)
         pids[host_id] = proc.pid
@@ -312,7 +314,7 @@ def main(argv=None):
 
     launched = "ssh"
     if args.local:
-        pids = launch_local(slots, args.transport, args.grpc_workers)
+        pids = launch_local(slots, args.transport, args.grpc_workers, backlog=args.backlog)
         for host_id, pid in pids.items():
             slots[host_id]["pid"] = pid
             # Nothing is pinned in local mode, and recording a core we did not

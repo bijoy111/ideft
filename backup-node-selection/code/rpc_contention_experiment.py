@@ -44,6 +44,7 @@ import backup_selector
 import deployment
 import degradation
 import config
+import telemetry
 import topology_features
 
 DUMMY_STATE = {"10.0.0.1,10.0.0.2,1": 42}
@@ -55,6 +56,12 @@ DUMMY_STATE = {"10.0.0.1,10.0.0.2,1": 42}
 # transport is a controlled variable: a finding that holds under both is a
 # property of backup placement rather than of one RPC stack.
 TRANSPORT = "xmlrpc"
+
+# Client processes driving the primaries. One process is how every earlier run was
+# made: all primaries' burst threads share one interpreter lock, so at 80
+# primaries x burst 10 the client itself runs 800 threads and its scheduling can
+# enter the measured latency. More processes split the primaries between them.
+CLIENT_PROCS = 1
 GRPC_MAX_WORKERS = None  # None -> grpc_transport.DEFAULT_MAX_WORKERS
 RESULTS_DIR = "results_rpc"
 # Every invocation writes its own raw file. A single shared path is a race: a
@@ -270,8 +277,8 @@ def replicate_burst(endpoint, n_calls, burst_size):
             total_failures += failures
 
     if total_failures:
-        print("  [warning] {} call(s) failed after {} retries against port {}".format(
-            total_failures, MAX_RETRY_ATTEMPTS, port))
+        print("  [warning] {} call(s) failed after {} retries against {}".format(
+            total_failures, MAX_RETRY_ATTEMPTS, getattr(endpoint, "host_id", endpoint)))
 
     return all_records
 
@@ -295,19 +302,35 @@ def run_trial(mapping, base_port, n_calls, burst_size, slow_hosts=None,
     deploy.wait_ready(endpoints, TRANSPORT)
 
     try:
-        records_by_primary = {}
-        with ThreadPoolExecutor(max_workers=len(mapping)) as primary_pool:
-            futures = {
-                primary: primary_pool.submit(replicate_burst, endpoints[backup],
-                                             n_calls, burst_size)
-                for primary, backup in mapping.items()
-            }
-            for primary, future in futures.items():
-                records_by_primary[primary] = future.result()
+        items = [(primary, endpoints[backup]) for primary, backup in sorted(mapping.items())]
+        if CLIENT_PROCS <= 1:
+            records_by_primary = _drive_primaries(items, n_calls, burst_size)
+        else:
+            # Interleave so each process gets a similar share of every load level.
+            groups = [items[i::CLIENT_PROCS] for i in range(CLIENT_PROCS)]
+            groups = [g for g in groups if g]
+            ctx = multiprocessing.get_context("fork")
+            with ctx.Pool(len(groups)) as pool:
+                parts = pool.starmap(_drive_primaries,
+                                     [(g, n_calls, burst_size) for g in groups])
+            records_by_primary = {}
+            for part in parts:
+                records_by_primary.update(part)
     finally:
         deploy.teardown()
 
     return records_by_primary
+
+
+def _drive_primaries(items, n_calls, burst_size):
+    """Run every (primary, endpoint) in `items` concurrently in this process."""
+    out = {}
+    with ThreadPoolExecutor(max_workers=len(items)) as primary_pool:
+        futures = {primary: primary_pool.submit(replicate_burst, endpoint, n_calls, burst_size)
+                   for primary, endpoint in items}
+        for primary, future in futures.items():
+            out[primary] = future.result()
+    return out
 
 
 def reset_raw_csv():
@@ -389,7 +412,7 @@ METHODS = {
 def run_experiment(context_seeds, trials, n_calls, burst_size, methods, order_seed=0,
                     hosts=None, primaries=None, graph=None, overrides=None, slow_hosts=None,
                     rl_model_path="rl_model.zip", rl_dqn_model_path="rl_model_dqn.zip",
-                    manifest=None):
+                    manifest=None, telemetry_opts=None):
     """Runs the full method comparison independently across each seed in context_seeds
     (a fresh topology/resource realization and a fresh mapping per method for each seed),
     then aggregates across all (context_seed x trial) combinations. Running many trials of
@@ -406,8 +429,48 @@ def run_experiment(context_seeds, trials, n_calls, burst_size, methods, order_se
     base_port = 9001
     order_rng = random_module.Random(order_seed)
 
+    # What the selectors are told. Without telemetry options this is the model's
+    # truth, as in every earlier run; with them, see telemetry.py.
+    topt = telemetry_opts or {}
+    degraded = sorted(topt.get("degraded", []))
+    healthy_overrides = {h: v for h, v in (overrides or {}).items() if h not in set(degraded)}
+    probed_excess = None
+    if topt.get("probe"):
+        feasible = [h for h in hosts if h not in topology_features.INFEASIBLE_HOSTS]
+        endpoints, deploy = start_backup_servers(
+            set(feasible), base_port, slow_hosts=slow_hosts, manifest=manifest)
+        deploy.wait_ready(endpoints, TRANSPORT)
+        try:
+            probed = telemetry.probe_rtt(
+                endpoints, lambda ep: make_proxy(ep).update_state(DUMMY_STATE),
+                samples=topt.get("samples", 5))
+        finally:
+            deploy.teardown()
+        base_port += len(feasible) + 1
+        missing = sorted(set(feasible) - set(probed))
+        if missing:
+            print("  [warning] no probe answered for: {}".format(", ".join(missing)))
+        probed_excess = telemetry.excess_over_baseline(probed)
+        print("\nRTT probe: {} hosts, {} sequential calls each, median kept; "
+              "excess is over the median host. Largest 24:".format(
+                  len(probed), topt.get("samples", 5)))
+        for line in telemetry.describe(probed, probed_excess, set(degraded), limit=24):
+            print(line)
+    if topt:
+        print("telemetry: probe={} rtt_noise_ms={} feature_noise={} stale_frac={}".format(
+            bool(topt.get("probe")), topt.get("rtt_noise_ms", 0.0),
+            topt.get("feature_noise", 0.0), topt.get("stale_frac", 0.0)))
+
     for context_seed in context_seeds:
         ctx = topology_features.build_feature_context(hosts=hosts, seed=context_seed, graph=graph, overrides=overrides)
+        if topt:
+            ctx, stale = telemetry.report(
+                ctx, degraded, context_seed, hosts, graph, healthy_overrides,
+                probed_excess=probed_excess, rtt_noise_ms=topt.get("rtt_noise_ms", 0.0),
+                feature_noise=topt.get("feature_noise", 0.0),
+                stale_frac=topt.get("stale_frac", 0.0))
+            print("\n  seed {}: stale (reported healthy): {}".format(
+                context_seed, ", ".join(stale) or "none"))
         method_fns["random"] = lambda ctx, hosts, primaries, cs=context_seed: backup_selector.random_mapping(primaries, hosts, seed=cs)
         # deepcopy per method: heuristic and rl mutate ctx in place via _apply_load_penalty
         # (capacity -= 20; health *= 0.95), so a shared ctx would make each method's scores
@@ -473,7 +536,7 @@ if __name__ == "__main__":
                              "from healthy hosts; realistic draws a continuous severity and one of "
                              "five failure kinds per host, and gives healthy hosts a baseline "
                              "utilisation so remaining capacity is a measurement rather than a flag")
-    parser.add_argument("--degraded-selection", choices=["prefix", "spread"],
+    parser.add_argument("--degraded-selection", choices=["prefix", "spread", "random"],
                         default="prefix",
                         help="which backup-eligible hosts are degraded. 'prefix' "
                              "takes the first n, which is what earlier runs did; it "
@@ -512,11 +575,31 @@ if __name__ == "__main__":
                         help="server thread-pool size for --transport grpc. Pass 1 to reproduce "
                              "the XML-RPC backup's strict single-threading over HTTP/2, isolating "
                              "the transport change from the concurrency change")
+    parser.add_argument("--rtt-probe", action="store_true",
+                        help="before the first seed, call every backup a few times and "
+                             "report each host's measured excess RTT to the selectors in "
+                             "place of the model's delay (telemetry.py)")
+    parser.add_argument("--label", default=None,
+                        help="name of the findings file this run writes "
+                             "(findings/<label>.txt). Defaults to latency_<N>hosts, which "
+                             "a later run at the same scale would overwrite")
+    parser.add_argument("--client-procs", type=int, default=1,
+                        help="split the primaries across this many client processes. "
+                             "1 reproduces every earlier run (one process, one GIL)")
+    parser.add_argument("--probe-samples", type=int, default=5)
+    parser.add_argument("--rtt-noise-ms", type=float, default=0.0,
+                        help="Gaussian noise (sd, ms) on the reported RTT excess")
+    parser.add_argument("--feature-noise", type=float, default=0.0,
+                        help="Gaussian noise (sd) on reported health and capacity ratio")
+    parser.add_argument("--stale-frac", type=float, default=0.0,
+                        help="fraction of degraded hosts reported as they were before "
+                             "degrading (healthy features, zero RTT excess)")
     parser.add_argument("--rl-model", default="rl_model.zip", help="PPO checkpoint for the 'rl' method")
     parser.add_argument("--rl-dqn-model", default="rl_model_dqn.zip", help="DQN checkpoint for the 'rl_dqn' method")
     args = parser.parse_args()
 
     TRANSPORT = args.transport
+    CLIENT_PROCS = args.client_procs
     GRPC_MAX_WORKERS = args.grpc_workers
     if args.results_csv:
         RESULTS_CSV = args.results_csv
@@ -525,32 +608,27 @@ if __name__ == "__main__":
     # Save this run's output to findings/ as well as the terminal (see run_logging.py).
     import run_logging
     suffix = "" if args.transport == "xmlrpc" else "_{}".format(args.transport)
-    run_logging.capture_to_findings("latency_{}hosts{}".format(args.n_hosts or 9, suffix))
+    run_logging.capture_to_findings(
+        args.label or "latency_{}hosts{}".format(args.n_hosts or 9, suffix))
+    print("client processes: {}".format(args.client_procs))
     print("transport: {}{}".format(
         args.transport,
         "" if args.transport == "xmlrpc" else " (server workers: {})".format(
             args.grpc_workers or "default")))
 
     hosts, primaries, graph, overrides, slow_hosts = None, None, None, None, None
+    degraded = []
     if args.n_hosts is not None:
         hosts, primaries, graph = topology_features.generate_scaled_topology(
             n_hosts=args.n_hosts, n_primaries=args.n_primaries, seed=args.scale_seed
         )
         if args.n_degraded > 0:
-            backup_pool = [h for h in hosts if h not in primaries]
-            if args.degraded_selection == "spread":
-                # Sample along the same lexicographic order the ordering-based
-                # baselines cycle, so the degraded hosts fall inside every method's
-                # reach and 0% means avoidance rather than never arriving.
-                ordered = sorted(hosts)
-                step = len(ordered) / float(args.n_degraded)
-                degraded = sorted({ordered[min(int(i * step), len(ordered) - 1)]
-                                   for i in range(args.n_degraded)})
-            else:
-                degraded = backup_pool[:args.n_degraded]
-            overrides, slow_hosts, profiles = degradation.build(
-                degraded, model=args.degradation_model, seed=args.scale_seed,
-                healthy_hosts=[h for h in backup_pool if h not in degraded])
+            # 'spread' samples along the lexicographic order the ordering-based
+            # baselines cycle, so the degraded hosts fall inside every method's
+            # reach and 0% means avoidance rather than never arriving.
+            degraded, overrides, slow_hosts, profiles = degradation.scenario(
+                hosts, primaries, args.n_degraded, selection=args.degraded_selection,
+                model=args.degradation_model, seed=args.scale_seed)
             print("degradation model: {} -- {}".format(
                 args.degradation_model, degradation.describe(profiles)))
             if args.physical_degradation:
@@ -569,9 +647,17 @@ if __name__ == "__main__":
                                     for h, d in sorted(slow_hosts.items()))))
                 slow_hosts = None
 
+    telemetry_opts = None
+    if args.rtt_probe or args.rtt_noise_ms or args.feature_noise or args.stale_frac:
+        telemetry_opts = {"probe": args.rtt_probe, "samples": args.probe_samples,
+                          "rtt_noise_ms": args.rtt_noise_ms,
+                          "feature_noise": args.feature_noise,
+                          "stale_frac": args.stale_frac, "degraded": degraded}
+
     run_experiment(
         args.context_seeds, args.trials, args.calls, args.burst, args.methods,
         hosts=hosts, primaries=primaries, graph=graph, overrides=overrides, slow_hosts=slow_hosts,
         rl_model_path=args.rl_model, rl_dqn_model_path=args.rl_dqn_model,
         manifest=args.manifest,
+        telemetry_opts=telemetry_opts,
     )

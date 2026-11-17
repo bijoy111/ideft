@@ -1,296 +1,172 @@
-\section{Measurement Controls and Artifacts}
+\section{Measurement Pitfalls}
 \label{sec:measurement}
 
-This section answers the second question in the title. A placement experiment
-claims that a latency difference was caused by the choice of backup. Each
-subsection below describes one way that claim fails, the evidence for it, and
-the control we adopted. Each also produced a result in our own work that we
-withdrew.
+A placement experiment claims that a latency difference was caused by the
+choice of backup. Each subsection below describes one way that claim fails, the
+evidence, and the control adopted in \S\ref{sec:results}.
 
 \subsection{The RPC Stack Biases the Measured Effect}
 \label{sec:p99}
 
-We evaluate every method over two transports. The first is DEFT's shipped path:
-its \texttt{Backup} is a \texttt{SimpleXMLRPCServer}, which is single-threaded,
-speaks HTTP/1.0, and listens with a backlog of five. The second is gRPC over
-HTTP/2, with one persistent channel per primary and a server thread pool, which
-is representative of how production NFV systems carry state replication. The two
-expose the same method, perform the same work per call, and are driven by the
-same selection methods, topologies, workloads and statistics; only the delivery
-mechanism differs. The transport is therefore a controlled variable, and a
-finding that holds under both is a property of backup placement rather than of
-one RPC stack.
+DEFT's \texttt{Backup} is a \texttt{SimpleXMLRPCServer}: single-threaded,
+HTTP/1.0, listening with a backlog of five. HTTP/1.0 means the server closes the
+connection after each response, so every replication call performs a fresh TCP
+handshake. We verified this directly: twenty calls through one client proxy
+produce twenty server-side \texttt{accept()}s.
 
-This matters because the shipped transport distorts the measurement in a specific
-and quantifiable way.
-
-\textbf{On XML-RPC the latency tail is a kernel timer, not queueing delay.}
-HTTP/1.0 means the server closes the connection after each response, so every
-replication call performs a fresh TCP handshake. We verified this directly:
-twenty calls issued through a single client proxy produce twenty server-side
-\texttt{accept()}s. Under burst load the five-deep backlog overflows, the SYN is
-dropped, and the client waits out the kernel's retransmission timer. The
-resulting distribution is sharply bimodal with an empty gap between the modes:
-at 16 hosts, $82.3\%$ of calls complete under $100$\,ms and $3.2\%$ beyond
-$900$\,ms, while the $500$--$900$\,ms band holds $0.042\%$.
-
-\noindent
-Queueing produces a smooth tail; this does not. The 900--1100\,ms calls sit at
+\textbf{The latency tail is a kernel timer.} Under burst load the five-deep
+backlog overflows, the SYN is dropped, and the client waits out the kernel's
+retransmission timer. On the single-machine harness at 16 hosts the resulting
+distribution is bimodal with an empty gap between the modes: $82.3\%$ of calls
+complete under $100$\,ms and $3.2\%$ beyond $900$\,ms, while the
+$500$--$900$\,ms band holds $0.042\%$. The slow calls sit at
 $1052$--$1059$\,ms with a standard deviation of 24--29\,ms at every scale, which
-is Linux's initial SYN-retransmission timeout, with the next retry contributing
-the $\approx$3\,s cluster. Consequently p99 on this transport is a threshold
-statistic rather than a latency measurement: since 1--2\% of calls land on the
-timer, it reads either tens of milliseconds or $\approx$1050\,ms depending only
-on whether a run's SYN-drop rate crosses one percent.
+is Linux's initial SYN-retransmission timeout; the next retry contributes a
+cluster near 3\,s. On this transport p99 is therefore a threshold statistic: it
+reads tens of milliseconds or about $1050$\,ms depending only on whether a run's
+SYN-drop rate crosses one percent.
 
-\textbf{Under gRPC the pile-up disappears.} Figure~\ref{fig:tailtransport} plots
-the complementary CDF of per-call service time for both arms at 16 hosts
-(180{,}000 and 300{,}000 calls of the same workload). The XML-RPC curve is a
-staircase: it runs flat and then steps down at each timer quantum, with
-\textbf{3.20\%} of calls landing beyond 900\,ms and a maximum of 22{,}773\,ms.
-The gRPC curve decays smoothly, with \textbf{0.013\%} beyond 900\,ms, a $240\times$
-difference in tail mass, and a maximum of 1139\,ms. Percentiles follow: p95
-101.9 vs 360.6\,ms, p99 184.9 vs 1175.8\,ms, p99.9 277.9 vs 7261.6\,ms.
+\textbf{A persistent-connection transport has no such tail.}
+Figure~\ref{fig:tailtransport} plots the complementary CDF of per-call latency
+for the same workload over XML-RPC and over our gRPC implementation
+(180{,}000 and 300{,}000 calls). The XML-RPC curve is a staircase that steps
+down at each timer quantum, with $3.20\%$ of calls beyond 900\,ms and a maximum
+of 22{,}773\,ms. The gRPC curve decays smoothly, with $0.013\%$ beyond 900\,ms
+and a maximum of 1139\,ms. On the same harness the measured advantage of the
+heuristic over \texttt{round\_robin} is about four times larger on XML-RPC than
+on gRPC ($48.05$ against $11.43$\,ms at 16 hosts, $43.69$ against $9.75$ at 32):
+a degraded host's added service time pushes its accept queue into overflow,
+which converts a modest penalty into seconds of retransmission wait. The two
+arms differ in more than the connection model, however, so this comparison
+motivates the direct test and does not replace it.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/fig_tail_transport.pdf}
-\caption{Complementary CDF of per-call service latency at 16 hosts, by transport
-(log--log). The XML-RPC tail is a staircase of kernel timer quanta rather than a
-queueing curve; the gRPC tail decays smoothly and ends two orders of magnitude
-earlier. The shaded band is 500--900\,ms.}
+\caption{Complementary CDF of per-call service latency at 16 hosts on the
+single-machine harness, by transport (log--log). The XML-RPC tail is a staircase
+of kernel timer quanta; the gRPC tail decays smoothly and ends two orders of
+magnitude earlier. The shaded band is 500--900\,ms.}
 \label{fig:tailtransport}
 \end{figure}
 
-\textbf{On one machine the transport amplifies the placement effect.}
-Table~\ref{tab:transport} compares \texttt{round\_robin} against
-\texttt{heuristic} under both transports. The effect is significant on both at
-16 and 32 hosts and absent on both at homogeneous scale, where the two arms
-agree to within $0.06$\,ms. Its magnitude, however, is roughly $4.3\times$
-larger on XML-RPC ($48.05$ against $11.43$\,ms at 16 hosts; $43.69$ against
-$9.75$\,ms at 32). A degraded host's added service time pushes its accept queue
-into overflow, which converts a modest penalty into whole seconds of
-retransmission wait.
-
-\begin{table}[t]
-\centering
-\caption{\texttt{round\_robin} vs.\ \texttt{heuristic} under both transports. $\Delta$ is the median per-run difference (positive favours the heuristic). The effect is real on both; it is roughly $4.3\times$ larger on XML-RPC, whose accept-backlog pathology amplifies the degraded-host penalty.}
-\label{tab:transport}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrrrr}
-\toprule
-& \multicolumn{3}{c}{XML-RPC ($n{=}15$)} & \multicolumn{3}{c}{gRPC ($n{=}25$)} \\
-\cmidrule(lr){2-4}\cmidrule(lr){5-7}
-Hosts & $\Delta$ (ms) & $r$ & $p_{\mathrm{Holm}}$ & $\Delta$ (ms) & $r$ & $p_{\mathrm{Holm}}$ \\
-\midrule
-9 (homog.) & -2.08 & -0.517 & 0.4163 & -2.14 & -0.422 & 0.5010 \\
-16 & +48.05 & +0.983 & 0.0012 & +11.43 & +0.705 & 0.0104 \\
-32 & +43.69 & +1.000 & 0.0009 & +9.75 & +0.994 & $<$0.0001 \\
-\bottomrule
-\end{tabular}}
-\end{table}
-
-\textbf{The accept queue, tested directly.} The two-transport comparison
-changes several things at once. The bare-metal testbed allows the direct test:
-hold everything else fixed, change only the listen backlog, and read the
-kernel's counters. With the shipped backlog of five and all hosts healthy, four
+\textbf{The accept queue, tested directly.} On the bare-metal testbed we hold
+everything fixed, change only the listen backlog, and read the kernel's
+counters. With the shipped backlog of five and all 128 hosts healthy, four
 methods whose p95 differs by less than $2$\,ms have p99 values within $12$\,ms
 of $1040$\,ms. A constant that survives every change of method is an artifact.
 The counters confirm the mechanism: $103{,}209$ \texttt{ListenOverflows} on the
 most heavily selected node against $116$ retransmitted segments, with
-\texttt{ListenDrops} equal to \texttt{ListenOverflows} exactly. The connections
-were refused at the server, not lost in the network.
-
-Raising the backlog to $512$ drove the overflow count to zero and p99 from
-$1040$\,ms to $79$\,ms. The effect on the apparent cost of sharing a backup is
-larger still (Table~\ref{tab:loadcurve}). Under the shipped backlog, mean
-latency rises $7.5\times$ from one primary per backup to seventy-nine. With a
-backlog of 512 the same sweep costs $35\%$. Most of the apparent penalty for
-concentration was connection setup being refused, not queueing at the backup.
+\texttt{ListenDrops} equal to \texttt{ListenOverflows}. The connections were
+refused at the server, not lost in the network. Raising the backlog to $512$
+drove the overflow count to zero and p99 from $1040$\,ms to $79$\,ms.
 
 \input{tab_loadcurve}
 
-\textbf{The bias does not have a single sign.} Repeating the 16-host scenario on
-the same nodes with the same \texttt{tc} degradation, changing only the backlog,
-gives the opposite result (Table~\ref{tab:backlog16}). The one-second plateau
-appears exactly as before --- p99 of $1013$--$1023$\,ms across four methods whose
-p95 spans $28$ to $102$\,ms --- but the \emph{gap between methods} is
-\emph{larger} once the backlog is fixed: \texttt{round\_robin} minus
-\texttt{heuristic} is $3.18$\,ms as shipped and $6.07$\,ms at backlog 512. At
-this scale the shipped queue understates the placement effect rather than
-inflating it.
-
-The two results are consistent once the mechanism is stated. Overflow is driven
-by how many primaries share one backup. At 128 hosts with 80 primaries,
-concentration is extreme and the overflow penalty falls hardest on exactly the
-placements that are already worst, exaggerating the spread. At 16 hosts with 10
-primaries over 16 backups nothing is concentrated enough for that, so the
-penalty falls roughly evenly and compresses the spread instead. The shipped
-backlog therefore \emph{biases} a measured placement effect, with a sign that
-depends on how concentrated the workload is --- which is a stronger reason to
-report it as a controlled variable than if it merely scaled everything.
-
-A third observation falls out of the same table and is a property of the shipped
-system rather than of our measurement: the five-deep queue \emph{lowers} the
-median, from $22.68$ to $14.64$\,ms for \texttt{optimal}. A short accept queue is
-admission control. Calls that are accepted contend with fewer others for a
-single-threaded server and complete faster; calls that are refused wait a full
-second. DEFT as shipped trades a better median for a catastrophic tail.
+\textbf{What sharing a backup costs.} Table~\ref{tab:loadcurve} gives mean
+latency against the number of primaries sharing one backup, with homogeneous
+hosts. Under the shipped backlog latency rises $7.5\times$ from one primary per
+backup to seventy-nine. With a backlog of 512 the same sweep costs $35\%$, and
+up to sixteen primaries on one backup it costs under $1$\,ms. Most of the
+apparent penalty for concentration was connection setup being refused and not
+queueing at the backup. This has a consequence beyond the artifact: on this
+testbed, with a backup that does no work per call (\S\ref{sec:sut}), moderate
+sharing is nearly free, which is why we do not read small differences in peak
+load as latency differences (\S\ref{sec:scenarios}) and why degraded-host
+exposure, not load balance, accounts for the effect in \S\ref{sec:hetero}.
 
 \input{tab_backlog16}
 
-\textbf{Control adopted.} Every bare-metal run in \S\ref{sec:results} uses a
-backlog of 512, and we report p99 only there and on the gRPC arm. Any placement
-study conducted over connection-per-call RPC is subject to the same bias.
+\textbf{The bias does not have a single sign.} Repeating the 16-host scenario
+on the same nodes with the same \texttt{tc} degradation, changing only the
+backlog, gives the opposite result (Table~\ref{tab:backlog16}). The one-second
+plateau appears as before, with p99 of $1013$--$1023$\,ms across four methods
+whose p95 spans $28$ to $102$\,ms. But the gap between methods is
+\emph{larger} once the backlog is raised: \texttt{round\_robin} minus
+\texttt{heuristic} is $3.18$\,ms as shipped and $6.07$\,ms at backlog 512. At
+this scale the shipped queue understates the placement effect.
 
-\subsection{Imposing Degradation: By the Kernel, and Not in a Block}
+The two results are consistent once the mechanism is stated. Overflow is driven
+by how many primaries share one backup. At 128 hosts with 80 primaries,
+concentration is extreme and the overflow penalty falls hardest on the
+placements that are already worst, which exaggerates the spread. At 16 hosts
+with 10 primaries nothing is concentrated enough for that, so the penalty falls
+roughly evenly and compresses the spread. The shipped backlog therefore biases
+a measured placement effect with a sign that depends on how concentrated the
+workload is, and no constant correction removes it.
+
+The same table shows a property of the shipped configuration itself: the
+five-deep queue \emph{lowers} the median, from $22.68$ to $14.64$\,ms for
+\texttt{exact}. A short accept queue is admission control. Accepted calls
+contend with fewer others at a single-threaded server and complete faster;
+refused calls wait a full second.
+
+\textbf{Control adopted.} Every bare-metal placement run uses a backlog of 512,
+and p99 is reported only there. Any placement study over connection-per-call
+RPC is subject to the same bias.
+
+\subsection{How a Degraded Host Is Made Slow, and Where It Sits}
 \label{sec:degconstruct}
 
-\textbf{Degradation is imposed by the kernel, not by the server.}
-The deployment refuses to simulate a degraded backup by sleeping inside a
-server it did not start, so the heterogeneous arm slows hosts physically.
+\textbf{Degradation is imposed by the kernel.} A delay slept inside the server
+measures a model of degradation, so the testbed slows hosts physically.
 \texttt{tc netem} attaches to an interface, but a node here carries thirteen
-backups and shaping the interface would degrade their healthy co-tenants, which
-the comparison depends on as controls. Each backup owns a distinct TCP port, so
-a \texttt{prio} qdisc with a \texttt{u32} filter on source port delays exactly
+backups and shaping the interface would also slow the healthy co-tenants that
+the comparison needs as controls. Each backup owns a distinct TCP port, so a
+\texttt{prio} qdisc with a \texttt{u32} filter on source port delays exactly
 the degraded servers. The fourth band of a four-band \texttt{prio} is
 unreachable through the default priomap, so healthy flows never enter the netem
-queue at all rather than being delayed by zero. Measured on adjacent ports of
-one interface, a degraded backup costs $101.4$\,ms per call and its healthy
-neighbour $1.0$\,ms. The $101.4$ is itself informative: \texttt{netem} delays
-every packet the server sends, so a per-connection protocol pays the added
-latency twice, once on the SYN-ACK and once on the response.
+queue. Measured on adjacent ports of one interface, a degraded backup costs
+$101.4$\,ms per call and its healthy neighbour $1.0$\,ms. The $101.4$ is itself
+informative: \texttt{netem} delays every packet the server sends, so a
+connection-per-call protocol pays the added delay twice, on the SYN-ACK and on
+the response.
 
-\textbf{A contiguous degraded block makes the baselines look better than they
-are.} An earlier execution of this arm degraded the first sixteen
-backup-eligible hosts, \texttt{w81}--\texttt{w96}, and reported
-\texttt{round\_robin} tied with \texttt{optimal} at $41.3$\,ms having selected a
-degraded host $0\%$ of the time. That tie was an artifact of naming.
-\texttt{round\_robin} cycles a lexicographically sorted host list, in which
-every name beginning \texttt{w1}--\texttt{w7} precedes \texttt{w8}; with 80
-primaries the cursor advances 80 positions and never reaches the block. The
-method scored zero by never arriving, not by avoiding. Spreading the same
-sixteen degraded hosts evenly along that ordering puts them inside every
+\textbf{A contiguous degraded block makes order-based baselines look better
+than they are.} With the sixteen degraded hosts chosen as a contiguous block of
+names, \texttt{w81}--\texttt{w96}, \texttt{round\_robin} ties with
+\texttt{exact} at $41.3$\,ms and selects a degraded host $0\%$ of the time. The
+tie is an artifact of naming. \texttt{round\_robin} cycles a lexicographically
+sorted host list in which every name beginning \texttt{w1}--\texttt{w7}
+precedes \texttt{w8}; with 80 primaries the cursor advances 80 positions and
+never reaches the block. The method scores zero by never arriving. Spreading
+the same sixteen hosts evenly along that ordering puts them within every
 method's reach, after which \texttt{round\_robin} meets them at the base rate
-and its mean rises from $41.28$ to $51.87$\,ms. We report the spread
-configuration and note the contiguous one only as a caution: a load-spreading
-baseline evaluated against a contiguous impairment can appear to avoid it.
+and its mean rises from $41.28$ to $51.87$\,ms. The same layout dependence
+appears in a learned policy that has collapsed onto two hosts
+(\S\ref{sec:rl128}).
 
 \textbf{Control adopted.} Degraded hosts are spread evenly through the host
-ordering, and every table reports the share of each method's calls that reached
-one. Without that column the latency comparison cannot be interpreted.
+ordering in every bare-metal run and redrawn at random per seed in every
+structural comparison (Tables~\ref{tab:terms} and~\ref{tab:hrw}), and every
+latency table reports the share of each method's calls that reached one. Without that
+column the latency comparison cannot be interpreted.
 
-\subsection{A Degradation Model Can Make Every Method Look Good}
-\label{sec:weights}
+\subsection{A Degradation Model That Cannot Rank Scoring Functions}
+\label{sec:binarymodel}
 
 The previous subsection concerns how a degraded host is made slow. This one
-concerns how it is made \emph{visible} to the selector, and it changed which
-part of the scoring function we believe matters.
+concerns how it is made visible to the selector. Under the binary model a
+degraded host has health $0.05$ against a healthy draw from $[0.5, 1.0]$ and a
+capacity ratio of $0.033$ against $1.0$: an order of magnitude away on both
+host features of the score, and identical to every other degraded host. We ran
+the sweep of \S\ref{sec:weights} under that model at the three scales. Every
+configuration with any weight on health or on capacity, 275 of the 286,
+assigns no degraded backup in any of 30 seeds. A weight of $0.1$ on either
+term is as good as $1.0$, so the model cannot say which weighting is better,
+or which term matters.
 
-\S\ref{sec:methods} fixes the heuristic's scoring weights at
-$(w_h, w_k, w_\ell, w_d) = (0.35, 0.35, 0.20, 0.10)$. To test that choice we
-sweep 287 weight configurations (a 0.1-step grid over the 4-simplex plus the
-default) across four topologies with five seeds each. The sweep is structural:
-it evaluates the produced mapping with no RPC calls, so degradation here is a
-property of the host's feature vector, and the question is whether the scoring
-function can \emph{see} a degraded host.
+\textbf{A fixed layout hides even that.} In an earlier form of the sweep the
+degraded hosts were the same in every seed. The remaining 11 configurations,
+which read no host state and give every primary the same backup, then also
+scored zero, because the host they all select was never among the degraded
+ones. A benchmark in which a score that reads nothing is perfect measures the
+layout. With the degraded hosts redrawn per seed those configurations meet
+them at about the base rate, as they should.
 
-\textbf{How degraded hosts are constructed determines what the sweep can tell us.} Our
-first model marked a host degraded by pinning it to one extreme point: health $0.05$
-against a healthy draw of $U[0.5, 1.0]$, and a capacity ratio of $0.033$ against a healthy
-ratio of $1.0$. Degraded hosts were thus separated from healthy ones by an order of
-magnitude on \emph{both} scoring features at once, and every degraded host was identical.
-Under that model all 287 configurations at all four topologies achieved 0\% degraded-host
-usage, including a configuration placing 100\% of its weight on hop-count and therefore
-unable to see host quality at all. A result that holds even for a scoring function with no
-discriminative power is a property of the benchmark, not of the method, so we do not claim
-it.
-
-We therefore repeat the sweep under the \emph{realistic} model of
-\S\ref{sec:methods}, in which severity is continuous, the five failure kinds each
-drive a different subset of the features, and healthy hosts carry a baseline
-utilisation. A selector reading one signal no longer catches everything, and a
-host can be slow but healthy or healthy but nearly full.
-
-\textbf{Under realistic degradation the sweep discriminates sharply, and one failure mode
-defeats the published scoring function.} At 32 and 128 hosts, 80 and 111 of 286
-configurations route at least one primary to a degraded host. The heuristic at its default
-weights went from $0.0$ to $0.8$ degraded assignments per run at 32 hosts. The cause is
-specific: the \texttt{link\_congested} kind adds 20\,ms to every call while reading
-\emph{above average} on health, capacity, CPU and storage, because its degradation lives in
-the network path rather than in any resource gauge. The two features that could reveal it,
-latency and hop-count, are derived from the topology graph, and in a uniform-hop star every
-backup-eligible host is exactly two hops from every primary, so both normalize to zero and
-carry no signal whatsoever.
-
-\textbf{Scoring against measured RTT restores the guarantee.} A production orchestrator
-does not have to infer path latency from hop-count; it has active RTT probing, which is
-precisely the telemetry \S\ref{sec:methods} maps the latency feature onto. Replacing the
-topology-derived latency term with measured round-trip time, which includes whatever delay
-the candidate is currently adding, returns degraded-host assignments to $0.0$ at 32 hosts
-and $0.1$ at 128. The single residual case is a host at severity $0.12$ adding $11.5$\,ms,
-which is genuinely marginal rather than a miss.
-
-\textbf{This inverts which scoring terms matter.} Table~\ref{tab:terms} reports, for each
-term, how often a configuration that zeroes it routes a primary to a degraded host. The
-latency term, evaluated against measured RTT, is what provides degraded-host avoidance:
-zeroing it causes 55 of 66 configurations to fail at both scales. Zeroing the health term
-causes \emph{none} to fail. Under the binary model this question had no answer at all,
-since every configuration passed. The published default survives with zero degraded
-assignments at every scale, but now for an identifiable reason, namely its non-zero latency
-weight, rather than because every configuration passes.
-
-
-One caveat bounds this. Every degradation kind in our model carries some latency
-signature, which is realistic (a degraded host does serve more slowly) but makes measured
-RTT close to a sufficient statistic in this benchmark. A failure mode with no latency
-signature, such as a host that is currently fast but about to fail, would defeat it and
-would need the health signal instead. The defensible claim is therefore not that latency
-is the only term worth having, but that a scoring function restricted to static resource
-gauges is blind to network-path degradation, and that the remedy is measured rather than
-inferred path latency.
-
-\begin{table}[t]
-\centering
-\caption{Configurations (of 66 that zero the given term) routing at least one primary to a
-degraded host, realistic degradation, 5 seeds. Under the binary degradation model every
-entry is 0, and the sweep cannot distinguish between weight choices.}
-\label{tab:terms}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrr}
-\toprule
-Term zeroed & 32 hosts & 128 hosts \\
-\midrule
-$w_h$ (health) & 0/66 & 0/66 \\
-$w_k$ (capacity) & 12/66 & 35/66 \\
-$w_\ell$ (latency, measured RTT) & \textbf{55/66} & \textbf{55/66} \\
-$w_d$ (hop-count) & 18/66 & 25/66 \\
-\midrule
-\multicolumn{3}{l}{\emph{Any} configuration: 80/286 and 111/286 fail.} \\
-\multicolumn{3}{l}{Published default $(0.35,0.35,0.20,0.10)$: 0 and 0.} \\
-\bottomrule
-\end{tabular}}
-\end{table}
-
-\textbf{Control adopted.} The realistic model is the one a scoring function
-should be judged against, and the latency feature should be measured round-trip
-time, which an orchestrator already collects, rather than a value derived from
-topology. The same sweep shows load balancing is governed by the capacity
-decrement applied after each assignment: even a small non-zero capacity weight
-reaches near-optimal balance at every scale.
-
-\subsection{The Single-Machine Ceiling}
-\label{sec:single128}
-
-At 128 hosts (80 primaries) one machine cannot produce a latency measurement at
-all. Some 800 client threads and 600 server threads contend on eight cores, and
-two independent executions of the identical configuration differ by $4.8\times$
-on \texttt{optimal} and $6.1\times$ on the learned policy. Only gross
-concentration survives that noise: \texttt{concentrated} is worse than every
-method with $r = 1.000$ on both transports and in both executions. We therefore
-report no single-machine latency at this scale, and Fig.~\ref{fig:latencyscale}
-shades it.
-
-\textbf{Control adopted.} The 128-host results come from the testbed of
-\S\ref{sec:testbed}, where each backup holds a dedicated physical core and the
-affinity each server actually received is checked rather than assumed.
+\textbf{Control adopted.} We use the binary model only where its purpose is to
+make degraded hosts unmistakable, to measure what selecting one costs
+(\S\ref{sec:hetero}), and we say so. Claims about which signal detects
+degradation rest on the realistic model, with layouts, failure kinds and
+severities redrawn per seed and a signal-blind configuration reported as the
+reference (\S\ref{sec:weights}).

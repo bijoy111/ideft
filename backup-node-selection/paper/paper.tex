@@ -9,17 +9,14 @@
 \usepackage{booktabs}
 \usepackage{multirow}
 \usepackage{url}
-\usepackage{amsthm}
-\newtheorem{theorem}{Theorem}
-\newtheorem{proposition}{Proposition}
 
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 
 \begin{document}
 
-\title{Backup-Node Selection for NFV State Replication:\\
-How Much It Matters, and How to Measure It}
+\title{State-Aware Backup Selection for Fault-Tolerant NFV:\\
+A Bare-Metal Evaluation and Its Measurement Pitfalls}
 
 % \author{
 % \IEEEauthorblockN{Your Name\IEEEauthorrefmark{1}}
@@ -30,37 +27,35 @@ How Much It Matters, and How to Measure It}
 \maketitle
 
 \begin{abstract}
-Fault-tolerant Network Function Virtualization (NFV) systems keep a service
-running across failures by replicating a network function's state to a backup
-instance. Published systems describe how that state is transferred, but none
-states which host should receive it, so the assignment is left static or
-arbitrary. This paper makes two contributions of equal weight: it quantifies
-what choosing the backup is worth, and it shows that the obvious way to measure
-that is systematically misleading. We compare an exact Hungarian assignment, a
-multi-criteria greedy heuristic and a learned policy against a deployed system's
-shipped static mapping, random and round-robin placement, and weighted hashing.
-All drive its unmodified two-phase-commit backup on a bare-metal testbed, where
-128 backups each hold a dedicated physical core and degraded hosts are slowed by
-the kernel rather than by a simulated delay. Given accurate host state,
-feature-aware selection sends no calls to a degraded backup at 16, 32 and 128
-hosts, against a $10$--$12.5\%$ base rate for order-based policies, and roughly
-halves tail latency. With noisier telemetry it is the relative comparison, not
-the zero, that carries over. The greedy heuristic matches the exact
-assignment at every size, and the advantage disappears when hosts are
-equivalent. Three measurement effects generalize beyond this system. A
-connection-per-call RPC stack biases the measured placement effect, with a sign
-set by how concentrated the workload is. A contiguous block of degraded hosts
-lets an order-based baseline appear to avoid an impairment it never meets. And
-re-solving the instantaneous optimum every round is not competitive for any
-ratio. Backup selection should therefore read host state but need not be
-optimal: a greedy heuristic suffices, exact assignment serves only as a bound,
-and any comparison must report which hosts each policy actually selected.
+Fault-tolerant Network Function Virtualization (NFV) systems replicate a
+network function's state to a backup instance, but do not say which host
+should receive it; work that allocates backups optimizes cost and
+availability. We measure what the choice of backup host is worth to
+replication latency. An exact assignment, a greedy heuristic and two learned policies
+are compared with random, round-robin and hashing placement, driving the
+replication call of DEFT's backup server on bare metal: 128 backups on
+dedicated cores, with degraded hosts slowed by the kernel. Placement that ignores host state sends
+$10$--$12.5\%$ of calls to a degraded backup, costing a fifth of mean latency
+and raising p99 $2$--$2.5\times$ at 16, 32 and 128 hosts. A greedy heuristic
+stays within $1.7$\,ms of the exact assignment; with equivalent hosts no
+method beats random. These runs tell selectors which hosts are degraded, so
+they measure what avoidance is worth, not detection. Detection is examined on
+the selected mappings only: with partial symptoms,
+resource gauges miss a host degraded in its network path, and measured
+round-trip time is the strongest single signal, in a model where every failure
+adds delay. Three measurement pitfalls
+generalize. A connection-per-call RPC stack with a short accept queue biases
+the measured effect in a direction set by workload concentration. A fixed layout
+of degraded hosts lets a policy that reads no host state appear to avoid them.
+And a degradation model that separates degraded hosts on every feature cannot
+rank scoring functions. Backup selection should read host state, measured
+latency above all, but need not be exact.
 \end{abstract}
 
 \begin{IEEEkeywords}
-Network function virtualization, fault tolerance, state replication, replica
-placement, performance measurement, measurement methodology, testbed
-experimentation, online algorithms.
+Network function virtualization, fault tolerance, state replication, backup
+selection, replica placement, performance measurement, measurement methodology,
+testbed experimentation.
 \end{IEEEkeywords}
 
 \section{Introduction}
@@ -79,91 +74,106 @@ protocol that achieves both elastic scaling and fault tolerance with strong cons
 on global state updates, without the single point of failure a central controller
 introduces.
 
-\subsection{The Gap: Selection of Backup Nodes}
+\subsection{The Gap: Which Host Receives the State}
 
-Across this entire line of work, backup assignment is never considered as a decision with consequences. REINFORCE~\cite{kulkarni2018reinforce} designates
-a predecessor node and a backup node per NF without describing a selection rule.
-OpenNF~\cite{gember2014opennf}, Split/Merge~\cite{rajagopalan2013split}, StatelessNF~\cite{kablan2017stateless}, and S6~\cite{woo2018elastic} all describe
-how state is migrated or shared once a target instance is known, never how that
-target is chosen in the first place. In DEFT's own reference implementation, this
-manifests concretely: the shipped static mapping for its 9-host evaluation topology
-concentrates 3 of 5 primaries onto a single backup host, with no load or health
-awareness whatsoever~\cite{shahriyar2023deft}.
+The systems that replicate NF state do not treat the choice of backup host as a
+decision. REINFORCE~\cite{kulkarni2018reinforce} designates a predecessor node
+and a backup node per NF without describing a selection rule.
+OpenNF~\cite{gember2014opennf}, Split/Merge~\cite{rajagopalan2013split},
+StatelessNF~\cite{kablan2017stateless} and S6~\cite{woo2018elastic} describe how
+state is migrated or shared once a target instance is known, not how that target
+is chosen. In DEFT's reference implementation the consequence is concrete: the
+static mapping shipped for its 9-host evaluation topology places 3 of 5
+primaries on one backup host, with no reference to load or
+health~\cite{shahriyar2023deft}.
 
-This is a consequential gap. The entire point of replication for fault tolerance is
-that the backup must be available and capable of taking over. If the backup itself is
-overloaded, unhealthy, or already serving many other primaries, the guarantees of the replication mechanism are only as good as an arbitrary assignment allows. Elastic
-scaling compounds this: as NF instances are added and removed under varying load, a
-backup pool's composition changes continuously, and a static or naively-assigned mapping
-cannot track it. We deliberately scope this work to the fault-tolerance half of state
-management, namely replication, because that is where the backup-selection decision lives.
-Choosing a target for state migration during elastic scaling is a related but distinct
-decision; our assignment formulation could extend to it, but we do not evaluate it here.
+A separate literature does allocate backups for virtual network functions
+(\S\ref{sec:related-backup}). It decides how many backups to provision and where,
+so that a service meets an availability target at the lowest resource cost, and
+it is evaluated analytically or in simulation. It does not ask what the state of
+the chosen host does to the replication path of a running system: how much
+slower replication becomes when the backup is degraded or shared, and what a
+selector must observe to avoid that. That is the question here. We scope the
+work to replication for fault tolerance. Choosing a target for state migration
+during elastic scaling is a related decision that our formulation could extend
+to, and we do not evaluate it.
 
-\subsection{Why the Answer Is Hard to Measure, and What We Contribute}
+\subsection{Contributions}
 
-Closing the gap is easy to state: score the candidate hosts and assign
-accordingly. Showing that one rule beats an arbitrary one is not, and that
-difficulty is the larger part of what this paper reports. A placement
-experiment claims a latency difference was caused by the choice of backup.
-Three things routinely break that claim. Each produced a result in our own work
-that we had to withdraw, and each is a property of how placement is evaluated
-rather than of the system under test, so we establish them as results:
-
-\begin{enumerate}
-\item \textbf{The RPC stack biases the measurement, and not by a constant
-factor.} If the transport opens a connection per call and the server keeps a
-short accept queue, a degraded host's modest per-call penalty becomes queue
-overflow and a one-second retransmission wait, and the measurement is dominated
-by connection setup. We make the transport a controlled variable and vary the
-queue length directly: the measured concentration penalty falls from
-$7.5\times$ to $35\%$ at 128 hosts, while at 16 hosts the same change
-\emph{widens} the gap between placement methods. The distortion tracks how
-concentrated the workload is, so no constant correction removes it, and any
-placement study over connection-per-call RPC inherits it
-(\S\ref{sec:p99}, \S\ref{sec:testbed}).
-
-\item \textbf{How a degraded host is built decides what the experiment can
-show.} A delay simulated inside the server measures our model of degradation
-rather than degradation, so we impose it with the kernel instead. And if the
-degraded hosts form a contiguous block of identifiers, a policy that walks hosts
-in order may never reach them and score a perfect avoidance rate it did not
-earn --- which is what happened to us. Reporting the share of each method's
-calls that actually met the impairment is what makes the comparison
-interpretable (\S\ref{sec:testbed}).
-
-\item \textbf{One-shot evaluation says little about deployment.} Hosts degrade,
-recover and fail, and moving a replica costs a state transfer. We prove that
-re-solving the instantaneous optimum every round --- the natural way to deploy
-an exact one-shot method --- has unbounded competitive ratio once migration
-costs anything, and we measure that cost against real network function state at
-$23$--$41$ rounds rather than the $3$ commonly assumed (\S\ref{sec:online}).
-\end{enumerate}
-
-\noindent
-Against that background we answer the original question:
+Scoring candidate hosts and assigning backups accordingly is simple to do.
+Showing that it beats an arbitrary assignment is harder, because a placement
+experiment claims that a latency difference was caused by the choice of backup,
+and several properties of the measurement can produce or hide such a difference
+on their own. The paper makes three contributions.
 
 \begin{enumerate}
-\setcounter{enumi}{3}
-\item We formulate backup selection as a feasibility- and load-aware assignment
-problem and give three methods: an exact capacity-constrained assignment used as
-an attainable bound, a multi-criteria greedy heuristic, and a learned policy
-(\S\ref{sec:methods}).
+\item \textbf{A greedy heuristic matches the exact assignment and beats
+order-based placement, measured on bare metal.} We formulate backup selection
+as a capacity-constrained assignment under a multi-criteria score and compare
+an exact assignment, a greedy heuristic and two learned policies against
+order-based and hash-based baselines (\S\ref{sec:methods}). On 128 backups
+across ten nodes, each on a dedicated physical core, with degraded hosts
+impaired by the kernel (\S\ref{sec:methodology}), the greedy heuristic is
+within $1.7$\,ms of the exact assignment in mean latency at 16, 32 and 128
+hosts, so neither an exact solve nor a learned policy is needed. Round-robin
+is $6.7$--$10.1$\,ms slower than the exact assignment and $6.1$--$9.8$\,ms
+slower than the heuristic, about a fifth of its mean, with p99 higher by a
+factor of $2$ to $2.5$: that is the measured cost of sending $10$--$12.5\%$ of
+calls to a degraded backup. With homogeneous hosts no method
+separates from random (\S\ref{sec:results}).
 
-\item We evaluate them on bare metal: 128 backups across ten nodes, each on a
-dedicated physical core with the affinity verified, degraded hosts impaired by
-the kernel on their own source port (\S\ref{sec:testbed}). Feature-aware
-selection reaches a degraded backup in $0\%$ of calls at 16, 32 and 128 hosts
-against a $10$--$12.5\%$ base rate, roughly halving p99, and the greedy
-heuristic is statistically indistinguishable from the exact assignment at every
-scale.
+\item \textbf{Which signal carries the avoidance, examined structurally.} We
+examine whether degradation can be detected under a model with five failure
+kinds and continuous severity, scored on the selected mapping. A score restricted to resource gauges
+and topology-derived latency selects a host degraded only in its network path;
+with measured round-trip time in its place the default weights go from about
+$3\%$ of assignments on degraded hosts to under $1\%$. Measured latency is the
+strongest single signal in this model, in which every failure kind adds some
+delay and the measurement is exact and current (\S\ref{sec:weights}).
 
-\item We bound the claim. With homogeneous hosts no method separates from
-random, and a sensitivity analysis over the scoring weights shows which term
-carries the guarantee: one failure kind, a host degraded only in its network
-path, defeats the published function until latency is measured rather than
-derived from topology (\S\ref{sec:weights}).
+\item \textbf{Three measurement pitfalls, each with a control.} A
+connection-per-call RPC stack with a short accept queue biases the measured
+placement effect: holding everything else fixed, lengthening the queue takes the
+measured cost of concentrating backups from $7.5\times$ to $35\%$ at 128 hosts
+and \emph{widens} the gap between placement methods at 16, so no constant
+correction removes the bias (\S\ref{sec:p99}). A contiguous block of degraded
+hosts lets a policy that walks hosts in order score perfect avoidance by never
+reaching the block (\S\ref{sec:degconstruct}). And a degradation model that
+pins every feature of a degraded host to an extreme cannot rank scoring
+functions: any weight on any host feature scores perfectly, and with a fixed
+layout so does a score that reads nothing (\S\ref{sec:binarymodel}).
 \end{enumerate}
+
+\subsection{What Is Measured and What Is Not}
+\label{sec:scope}
+
+Three limits shape how the contributions should be read, and we state them
+here and not only among the threats.
+
+\emph{The latency runs supply the selectors with the truth.} A degraded host's
+features are reported exactly and at once, so a state-aware selector avoids it
+by construction. That no call from the heuristic or the exact assignment
+reaches a degraded backup is therefore a premise of contribution~1 and not a
+result. The results are what that avoidance is worth, and that a greedy pass
+obtains all of it.
+
+\emph{Detection is not measured on the testbed.} Contribution~2 counts degraded
+assignments in the mappings each scoring function produces. We have not yet run
+the realistic degradation model on the testbed with probed round-trip times and
+noisy, delayed telemetry. That experiment would join the two halves of the
+paper, and it is the principal item of future work (\S\ref{sec:threats}).
+
+\emph{The exact assignment bounds the score, not latency.} It maximizes the
+total score under a cap on primaries per backup. The score is a proxy for
+latency. Measurement supports the proxy under the binary model, where the
+score-maximizing mapping is also the fastest measured one
+(Table~\ref{tab:scales}); under the realistic model it is supported
+structurally only. ``Matches the exact assignment'' therefore means matches the
+best mapping this score can express, not the latency optimum. The bound is
+also tied to a regime: in the measured runs backups outnumber primaries, where
+a perfect spread always exists. \S\ref{sec:oversub} examines the oversubscribed
+case structurally and finds that the cap, and not the greedy pass, is what
+fails there.
 
 \section{Related Work}
 \label{sec:related}
@@ -185,18 +195,17 @@ strict checkpoint. All three assume a backup already exists for each primary.
 
 DEFT~\cite{shahriyar2023deft} spans both strands: one distributed 2PC protocol handles
 elastic scaling and fault tolerance together, with no central controller
-(unlike~\cite{gember2014opennf,rajagopalan2013split}). But it inherits the fault-tolerant systems' gap: backup assignment is a bookkeeping step in its Failure Detection Unit, not a studied decision.
+(unlike~\cite{gember2014opennf,rajagopalan2013split}). It shares the gap of the fault-tolerant systems: backup assignment is a bookkeeping step in its Failure Detection Unit, a static map.
 
-\begin{table}[t]
+\begin{table*}[t]
 \centering
-\caption{How prior NF state-management systems choose the target host. ``Mechanism''
-is what the system specifies for moving or replicating state; ``target selection'' is
-how the destination is chosen. Every system specifies the former in detail; none
-specifies the latter as a criteria-driven decision. The storage systems in the last
-two rows do, which is why we adopt their mechanism as a baseline family
-(\S\ref{sec:hrw}).}
+\caption{How prior systems choose the host that receives state. ``Mechanism'' is
+what the system specifies for moving or replicating state; ``target selection''
+is how the destination is chosen. State-management systems specify the former in
+detail and leave the latter open. Backup-allocation work chooses targets for
+availability and cost, and storage systems for balance and read latency.}
 \label{tab:relatedwork}
-\resizebox{\columnwidth}{!}{%
+\resizebox{0.92\textwidth}{!}{%
 \begin{tabular}{llll}
 \toprule
 System & Purpose & Mechanism & Target selection \\
@@ -214,154 +223,143 @@ DEFT~\cite{shahriyar2023deft} & Scaling + FT & Distributed 2PC & Static map in F
 Cand-RL~\cite{santos2022reinforcement} & SFC placement & PPO & Criteria-driven, but for \emph{primaries} \\
 DDQN-VNFPA~\cite{pei2019optimal} & VNF placement & Double DQN & Criteria-driven, but for \emph{primaries} \\
 \midrule
+Kanizo et al.~\cite{kanizo2017optimizing} & Backup provisioning & Shared backup servers & Fewest servers for a survival probability \\
+GREP~\cite{fan2015grep}, RABA~\cite{zhang2019raba} & Chain backup allocation & Backups per function & Reliability target within a resource budget \\
+FTC~\cite{ghaznavi2020ftc} & Chain fault tolerance & In-chain replication & Fixed by chain order \\
+\midrule
 CRUSH~\cite{weil2006crush} & Storage replicas & Pseudo-random hash & Failure-domain and weight aware \\
 Dynamo~\cite{decandia2007dynamo} & Storage replicas & Consistent hashing & Capacity-weighted preference list \\
+C3~\cite{suresh2015c3} & Storage reads & Replica ranking & Measured latency and queue length, per request \\
 \midrule
-\textbf{This work} & \textbf{Fault tolerance} & \textbf{DEFT's 2PC, unmodified} & \textbf{Health, capacity, measured RTT, hops} \\
+\textbf{This work} & \textbf{Fault tolerance} & \textbf{DEFT's replication call} & \textbf{Health, capacity, measured RTT, hops} \\
 \bottomrule
 \end{tabular}}
-\end{table}
+\end{table*}
 
-\textbf{The separation the table makes.} Prior work specifies \emph{how} state
-reaches another host in considerable detail and \emph{which} host it reaches
-hardly at all. The storage systems in the last two rows are the exception:
-quality-aware target selection is well understood where replica placement is
-the subject, and simply has not been carried across to NF state replication.
+\subsection{Backup Allocation and Replica Selection}
+\label{sec:related-backup}
+
+\textbf{Backup allocation for VNFs.} Allocating backups to virtual functions is
+studied as a provisioning problem. Kanizo et al.~\cite{kanizo2017optimizing}
+share a small pool of backup servers among many middleboxes and find assignments
+that reach a target survival probability with the fewest servers.
+GREP~\cite{fan2015grep} and RABA~\cite{zhang2019raba} decide which functions of
+a service chain receive backups, and how many, to meet a reliability requirement
+within a resource budget. FTC~\cite{ghaznavi2020ftc} avoids dedicated backups by
+replicating each function's state to the functions that follow it in the chain,
+so the chain order fixes the target. These works answer how many backups and for
+which function. Their objectives are availability and resource cost, the backup
+hosts are interchangeable within a capacity model, and the evaluations are
+analytical or simulated. None measures how the state of the selected host
+affects replication latency in a running system, which is the subject here.
+Closer in spirit, Avgeris et al.~\cite{avgeris2023reinforcement} reposition VNFs
+after a failure or contention event has been detected, a reactive remedy,
+whereas we choose a backup when replication is established; and Kibalya et
+al.~\cite{kibalya2021reinforcement} place stateful VNFs using the primary's own
+execution state, not a relationship between a primary and a distinct backup.
+
+\textbf{Replica placement and selection in storage.} Outside NFV, which node
+holds or serves a copy is a first-class decision. CRUSH~\cite{weil2006crush}
+computes failure-domain- and weight-aware placement without a central lookup
+table, and Dynamo~\cite{decandia2007dynamo} spreads replicas by consistent
+hashing with capacity-aware preference lists. Their mechanism, decentralized
+weighted hashing, carries over directly to NF backups, so we adopt it as a
+baseline family (\S\ref{sec:hrw}). C3~\cite{suresh2015c3} selects among existing
+replicas per request, ranking them by measured response time and queue length
+fed back from the servers. Our finding that measured latency, and not a resource
+gauge, is the signal that reveals a degraded backup (\S\ref{sec:weights}) agrees
+with C3's premise in a different setting: C3 chooses a replica to read from on
+every request, while a backup assignment is held for many replication calls and
+changing it costs a state transfer.
+
+\textbf{Position of this work.} We do not claim to be the first to choose
+backups by criteria. To our knowledge, what has not been reported is a
+measurement on a running NF replication system of what the backup host's state
+costs in replication latency, together with the conditions under which such a
+measurement can be trusted.
 
 \subsection{Reinforcement Learning for NFV Resource Management}
 
-A separate line of work applies reinforcement learning to NFV resource management,
-almost entirely for primary placement, scaling, or embedding, not backup/replica
-selection. Cand-RL~\cite{santos2022reinforcement} uses PPO for availability-aware Service
-Function Chain (SFC) placement. DDQN-VNFPA~\cite{pei2019optimal} uses Double Deep
-Q-Networks for VNF placement. Two recent surveys, on RL for virtual network
-embedding~\cite{lim2023reinforcement} and on RL for network slice scaling and
-placement~\cite{saha2023deep}, both catalogue placement, scaling, and embedding as RL's
-NFV sub-problems; backup/replica selection for fault tolerance appears in neither.
+Reinforcement learning is the usual proposal for NFV placement, almost entirely
+for primary placement, scaling or embedding. Cand-RL~\cite{santos2022reinforcement}
+uses PPO for availability-aware service function chain placement, and
+DDQN-VNFPA~\cite{pei2019optimal} uses Double Deep Q-Networks for VNF placement.
+Two surveys, on RL for virtual network embedding~\cite{lim2023reinforcement} and
+for network slice scaling and placement~\cite{saha2023deep}, catalogue those
+sub-problems; backup selection appears in neither. We therefore include learned
+policies as a comparison a reader will expect (\S\ref{sec:rlmethod}).
 
-
-\subsection{Replica or Backup Selection}
-\label{sec:related-backup}
-
-The few efforts that come near replica-like selection approach it from a
-different angle. Kibalya et
-al.~\cite{kibalya2021reinforcement} place stateful VNFs, but the state guiding that
-placement is a primary's own execution state, not a fault-tolerance relationship between a
-primary and a distinct backup. Avgeris et al.~\cite{avgeris2023reinforcement}, the closest in
-spirit, reposition VNFs once a failure or contention event has already been detected,
-a reactive remedy applied after the fact, whereas we choose a secondary proactively, as
-replication is being established.
-
-The idea that replica placement deserves algorithmic attention in its own right is, by
-contrast, long established outside NFV, in distributed storage. CRUSH~\cite{weil2006crush}
-computes failure-domain and load-aware placement without a central lookup table, and
-Dynamo~\cite{decandia2007dynamo} spreads replicas via consistent hashing with
-capacity-aware preference lists; both make ``which node holds the copy'' a first-class,
-criteria-driven decision. Their mechanism, decentralized weighted hashing, carries over directly to NF
-backups, so we adopt it as a baseline family (\S\ref{sec:hrw}); we find such
-stateless schemes trail a lightly coordinated selector on load balancing. To our
-knowledge no prior work brings this treatment to \emph{proactive backup-NF
-selection} for stateful NFV fault tolerance, which is the gap this paper
-addresses.
-
-
-\section{Backup-Selection Methods}
+\section{Problem and Methods}
 \label{sec:methods}
 
-Let $P$ be the set of primary NFs and $H$ the set of all hosts (a superset of $P$; any
-host not currently a primary for a given flow, is a feasible backup for that primary, including hosts that are primaries for other flows). For each primary $p \in P$ we must choose a backup
-$b \in H \setminus \{p\}$. Each candidate host $h$ has a dynamic resource state: health
-$\mathrm{health}(h) \in [0,1]$, remaining capacity $\mathrm{cap}(h)$ out of
-$\mathrm{cap}_{\max}(h)$, CPU and storage availability, and a topology-derived hop-count
-and latency to $p$. Concretely, per host and per random seed these are drawn independently
-as $\mathrm{cap}_{\max} \sim \mathcal{U}\{50,\dots,100\}$ (integer), with $\mathrm{cap}$
-initialised to $\mathrm{cap}_{\max}$; $\mathrm{health} \sim \mathcal{U}[0.5,1.0]$; and CPU
-and storage availability each $\sim \mathcal{U}[0.4,1.0]$; latency is
-$1.5\,\text{ms} \times \mathrm{hops}$. Degraded hosts in the heterogeneous scenarios
-(\S\ref{sec:methodology}) are constructed under one of two models
-(\S\ref{sec:weights}). The \emph{binary} model, used for the latency experiments and for
-all previously published results, pins $\mathrm{health}=0.05$, $\mathrm{cap}=2$,
-$\mathrm{cap}_{\max}=60$ (capacity ratio $\approx 0.033$). The \emph{realistic} model
-draws a continuous severity and one of five failure kinds per host, leaves the untouched
-features at their healthy draw, and gives healthy hosts a baseline utilisation so that
-remaining capacity is a continuous measurement rather than a flag. Infrastructure hosts (client,
-stamper) are never sampled as backups.
+\subsection{Problem and Features}
 
-\textbf{From synthetic features to real telemetry.} The four features are
-chosen to correspond to signals a production NFV orchestrator already exposes,
-so the abstraction stands in for measurable metrics rather than for something
-unavailable in practice. $\mathrm{health}$ maps to a composite liveness score
-such as failure-detector confidence or a Kubernetes readiness probe. The
-capacity ratio maps to headroom in the NF's dominant scaling resource, for
-instance free connection-tracking or NAT-binding slots. CPU and storage
-availability map to ordinary hypervisor utilisation counters. Hop-count and
-latency map to the controller's topology view and to active RTT probing; which
-of the two is used turns out to matter, as \S\ref{sec:weights} shows.
-Validating selection against live telemetry rather than the synthetic draws used
-here remains future work (\S\ref{sec:threats}).
+Let $H$ be the set of hosts and $P \subseteq H$ the hosts currently acting as
+primaries. For each primary $p \in P$ we choose one backup $b \neq p$. One
+definition of the backup pool is used throughout the paper: \emph{every host
+except the primary itself is a feasible backup for it}, including hosts that are
+primaries for other flows. The only exclusions are infrastructure hosts (the
+client and the stamper), which exist in DEFT's 9-host reference topology and not
+in the scaled topologies. At 16, 32 and 128 hosts with 10, 20 and 80 primaries,
+each primary therefore has 15, 31 and 127 candidates.
+
+Each candidate host $h$ carries six features. Four describe the host: health
+$\mathrm{health}(h) \in [0,1]$, remaining capacity $\mathrm{cap}(h)$ out of
+$\mathrm{cap}_{\max}(h)$, CPU availability and storage availability. Two
+describe its path from $p$: hop count and latency. The score of
+\S\ref{sec:heuristic} uses four of the six (health, capacity ratio, latency and
+hop count); the learned policies observe the four host features
+(\S\ref{sec:rlmethod}).
+
+Host features are synthetic. Per host and per random seed they are drawn
+independently as $\mathrm{cap}_{\max} \sim \mathcal{U}\{50,\dots,100\}$ with
+$\mathrm{cap}$ initialised to $\mathrm{cap}_{\max}$,
+$\mathrm{health} \sim \mathcal{U}[0.5,1.0]$, and CPU and storage availability
+each $\sim \mathcal{U}[0.4,1.0]$. One such draw is a \emph{context seed}.
+Topology latency is $1.5$\,ms per hop. The latency feature is either this
+topology-derived value or a \emph{measured} one, which adds whatever delay the
+candidate is currently contributing, as an active round-trip-time probe would
+observe; \S\ref{sec:weights} shows that the difference matters.
+
+\textbf{What the features stand for.} Each feature corresponds to a signal an
+NFV orchestrator already exposes. Health maps to a composite liveness score such
+as failure-detector confidence or a readiness probe. The capacity ratio maps to
+headroom in the NF's dominant scaling resource, for instance free
+connection-tracking or NAT-binding slots. CPU and storage availability map to
+hypervisor utilisation counters, hop count to the controller's topology view,
+and measured latency to active RTT probing. Driving selection from live
+telemetry is future work (\S\ref{sec:threats}).
 
 \subsection{Baselines}
 
-\textbf{Static (DEFT's shipped mapping).} The hand-assigned mapping DEFT ships with for
-its 9-host reference topology, regenerable on demand for direct comparison.
+\textbf{Concentrated.} Every primary is assigned the same backup (the first
+feasible host). This is the worst case for load and generalizes the tendency of
+DEFT's shipped mapping to place several primaries on one host.
 
-\textbf{Concentrated.} Every primary assigned to the same single feasible backup: a
-scale-independent, maximally naive worst case, generalizing DEFT's own static mapping's
-tendency to over-concentrate load onto one host.
+\textbf{Random.} A uniformly random feasible backup per primary, seeded.
 
-\textbf{Random.} A uniformly random feasible backup per primary, seeded for
-reproducibility: a sanity floor any non-random method should beat.
+\textbf{Round-robin.} Cycles through the lexicographically sorted host list,
+skipping a candidate only when it is the primary itself. It balances load and
+reads no host state.
 
-\textbf{Round-robin.} Cycles through the sorted list of all feasible hosts, skipping a
-candidate only when it equals the primary itself. Load-balances blindly, with zero
-awareness of host health, capacity, or latency. We also evaluate a \emph{randomized-offset}
-variant that begins the cycle at a random position per run, so its degraded-host exposure
-reflects the degraded fraction rather than an artifact of the fixed host ordering
-(\S\ref{sec:hrw}).
+\textbf{Rendezvous and consistent hashing.} \emph{Plain rendezvous hashing
+(HRW)} assigns each primary the feasible backup with the highest hash weight
+$\mathrm{hash}(p,c)$. It needs no coordinator and spreads load in expectation,
+and it reads no host state. \emph{Weighted HRW} multiplies the hash weight by
+$\mathrm{health}(c)\cdot\mathrm{cap}(c)/\mathrm{cap}_{\max}(c)$, in the spirit
+of CRUSH and Dynamo node weights, so it reads host state while remaining
+decentralized. \emph{Weighted consistent hashing} is a Dynamo-style ring with
+virtual nodes in proportion to the same weight; a host whose weight rounds to
+zero places none and is never selected. None of the three propagates load
+between primaries, so they spread load only statistically.
 
-\textbf{Rendezvous hashing (HRW) and consistent hashing.} \emph{Plain HRW} assigns each
-primary to the feasible backup with the highest deterministic hash weight
-$\mathrm{hash}(p,c)$: fully decentralized (no coordinator, no cross-primary state) and
-load-spreading in expectation, but health/capacity-unaware, the NFV analog of a
-consistent-hashing replica placement. \emph{Weighted HRW} weights the hash by
-$\mathrm{health}(c)\cdot\mathrm{cap}(c)/\mathrm{cap}_{\max}(c)$ (in the spirit of
-CRUSH/Dynamo node weights), making it quality-aware while remaining decentralized.
-\emph{Weighted consistent hashing} is a second decentralized quality-weighted point: a
-Dynamo-style hash ring with capacity/health-proportional virtual nodes (a host whose weight
-rounds to zero, e.g.\ a degraded host, places none and is never selected). Unlike the
-heuristic, none of these apply an inter-primary load penalty, so they spread only
-statistically.
+\textbf{Static.} The hand-assigned mapping DEFT ships for its 9-host topology.
+It exists only at that size and appears only in \S\ref{sec:single}.
 
-\subsection{Optimal: Capacity-Constrained Hungarian Assignment}
-\label{sec:optimal}
-
-To obtain an upper bound the heuristic and RL policy can be judged against, we solve the
-assignment problem exactly, using the same multi-criteria score $\mathrm{score}(p,c)$
-defined in the next subsection (Eq.~\eqref{eq:score}: a weighted combination of health,
-remaining capacity, latency, and hop-count). Each feasible backup $h$ is expanded into
-$k = \lceil |P| / |H_{\mathrm{feas}}| \rceil$ capacity-constrained columns, where
-$H_{\mathrm{feas}}$ is the set of backup-eligible hosts, that is all hosts
-except the client and stamper. The cost-matrix entry for primary $p$ and column
-$j$ (backup $h$) is $-\mathrm{score}(p,h)$, or a large fixed penalty ($10^6$) if
-$h$ is infeasible for $p$, including $h=p$. Backup-eligible hosts always outnumber primaries in our topologies, so
-$k=1$ at every scale evaluated here. The solver therefore assigns each primary a
-distinct backup, and the optimum attains a uniform maximum load of one. The
-$k>1$ machinery is retained for denser regimes in which primaries would
-outnumber feasible backups. We solve this exactly via the
-Hungarian algorithm~\cite{kuhn1955hungarian}
-(\texttt{scipy.optimize.linear\_sum\_assignment}~\cite{virtanen2020scipy}), yielding a
-globally optimal assignment under the capacity constraint, something no greedy or online
-method can guarantee in general. Solving it requires the complete cost matrix over all
-primaries and candidate backups at once, which in turn requires a party with a global view
-to gather that state and run the solver before any assignment is made. This centralized
-computation is in tension with DEFT's distributed, controller-free design
-(\S\ref{sec:intro}), so we use the Hungarian assignment strictly as an upper-bound
-benchmark, not as a deployment candidate.
-
-\subsection{Heuristic: Multi-Criteria Greedy Scoring}
+\subsection{Greedy Heuristic}
 \label{sec:heuristic}
 
-For each primary (processed in a fixed order), the heuristic scores every feasible
+For each primary, taken in a fixed order, the heuristic scores every feasible
 candidate $c$ as
 \begin{equation}
 \label{eq:score}
@@ -370,305 +368,343 @@ candidate $c$ as
 &- w_\ell \cdot \hat\ell(p,c) - w_d \cdot \hat{d}(p,c)
 \end{split}
 \end{equation}
-where $\hat\ell$ and $\hat{d}$ are the min-max-normalized latency and hop-count from $p$
-to $c$ among $p$'s candidates, and default weights
-$(w_h, w_k, w_\ell, w_d) = (0.35, 0.35, 0.20, 0.10)$ favor health and capacity, which are
-what actually differentiate candidates once a topology has heterogeneous backup quality.
-The greedy assignment picks $\arg\max_c \mathrm{score}(p,c)$ for each primary in turn,
-then applies a load penalty to the chosen host ($\mathrm{cap} \mathrel{-}= 20$;
-$\mathrm{health} \mathrel{*}= 0.95$) before moving to the next primary. This penalty is
-the mechanism that spreads load across the backup pool without any learning component.
+where $\hat\ell$ and $\hat{d}$ are the latency and hop count from $p$ to $c$,
+min-max normalized over $p$'s candidates. The weights are
+$(w_h, w_k, w_\ell, w_d) = (0.35, 0.35, 0.20, 0.10)$. We chose them before
+running any experiment, on the expectation that health and capacity would
+separate candidates, and did not tune them afterwards. \S\ref{sec:weights} tests
+that expectation and finds it wrong in an informative way: it is the latency
+term that carries avoidance once degradation is partial. The heuristic picks
+$\arg\max_c \mathrm{score}(p,c)$, then applies a load penalty to the chosen host
+($\mathrm{cap} \mathrel{-}= 20$; $\mathrm{health} \mathrel{*}= 0.95$) before the
+next primary. The penalty is what spreads load across the pool.
 
-\subsection{A Learned Policy}
+\subsection{Exact Assignment}
+\label{sec:optimal}
+
+To bound what any method using this score can achieve, we solve the assignment
+exactly. Each host $h$ is expanded into
+$k = \lceil |P| / |H| \rceil$ columns, one per primary it may back. The cost of
+assigning primary $p$ to a column of $h$ is $-\mathrm{score}(p,h)$, or a fixed
+penalty of $10^6$ when $h = p$. Hosts outnumber primaries at every scale we
+evaluate, so $k = 1$: the solver assigns each primary a distinct backup, with 10,
+20 and 80 distinct backups at the three scales and a maximum load of one. The
+measured results are therefore all from the regime in which a perfect spread
+exists; \S\ref{sec:oversub} restricts the pool so that $k = 2$. We
+solve it with the Hungarian algorithm~\cite{kuhn1955hungarian} as implemented in
+\texttt{scipy.optimize.linear\_sum\_assignment}~\cite{virtanen2020scipy}.
+
+Two qualifications apply wherever this method appears. It is \emph{exact for the
+score} under a one-backup-per-host constraint; it is not optimal for latency,
+which the score only approximates. We therefore call it the exact assignment and
+label it \texttt{exact}. And it needs the complete cost matrix at one party,
+which is at odds with DEFT's controller-free design, so we use it as a bound and
+not as a deployment candidate.
+
+\subsection{Learned Policies}
 \label{sec:rlmethod}
 
-As a third method we train a Proximal Policy
-Optimization~\cite{schulman2017proximal} agent
-(\texttt{stable-baselines3}~\cite{raffin2021stable} over
-\texttt{gymnasium}~\cite{towers2024gymnasium}) on the same scoring objective. An
-episode assigns a backup to every primary in sequence under one random resource
-realization. The observation is each host's
+We train two reinforcement-learning agents on the same objective: Proximal
+Policy Optimization (PPO)~\cite{schulman2017proximal} and a Deep Q-Network
+(DQN)~\cite{mnih2015human}, both from
+\texttt{stable-baselines3}~\cite{raffin2021stable} over
+\texttt{gymnasium}~\cite{towers2024gymnasium}. The two differ in update rule
+(on-policy actor-critic against off-policy value learning) and in exploration
+(entropy bonus against $\epsilon$-greedy), and share the environment, reward and
+inference path. An episode assigns a backup to every primary in sequence under
+one context seed. The observation is each host's
 $[\mathrm{health}, \mathrm{cap}/\mathrm{cap}_{\max}, \mathrm{cpu},
 \mathrm{storage}]$ concatenated with a one-hot encoding of the active primary,
 and the action space is $\mathrm{Discrete}(|H|)$. The reward is
 $\mathrm{score}(p,c)$, less $2(\ell-1)$ when the choice makes host $c$ the
-$\ell$-th primary's backup, less $10$ for an infeasible choice, so invalid
-actions are discouraged during training rather than corrected post hoc. A fresh
-realization is drawn each episode. Each host count needs its own trained model;
-configurations and checkpoints are released with the artifact.
+backup of an $\ell$-th primary, less $10$ for an infeasible choice. Each host
+count needs its own trained model.
 
-\section{Experimental Methodology}
+\section{Testbed and Methodology}
 \label{sec:methodology}
 
-\subsection{Testbed: RPC-Isolation, Not Physical Mininet}
+\subsection{Bare-Metal Testbed}
+\label{sec:testbed}
 
-We measure backup-selection quality by driving the \emph{real, unmodified} \texttt{Backup}
-and \texttt{Primary} 2PC classes from DEFT's implementation directly over XML-RPC, with
-each backup host running as its own OS process on localhost. This is a deliberate departure from a physical
-Mininet path, which we attempted first. The development kernel lacked the
-\texttt{openvswitch} module and the \texttt{htb} queueing discipline, and no SDN
-controller shipped with the original repository. Decisively, \texttt{TCLink}
-bandwidth throttling did not engage, leaving no real constraint for contention to
-manifest against. Driving the backup RPC server directly gives a more
-reproducible measurement of the contention mechanism, at the cost of not
-exercising end-to-end network behaviour --- switching, link bandwidth, packet loss
-(\S\ref{sec:threats}).
+The testbed is eleven bare-metal CloudLab nodes at the Utah cluster
+(\texttt{c6525-25g}: one 16-core AMD EPYC 7302P, 128\,GB, 25\,GbE, Ubuntu
+22.04). Ten nodes carry the 128 backup servers, thirteen per node except the
+last, and the eleventh runs the client alone. Each server is launched under
+\texttt{taskset} on a core of its own. Hyperthread siblings on this part pair as
+$(0,16), (1,17), \dots$, so logical CPUs $2$--$14$ are thirteen distinct
+physical cores and no two servers share one core's two threads. The provisioning
+tool records the intended core in a manifest, and a verification pass reports
+the affinity each server actually holds and the port it answers on. All
+replication traffic crosses the 25\,GbE experiment LAN; the control network is
+not used for measurement.
 
-Each primary fires a \emph{burst} of simultaneously in-flight RPC calls rather than one sequential call-then-wait stream, matching how concurrent primaries would load a shared
-backup in production. Three implementation pitfalls were identified and corrected during harness
-development.
+\subsection{System Under Test}
+\label{sec:sut}
 
-\emph{Servers must be processes, not threads.} Backup servers running as threads
-in one process share a GIL, which confounds the very contention being measured.
-Each now runs as a separate OS process.
+Each backup is an instance of DEFT's \texttt{Backup} class from its public
+implementation: a Python \texttt{SimpleXMLRPCServer}, single-threaded, speaking
+HTTP/1.0. The client issues the call DEFT's primary makes to replicate state,
+\texttt{update\_state(state)}, in bursts of ten simultaneously in-flight calls
+per primary, 200 calls per primary per run. Four facts bound what the resulting
+latencies mean, and we state them here because the phrase ``DEFT's backup''
+would otherwise claim more than was measured.
 
-\emph{One proxy per worker is not one connection per worker.} Each burst worker
-holds a single \texttt{ServerProxy}, with retry and jittered backoff on transient
-resets. That does not reuse the connection. DEFT's \texttt{Backup} inherits
-\texttt{SimpleXMLRPCServer}'s HTTP/1.0 default, so the server closes the
-connection after every response and the proxy silently reconnects: twenty calls
-through one proxy produce twenty server-side \texttt{accept()}s. Every
-replication call therefore performs a fresh handshake against a five-deep accept
-backlog, which is the direct cause of the tail behaviour analysed in
-\S\ref{sec:p99}.
+\emph{Only the replication call is driven.} The prepare and commit exchange of
+DEFT's 2PC, its failure detection and its data path are not exercised.
 
-\emph{Each method needs its own copy of the resource context.} The heuristic and
-the learned policy apply an in-place load-decay penalty to every host they pick.
-Sharing one context object across methods therefore let whichever ran first
-deplete it, making the others' mappings depend on execution order.
+\emph{The call does no work at the backup.} As shipped,
+\texttt{update\_state} prints the state and returns; the code that would persist
+it is commented out. Our harness registers an equivalent handler without the
+print. Every latency in this paper is therefore the cost of connection setup,
+request delivery, dispatch by a single-threaded server and the acknowledgement.
+It is the latency of the replication transport and its queueing, and a lower
+bound for a backup that stores what it receives.
 
-A fourth issue surfaced only at the largest scale. \texttt{xmlrpc.client} applies no
-socket timeout, so a connection the server has accepted but is not reading stalls the
-client indefinitely. Because the backup is single-threaded, one such connection blocks
-its accept loop and every other client queues behind it: at 128 hosts with 80 primaries
-on one backup we observed a run frozen for 80\,s with the server's CPU time, its
-established-connection count, and its SYN-SENT backlog all constant, making no forward
-progress at all. We therefore bound each call with a 20\,s client-side socket timeout,
-well above the largest genuine service time observed anywhere in these experiments
-(7.2\,s), so it breaks the deadlock without censoring real slow calls. As with the
-retry budget, this changes the benchmark client, not the backup server under test.
+\emph{The listen backlog is raised.} DEFT's server listens with the library
+default of five. All bare-metal placement runs use 512, set on the server class
+before DEFT's code constructs it, for the reason \S\ref{sec:p99} gives. Runs
+with the shipped value are labelled as such.
 
-\subsection{The Second Transport}
+\emph{The second transport is ours.} For the transport comparison of
+\S\ref{sec:p99} we implement the same call over gRPC: one persistent HTTP/2
+channel per primary and a server thread pool. This is a reimplementation of the
+call's interface and not DEFT code.
 
-Alongside DEFT's shipped XML-RPC path we implement the same replication call over
-gRPC: a service exposing exactly the method DEFT's backup exposes
-(\texttt{update\_state(state)} returning an acknowledgement), one persistent
-HTTP/2 channel per primary rather than a connection per call, and a server thread
-pool in place of a single accept loop. Message payloads carry the same flow-keyed
-state. The selection methods, scoring function, topologies, degraded-host
-injection, workload, retry policy and statistical analysis are identical across the
-two arms, so the transport is the only thing that varies.
+The benchmark client bounds each call with a 20\,s socket timeout and retries a
+transport failure up to eight times with jittered backoff. A call that exhausts
+its retries counts toward the failure rate and contributes to no latency
+statistic. Each method receives its own copy of the host features, because the
+heuristic and the learned policies modify them as they assign.
 
-Two details keep the comparison honest. First, the gRPC server's worker-pool size
-is an explicit parameter rather than an inherited default, so the transport change
-can be separated from the concurrency change; setting it to one reproduces the
-XML-RPC backup's strict serialization over HTTP/2. Second, gRPC reports channel
-readiness exactly, so backup startup is synchronised rather than waited out with a
-fixed sleep, removing a source of spurious early-call errors present in the
-XML-RPC arm.
+\subsection{Scenarios and Degradation}
+\label{sec:scenarios}
 
-\subsection{Scenarios}
+\textbf{Topologies.} Three scales: 16, 32 and 128 hosts with 10, 20 and 80
+primaries. For the selectors the topology is a star in which every host is two
+hops from every other. Hop count and topology latency are then the same for
+every candidate and carry no signal, so a selector can only separate candidates
+by health, capacity and, where it is used, measured latency. A multi-hub variant
+with unequal hop counts is used as a check in \S\ref{sec:hrw}.
 
-\textbf{Homogeneous (9 hosts).} DEFT's real reference topology, 5 primaries, synthetic
-resource values drawn independently per random seed with no engineered heterogeneity.
+\textbf{Heterogeneous pools.} One host in eight is degraded: 2, 4 and 16 hosts
+at the three scales, sampled evenly along the lexicographic host order that the
+order-based baselines walk (\S\ref{sec:degconstruct} explains why). A degraded
+host is slowed physically, by \texttt{tc netem} on its server's source port,
+which costs $101$\,ms per call against $1$\,ms for a healthy neighbour
+(\S\ref{sec:degconstruct}).
 
-\textbf{Scaled heterogeneous (16, 32, 128 hosts).} Synthetic star topologies at
-increasing scale (10/20/80 primaries; 6/12/48 backup-eligible hosts), with
-$\lfloor|H \setminus P| / 3\rfloor$ of the backup-eligible hosts deliberately degraded
-(health $=0.05$, capacity ratio $\approx 0.03$, plus an artificial +50\,ms per-call
-server-side delay simulating a genuinely overloaded machine). This isolates whether
-feature-aware methods avoid known-bad hosts, independent of load-balancing alone, and
-whether the finding holds as the candidate pool grows by roughly an order of magnitude.
+\textbf{What the selectors are told.} Under the \emph{binary} degradation model,
+used for every latency measurement in this paper, a degraded host's features are
+pinned to $\mathrm{health}=0.05$, $\mathrm{cap}=2$ of $\mathrm{cap}_{\max}=60$
+(ratio $0.033$) and an observed delay of $50$\,ms. A degraded host is thus an
+order of magnitude away from every healthy host on every feature the selectors
+read, and its state is reported accurately and without delay. A selector that
+reads host state will avoid such a host by construction. The latency runs
+therefore answer one question, what selecting a degraded backup costs and what
+avoiding it is worth, and do not test whether degradation can be detected.
+
+\textbf{The realistic model.} Detection is examined under a second model. Each
+degraded host draws a severity from $\mathrm{Beta}(1.6, 1.6)$ and one of five
+failure kinds, each of which moves a different subset of the features:
+\texttt{cpu\_starved} (CPU availability and health), \texttt{unhealthy} (health
+only), \texttt{capacity\_exhausted} (capacity ratio only),
+\texttt{storage\_pressured} (storage availability and health) and
+\texttt{link\_congested} (no host feature at all). Every kind adds a delay that
+grows with severity, between $0.5$ and $60$\,ms. Features a kind does not move
+stay at their healthy draw, and every host whose capacity the degradation does
+not set carries a baseline utilisation, so remaining capacity is a continuous
+quantity that a degraded host can overlap. Results under this model are
+\emph{structural}: we score the mapping a method produces and issue no RPC
+calls. In structural results each seed redraws the host features, which hosts
+are degraded (uniformly at random, one in eight), and their kinds and
+severities.
+
+\textbf{Structural metrics and what they mean for latency.} Where a mapping is
+scored without measurement we report two quantities. \emph{Degraded
+assignments} is the number of primaries given a degraded backup; its latency
+consequence is the one measured in \S\ref{sec:hetero}. \emph{Peak load} is the
+largest number of primaries sharing one backup. Its latency consequence on this
+testbed is small until sharing is heavy (under $1$\,ms up to 16 primaries on one
+backup, $35\%$ at 79; Table~\ref{tab:loadcurve}), so we read small differences
+in peak load as differences in fan-in, the number of primaries that lose their
+replica together if that backup fails, and not as differences in latency.
 
 \subsection{Statistical Methodology}
 \label{sec:stats}
 
-We draw multiple independent topology/resource realizations (context seeds) rather than
-repeating trials of one fixed instance, since repeated trials of a single instance only
-capture RPC-timing noise, not whether a result generalizes across problem instances.
+Each bare-metal configuration is run under 5 context seeds with 3 trials per
+seed. One \emph{run} is one (method, seed, trial) execution, giving 15 runs per
+method. Within a trial the order in which methods execute is randomized.
 
-\textbf{Resolution floor.} On the single-machine harness, accumulated
-ephemeral-port \texttt{TIME\_WAIT} pressure shifts the mean of \emph{every}
-method by of order $17$\,ms between otherwise identical executions. The drift is
-common-mode, so the paired design below cancels it and relative conclusions
-stand; but it sets a floor of roughly $10$\,ms on that harness, below which we
-make no claim. Four candidate effects of that size reached significance in one
-execution and vanished on replication, which is why every single-machine scale
-is run twice. Absolute single-machine latencies should be read with this in
-mind throughout \S\ref{sec:scale32}.
+\textbf{The unit of analysis is the seed.} Observations are nested, and each
+level is tempting to count. Calls within a run are not independent: they share a
+connection sequence, a single-threaded server and a scheduler. Pooling them
+inflates $n$ into the tens of thousands; on synthetic data from two methods with
+no true difference and correlated calls within runs, a Mann-Whitney test over
+15{,}000 calls returns $p = 1.1\times10^{-44}$ where the run-level test returns
+$p = 0.76$. Runs within a seed are not independent problem instances either: the
+three trials of a seed share its host features and, for every method, its
+mapping, so they repeat the RPC timing and not the instance. We therefore reduce
+each run to its mean and p99 over successful calls, average those over the
+seed's three trials, and compare methods by paired differences across the
+\emph{five} seeds.
 
-\textbf{The unit of analysis is a run, not a call.} One \emph{run} is one
-(method, context seed, trial) execution. The individual RPC calls within a run are not
-independent observations: a burst's calls share a TCP connection sequence, a
-single-threaded backup server process, an OS scheduler, and one resource realization.
-Treating each call as a sample inflates $n$ into the tens of thousands and drives
-$p$-values to zero without adding evidence. The effect is easy to quantify: on synthetic
-data built from two methods with \emph{no} true difference and correlated calls within
-each run, a Mann-Whitney $U$ test pooled over 15{,}000 calls returns
-$p = 1.1\times10^{-44}$, while the run-level test on the same data correctly returns
-$p = 0.76$. We therefore reduce each run to per-run statistics (mean, median, p95
-service latency, and failure rate over that run's own calls) and analyse those, giving
-$n = 15$ at every scale reported here.
+\textbf{What is reported.} With five pairs an exact two-sided Wilcoxon
+signed-rank test cannot return less than $p = 0.0625$, so no rank test can
+reject at $0.05$ at this size. We report instead the mean paired difference, its
+$95\%$ confidence interval (paired $t$, four degrees of freedom) and the number
+of seeds that agree in sign (Table~\ref{tab:seedlevel}). We call two methods
+different when the interval excludes zero. We do not call two methods equivalent
+because a test failed to reject; where the claim is similarity we give the
+interval, which states how large a difference the data leave room for. Five
+seeds are few. The interval assumes roughly normal seed-level differences, which
+five values cannot check, and \S\ref{sec:threats} lists this among the limits.
 
-\textbf{Comparisons are paired.} Every method is executed under each (context seed,
-trial) condition, so methods are compared by a two-sided Wilcoxon signed-rank test on
-the paired per-run differences, with the matched-pairs rank-biserial correlation
-$r = (T^{+}-T^{-})/(T^{+}+T^{-})$ as effect size; $r = \pm 1$ means every run agrees on
-the direction. Pairing matters here because the between-run variance is large and
-common-mode (\S\ref{sec:p99}), and pairing cancels it exactly. We apply
-Holm-Bonferroni correction across the full family of pairwise comparisons at each scale,
-and report cluster-bootstrap 95\% confidence intervals (5000 resamples) that resample
-whole runs rather than individual calls. Per-trial method execution order is randomized
-so no method is systematically favored by background system load.
+\textbf{Mean and p99.} With the backlog at 512 no connection is refused and p99
+is a latency. With the shipped backlog p99 is the kernel's SYN-retransmission
+timer (\S\ref{sec:p99}); we quote it there only to show that pathology.
 
-\textbf{Failed calls are censored.} A call that exhausts its retry budget contributes to
-the reported failure rate and to nothing else. Imputing a sentinel latency for it, as our
-earlier harness did, contaminates every percentile computed from the sample.
+\subsection{Single-Machine Harness}
+\label{sec:harness}
 
-\textbf{Reporting mean and p95, not p99.} \S\ref{sec:p99} shows that p99 in this
-testbed measures the kernel's TCP SYN-retransmission timer rather than replication
-latency. We therefore report mean and p95 throughout, and use p99 only where the point
-is the tail pathology itself.
+Before the testbed, the same comparison ran with every host as a process on one
+8-core machine, over both transports. Those runs differ from the bare-metal ones
+in four ways: hosts share cores; a degraded host is slowed by a $50$\,ms sleep
+inside the server; the XML-RPC arm uses the shipped backlog of five; and the
+degraded hosts are the first hosts that are not primaries, a contiguous block.
+They comprise 15 runs per method on XML-RPC and 25 on gRPC (5 seeds with 3 and 5
+trials) and are analysed at run level, so their $p$-values overstate the
+evidence in the way described above. Identical executions on this harness differ
+by up to $17$\,ms in mean, a shift common to every method, and at 128 hosts by
+a factor of $4.8$, so it yields no usable latency at that scale. We use these runs for two purposes only: the
+transport comparison of \S\ref{sec:p99}, where the same workload is needed on
+both stacks, and a consistency check on the ordering of methods
+(\S\ref{sec:single}).
 
 \input{results_placement}
 
 \input{results_measurement}
 
-\input{online_theory}
-
-\input{tables_online}
-
-\input{online_results}
-
-\input{tables_migration}
-
-\input{online_migration}
-
 \section{Threats to Validity}
 \label{sec:threats}
 
-\textbf{Synthetic resource values (the primary external-validity gap).} Health,
-capacity, CPU and storage availability are drawn from the configured ranges of
-\S\ref{sec:methods} rather than measured from live telemetry, so absolute
-magnitudes are illustrative rather than calibrated. \S\ref{sec:methods} maps each
-feature onto the orchestrator signal it stands in for, and \S\ref{sec:weights}
-shows the mapping matters (\S\ref{sec:weights}). Validating against live telemetry is the most important remaining work,
-and limits the ecological validity of the absolute, though not the relative,
-results.
+\textbf{Host state is synthetic and, in the latency runs, accurate by
+construction.} This is the main gap. Features are drawn from the ranges of
+\S\ref{sec:methods} and not measured from live telemetry, and under the binary
+model the selectors are handed the degraded hosts' state exactly and without
+delay (\S\ref{sec:scenarios}). The latency results therefore establish the cost
+of selecting a degraded backup, and not that a deployed selector would avoid
+one. Telemetry that is noisy or stale will let a state-aware selector choose a
+host that has just degraded; how often is not measured here.
 
-\textbf{RPC-isolation testbed, not a packet-level data path.} We drive the
-real backup server directly rather than over an emulated network, for the
-reasons given in \S\ref{sec:methodology}. A packet-level evaluation over a
-working SDN fabric, against which the RPC-level failure rate could be
-cross-checked with DEFT's native packet-drop metric, remains outstanding. We
-treat this study as isolating the selection mechanism rather than certifying
-end-to-end performance.
+\textbf{The realistic model is scored structurally.} \S\ref{sec:weights} counts
+degraded assignments and measures no latency, and its measured RTT is exact.
+The experiment that would close both this gap and the previous one is a
+bare-metal run with the realistic model, RTT obtained by probing, and features
+reported with noise and delay. We regard it as the most important missing
+measurement.
 
-\textbf{Two transports, not every transport.} Evaluating over both XML-RPC and
-gRPC establishes that the findings are not an artifact of one RPC stack, and
-\S\ref{sec:testbed} varies the accept queue directly. Kernel-bypass paths (DPDK,
-RDMA) remove the kernel networking stack entirely and would queue differently
-again. The ordering of methods is driven by how many primaries share a backup,
-which we expect to be robust; absolute magnitudes are specific to the transports
-measured.
+\textbf{The replication call does no work at the backup.} DEFT's
+\texttt{update\_state} returns without storing state (\S\ref{sec:sut}). The
+latencies are those of transport and queueing. In particular the low cost of
+sharing a backup (Table~\ref{tab:loadcurve}) is a lower bound: a backup that
+applied each update would be more sensitive to load, and load balance would
+matter more than it does here.
 
-\textbf{What the bare-metal run revised, and what the 9-host scale inherits.}
-\S\ref{sec:testbed} changed more than it confirmed: most of the apparent cost of
-concentrating backups was the shipped accept queue rather than load on the
-backup, and with homogeneous hosts no method separates from random. The 16- and
-32-host scenarios have been re-run on that hardware and the ordering holds. The
-9-host scenario has not, so its magnitudes are measured over the shipped backlog,
-whose bias at small scale runs toward understating rather than inflating the gap
-between methods (\S\ref{sec:testbed}).
+\textbf{The oversubscribed regime is not measured.} In every latency run backups
+outnumber primaries. \S\ref{sec:oversub} compares the heuristic with the exact
+assignment at $k = 2$ on score and structure only.
 
-\textbf{Absolute latencies are not reproducible across executions.} The
-single-machine harness has a resolution floor of roughly $10$\,ms, quantified in
-\S\ref{sec:stats}. The paired design cancels the drift, so relative conclusions
-stand, but no claim below that floor is made and no absolute single-machine
-latency should be read as a property of placement.
+\textbf{Five seeds.} Each bare-metal configuration has five independent problem
+instances. The main effects are large against their intervals and hold in every
+seed, but the intervals rest on a normality assumption that five values cannot
+test, and the similarity of the heuristic to the exact assignment is bounded
+only to the widths reported in Table~\ref{tab:seedlevel}. Twenty or more seeds
+would tighten both.
 
-\textbf{Deterministic round-robin's exposure is a function of naming.} Its
-degraded-host exposure depends on how the host-name sort aligns with the degraded
-set, which \S\ref{sec:testbed} examines directly and \S\ref{sec:hrw} removes with
-a randomized-offset variant. This does not affect the load-bearing claim, that
-feature-aware methods avoid degraded hosts by construction at every scale, which
-no round-robin variant offers.
+\textbf{One system, one replication path.} All measurements use DEFT's backup
+server over XML-RPC, with a gRPC reimplementation for the transport comparison.
+Kernel-bypass paths (DPDK, RDMA) remove the kernel networking stack and would
+queue differently. Only the replication call is driven; a packet-level
+evaluation over an SDN fabric, in which the RPC failure rate could be checked
+against DEFT's packet-drop metric, remains to be done.
 
-\textbf{RL configuration scales with the action space.} A policy's observation
-and action space is fixed to a host count, so each topology is served by its own
-trained model, and exploration and capacity budgets must grow with the action
-space (\S\ref{sec:rl128}). Reported RL numbers describe the released checkpoints;
-retraining under a different framework version yields a different but
-qualitatively similar policy.
+\textbf{Topologies.} Three scales, on a star and a multi-hub graph, with a
+fixed ratio of primaries to hosts and of degraded to healthy hosts. In a star
+the hop-count and topology-latency terms carry no signal, so the testbed runs
+exercise only the health, capacity and measured-latency terms of the score.
 
-\textbf{Coverage is a sweep, not a continuum.} Four topology scales rather than a
-continuous curve; single- and multi-hub graphs rather than irregular or
-production topologies (\S\ref{sec:hrw}); and the weight sensitivity and
-PPO-vs-DQN comparisons are scored structurally rather than by measured latency,
-which is exact and hardware-independent but assumes the structure-to-latency
-relationship established in Table~\ref{tab:backupload}.
+\textbf{Learned policies.} A policy's observation and action spaces are tied to
+a host count, so each scale has its own model, and the reported numbers
+describe the released checkpoints. The search over configurations was targeted
+and not exhaustive (\S\ref{sec:rl128}).
+
+\textbf{Single-machine runs.} The transport comparison and the consistency
+check of \S\ref{sec:single} come from a harness with shared cores, the shipped
+backlog on its XML-RPC arm, a contiguous degraded block and run-level
+statistics (\S\ref{sec:harness}). We use them for the shape of the latency tail
+and for the ordering of methods, and not for magnitudes.
 
 \section{Conclusion and Future Work}
 \label{sec:conclusion}
 
-Every NF state-replication system we surveyed specifies how state reaches another
-host and leaves open which host it reaches. We closed that gap and found that the
-harder problem is establishing the answer rather than producing one.
+NF state-replication systems specify how state reaches another host and leave
+open which host it reaches, and backup-allocation work chooses hosts for
+availability and cost. We measured what the choice is worth to replication
+latency on a running system, and found that establishing the answer takes more
+care than producing it.
 
-The practical answer is short. \emph{Backup selection should read host state,
-but need not be optimal.} A multi-criteria greedy heuristic is statistically
-indistinguishable from the exact capacity-constrained assignment at every scale,
-so the exact solve is a bound rather than a deployment candidate; a learned
-policy adds a per-scale training and tuning burden without reliable benefit; and
-any comparison between such policies must report which hosts each one actually
-selected.
-
-The measurement behind that. On a bare-metal testbed where 128 backups each hold
-a dedicated physical core and degraded hosts are impaired by the kernel,
-feature-aware selection routes a primary to a degraded backup in $0\%$ of calls
-at 16, 32 and 128 hosts, against a $10$--$12.5\%$ base rate for order-based
-selection, roughly halving p99 with $r = -1.000$ across paired runs. That zero
-holds under accurately reported host state and a fixed set of impaired hosts; an
-orchestrator's telemetry is noisier and late, so what carries into deployment is
-the relative comparison rather than the zero itself. The advantage is also
-specific to heterogeneous pools: with identical hosts no method separates from
-random, and the gap grows with the pool.
+\emph{Backup selection should read host state, including measured latency, but
+need not solve the assignment exactly.} On a bare-metal testbed with 128 backups on dedicated
+cores and degraded hosts impaired by the kernel, placement that ignores host
+state sends $10$--$12.5\%$ of replication calls to a degraded backup, which
+costs about a fifth of mean latency and raises p99 by a factor of $2$ to $2.5$
+at 16, 32 and 128 hosts, in every seed. A greedy heuristic stays within
+$1.7$\,ms of the exact assignment on mean latency, so the exact solve is a
+bound and not something to deploy. That holds where backups outnumber
+primaries, which is the regime we measured. Where they do not, a structural
+comparison shows the greedy pass still matching the exact score among healthy
+hosts, and doing better than the capped exact assignment once degraded hosts
+take up part of the pool. The
+advantage is specific to heterogeneous pools: with identical hosts no method
+separates from random. And it is conditional on the selector knowing which
+hosts are degraded, which these runs supplied. Under a model in which symptoms
+are partial, a score built on resource gauges misses a host degraded only in
+its network path, and measured round-trip time is the signal that recovers it,
+taking the default weights from about $3\%$ of assignments on degraded hosts
+to under $1\%$.
 
 Three results concern how such a claim must be measured, and apply beyond this
 system. A connection-per-call RPC stack with a short accept queue biases the
 measured placement effect with a sign that depends on workload concentration:
-holding everything else fixed, raising the queue length took a measured
-concentration penalty from $7.5\times$ to $35\%$ at 128 hosts while \emph{widening}
-the gap between placement methods at 16. Degrading a contiguous block of hosts
-allows an order-based baseline to report perfect avoidance it did not earn,
-which is why we report the share of each method's calls that met the impairment
-alongside its latency. And re-solving the instantaneous optimum every round, the
-natural way to deploy an exact one-shot method, has unbounded competitive ratio
-once migration costs anything; the cost of migration itself is roughly $1/\delta$
-rounds for a delta share $\delta$ of state per round, a property of traffic churn
-that no choice of wire format changes.
+lengthening the queue took the measured cost of concentration from $7.5\times$
+to $35\%$ at 128 hosts and \emph{widened} the gap between placement methods at
+16. Degrading a contiguous block of hosts lets an order-based baseline report
+an avoidance it did not earn, so a comparison must report the share of each
+method's calls that met the impairment. And a degradation model that separates
+degraded hosts on every feature at once cannot rank scoring functions, and
+with a fixed layout cannot tell a good one from one that reads nothing.
 
-On reinforcement learning we report what we measured. PPO matches the
-feature-aware methods to 32 hosts and, at 128, learns degraded-host avoidance
-completely while load-balancing less tightly; DQN reproduces the same
-concentration under the same remedy. Host-quality discrimination and load
-balancing are learned at different rates, and a scalar per-step penalty does not
-close the gap (\S\ref{sec:rl128}).
+On reinforcement learning the result is modest. PPO matches the state-aware
+methods to 32 hosts and at 128 sends $0$--$2\%$ of assignments to degraded
+hosts while concentrating load;
+DQN collapses onto two backups at that scale. Neither has headroom over a
+heuristic that already matches the exact assignment.
 
-Three directions follow. The selection should be driven by live orchestrator
-telemetry rather than synthetic draws, which our sensitivity analysis already
-argues for (\S\ref{sec:weights}). The
-online policies should be evaluated on the testbed rather than in simulation.
-And a packet-level evaluation over a working SDN fabric would let the RPC-level
-failure rate be cross-checked against DEFT's native packet-drop metric. The
-harness, trained models, raw per-call records and the saved output of every run,
-including the configurations that produce the measurement artifacts above, are
-available for reproduction.
-
-\input{appendix_proofs}
+Future work follows from the limits above. The first step is the measurement
+\S\ref{sec:threats} identifies: realistic degradation on the testbed, with
+probed RTT and noisy, delayed telemetry, over more seeds. The second is a
+backup that stores the state it receives, under which the cost of sharing
+should be re-measured. The third is the online problem. Hosts degrade, recover
+and fail, and moving a replica costs a state transfer, so an assignment that is
+best for a snapshot is not best over time; deciding when a re-selection repays
+its migration is a question we leave to a separate study. The harness, trained
+models, raw per-call records and the saved output of every run, including the
+configurations that reproduce each measurement artifact, are available for
+reproduction.
 
 \section*{Acknowledgment}
-This work builds directly on the DEFT system~\cite{shahriyar2023deft} and its publicly
+This work builds on the DEFT system~\cite{shahriyar2023deft} and its publicly
 available implementation.
 
 \bibliographystyle{IEEEtran}

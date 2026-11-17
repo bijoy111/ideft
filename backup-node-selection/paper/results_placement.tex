@@ -1,404 +1,363 @@
 \section{Placement Results}
 \label{sec:results}
 
-This section answers the first question in the title. We report the bare-metal
-measurement first, because that is where a latency difference can be attributed
-to the choice of backup, and then the single-machine runs that corroborate it
-over two transports. \S\ref{sec:measurement} takes up the second question: what
-had to be controlled for these numbers to mean what they appear to.
+All latencies in \S\ref{sec:hetero} and \S\ref{sec:homog} are from the
+bare-metal testbed with a backlog of 512, kernel-imposed degradation and
+degraded hosts spread through the host order. So are the PPO figures of
+\S\ref{sec:rl128}. Everything else in this section is structural, scored on
+the mappings without RPC calls: \S\ref{sec:weights}, \S\ref{sec:hrw},
+\S\ref{sec:oversub} and the DQN and 30-seed figures of \S\ref{sec:rl128}.
+\S\ref{sec:single} is from the single-machine harness. In the structural
+results every seed is a complete problem instance: host features, the set of
+degraded hosts (drawn uniformly at random, one host in eight) and, under the
+realistic model, their failure kinds and severities are all redrawn.
 
-\subsection{Bare-Metal Testbed}
-\label{sec:testbed}
-
-Eleven bare-metal CloudLab nodes at the Utah cluster
-(\texttt{c6525-25g}: one 16-core AMD EPYC 7302P, 128\,GB, 25\,GbE, Ubuntu
-22.04). Ten carry the 128 backup servers, thirteen per node except the last;
-the eleventh runs the client alone. Each server is launched under
-\texttt{taskset} on a core of its own. Hyperthread siblings on this part pair
-as $(0,16), (1,17), \dots$, so logical CPUs $2$--$14$ are fourteen distinct
-physical cores and no two servers share one core's two threads. The claim that
-each backup owned a core is checked rather than asserted: the provisioning tool
-records the intended core in a manifest and a verification pass reports the
-affinity each server actually holds, together with the ports it answers on. All
-replication traffic crosses the 25\,GbE experiment LAN; the control network is
-not used for measurement.
-
-Three settings follow from \S\ref{sec:measurement} and are fixed for every run
-in this section. Servers listen with a backlog of 512 rather than DEFT's shipped
-five, because the shipped value measures connection setup rather than placement
-(\S\ref{sec:p99}). Degraded hosts are slowed by \texttt{tc netem} on the
-server's own source port rather than by a sleep inside the server, and they are
-spread through the host ordering rather than forming a contiguous block
-(\S\ref{sec:degconstruct}). One host in eight is degraded at every scale. Each
-configuration is 5 context seeds $\times$ 3 trials, giving 15 paired runs of
-200 calls per primary at burst 10.
-
-\textbf{What the selectors are told.} The slowdown is physical, but the
-knowledge of it is supplied: a degraded host's feature vector carries the
-degraded health and capacity values of \S\ref{sec:methods}. These runs therefore
-measure what it costs to select a degraded host and what is gained by avoiding
-one, \emph{given accurate host state}. Whether a scoring function can recognise
-degradation from realistic, partial signals is a separate question, which
-\S\ref{sec:weights} answers.
-
-\subsection{Heterogeneous Pools: Feature-Aware Selection Avoids Degraded Hosts}
+\subsection{Heterogeneous Pools: What Avoiding a Degraded Backup Is Worth}
 \label{sec:hetero}
 
 \input{tab_scales}
 
-Table~\ref{tab:scales} reports all three scales. The mechanism is in the
-right-hand column of each pair. \texttt{heuristic} and \texttt{optimal} route a
-primary to a degraded backup in $0.00\%$ of calls at 16, 32 and 128 hosts.
-\texttt{round\_robin} meets degraded hosts at $10.00$--$12.50\%$, the base rate,
-and \texttt{random} at $11.25$--$18.00\%$.
+\input{tab_seedlevel}
 
-The latency follows the selection. The better feature-aware method beats
-\texttt{round\_robin} by $6.72$\,ms at 16 hosts, $7.38$ at 32 and $10.11$ at
-128, about a fifth of the mean at every scale, and roughly halves p99: $49$
-against $121$\,ms, $68$ against $137$, and $80$ against $157$. The paired
-comparisons of \texttt{optimal} against \texttt{round\_robin} have $r = -1.000$
-at all three scales, meaning no run dissents, and against \texttt{random}
-$r \le -0.967$ (all $p_{\mathrm{Holm}} \le 0.0011$). The gap widens with the
-pool, as expected when blind selection has more degraded hosts to meet.
+Table~\ref{tab:scales} reports mean latency and the share of each method's calls
+that reached a degraded backup. Table~\ref{tab:seedlevel} gives the paired
+differences at seed level.
 
-\textbf{The greedy heuristic matches the exact assignment.} \texttt{heuristic}
-versus \texttt{optimal} is not significant at any scale
-($p_{\mathrm{Holm}} \ge 0.62$ on the mean; $1.000$ on p99 at 128 hosts). The
-exact solve is therefore a useful bound rather than a necessary deployment.
+\textbf{Exposure.} \texttt{heuristic} and \texttt{exact} send no call to a
+degraded backup at any scale. As \S\ref{sec:scenarios} explains, this is the
+expected outcome under the binary model and not a finding. The finding is the
+other rows: \texttt{round\_robin} sends $10.00$--$12.50\%$ of calls to a
+degraded backup and \texttt{random} $11.25$--$18.00\%$, close to the $12.5\%$ of
+hosts that are degraded. One caution applies to the \texttt{round\_robin}
+figure: its mapping does not depend on the seed and each scale was measured
+under one layout of degraded hosts, so its exposure is one value per scale
+measured repeatedly, not a mean over layouts. Over 30 random layouts the
+structural figure is the same on average (\S\ref{sec:hrw}).
 
-\textbf{What $0\%$ does and does not mean.} The zero is a statement about
-selection under accurately reported host state, with a fixed set of impaired
-hosts. An orchestrator's telemetry is noisier and arrives late, and under it a
-feature-aware selector will sometimes choose a host that has just degraded. The
-comparison that carries over is the relative one: a selector that reads host
-state avoids degraded hosts to the extent the state is right, and an order-based
-one meets them at the base rate regardless.
+\textbf{Cost.} That exposure costs \texttt{round\_robin} $6.73$\,ms of mean
+latency against \texttt{exact} at 16 hosts, $7.37$ at 32 and $10.11$ at 128,
+about a fifth of its mean at every scale. The $95\%$ intervals exclude zero by a
+wide margin and all five seeds agree at each scale. The tail moves more: p99 is
+$49$ against $121$\,ms at 16 hosts, $68$ against $137$ at 32, and $80$ against
+$157$ at 128: a factor of $2.5$, $2.0$ and $2.0$, and a difference of
+$68$--$78$\,ms that again holds in every seed.
+\texttt{random} is slower than \texttt{exact} in every seed too, by $9.6$ and $9.5$\,ms
+at 32 and 128 hosts. At 16 hosts its interval includes zero, because with two
+degraded hosts a random mapping misses both in two of the five seeds.
+
+\textbf{The greedy heuristic against the exact assignment.} The mean difference
+is $0.66$, $0.32$ and $0.27$\,ms at the three scales, and the intervals put its
+upper limit at $1.62$, $0.91$ and $1.25$\,ms: at most $7\%$ of the mean at 16
+hosts and $3\%$ at 32 and 128. On the mean, then, the heuristic gives up less
+than $1.7$\,ms to the exact assignment. On p99 the same holds at 128 hosts
+(upper limit $5.75$\,ms) but not at the two smaller scales, where the intervals
+are wide ($-12$ to $+27$\,ms): in one seed at each scale the heuristic's p99 is
+$35$\,ms above the exact assignment's. We therefore claim
+that the heuristic matches the exact assignment on mean latency at every scale
+and on tail latency at 128 hosts, and not more.
 
 \textbf{The concentrated arm.} With degraded hosts spread through the ordering,
-the host \texttt{concentrated} piles onto is itself degraded, so its figures
-here conflate concentration with degradation. The clean figure for concentration
-alone is the homogeneous one below.
+the host \texttt{concentrated} selects is itself degraded, so its figures here
+combine concentration with degradation. The figure for concentration alone is
+the homogeneous one below.
 
 \subsection{Homogeneous Pools: Selection Does Not Matter}
 \label{sec:homog}
 
-With all 128 hosts identical and none degraded, \texttt{optimal},
-\texttt{heuristic}, \texttt{round\_robin} and \texttt{random} are statistically
-indistinguishable at $41.5$--$42.0$\,ms mean. The paired comparison of
-\texttt{optimal} against \texttt{random} gives a median difference of
-$0.002$\,ms ($p_{\mathrm{Holm}} = 1.000$). Only \texttt{concentrated}
-($56.27$\,ms, $35\%$ above \texttt{optimal}) and the learned policy
-($46.53$\,ms) separate from the group.
+With all 128 hosts healthy, \texttt{exact}, \texttt{heuristic},
+\texttt{round\_robin} and \texttt{random} have means of $41.5$--$42.0$\,ms. The
+seed-level differences from \texttt{exact} are $0.08$\,ms for the heuristic
+($95\%$ interval $[-1.29, 1.44]$), $0.25$ for \texttt{round\_robin}
+$[-1.11, 1.61]$ and $-0.17$ for \texttt{random} $[-1.69, 1.34]$. Any advantage
+of reading host state is therefore below $1.7$\,ms, $4\%$ of the mean, when
+there is nothing to read. Two methods do separate. \texttt{concentrated} is
+$14.54$\,ms slower $[12.59, 16.50]$, $35\%$ above \texttt{exact}, and PPO is
+$4.81$\,ms slower $[0.86, 8.75]$ because it concentrates load
+(\S\ref{sec:rl128}).
 
-This bounds the claim. Where every candidate is equivalent, a selector that
-reads node features has nothing to read, and the exact assignment buys nothing
-over choosing uniformly at random. What still matters is not piling every
-primary onto one backup. The result also serves as the negative control for the
-previous subsection: the apparatus does not manufacture an advantage for
-feature-aware methods where none should exist.
+This bounds the claim of the previous subsection, and serves as its negative
+control: the apparatus does not produce an advantage for state-aware methods
+where none should exist. What matters with equivalent hosts is only not to place
+every primary on one backup.
 
-\subsection{Corroboration on One Machine, over Two Transports}
-\label{sec:scale32}
+\subsection{Realistic Degradation: Which Signal Carries the Avoidance}
+\label{sec:weights}
+
+The runs above show what avoidance is worth when degraded hosts are plainly
+visible. Whether a scoring function can see a degraded host whose symptoms are
+partial is a separate question. We examine it under the realistic model of
+\S\ref{sec:scenarios} by sweeping the score's weights over a 0.1-step grid on
+the simplex, 286 configurations, with 30 seeds. Each seed redraws the host
+features, the degraded hosts, and their failure kinds and severities. The
+sweep is structural and measures no latency. Its measure is the
+\emph{degraded-assignment rate}: the share of all assignments, over all seeds,
+that go to a degraded host. A rate does not grow with the number of seeds, as a
+count of configurations that fail at least once would.
+
+\textbf{The reference.} A score that reads no host state meets degraded hosts
+at the share of hosts that are degraded, $12.5\%$, and a term provides
+avoidance to the extent that configurations weighting it fall below that
+level (Table~\ref{tab:terms}). A configuration with all its weight on hop
+count is such a score in a star, but it gives every primary of a seed the same
+backup, so its 30-seed estimate is noisy ($10.0$, $23.2$ and $6.8\%$ at the
+three scales) and we compare against the analytic $12.5\%$. Because the groups
+of configurations with and without weight on one term differ in how much
+weight they put on the others, health and capacity are read separately among
+the configurations that weight latency and among those that do not.
+
+\textbf{With topology-derived latency, health is the only signal, and the
+default weights are exposed.} Topology-derived latency reads nothing in a
+star, so the two latency strata agree: configurations with no weight on health
+are at $9.1$--$12.4\%$, close to the reference, and those with some at
+$4.1$--$4.9\%$. Capacity alone does no better than the reference
+($9.7$--$10.3\%$): only one of
+the five failure kinds moves it, and a healthy host's baseline utilisation
+overlaps a degraded one's. The default weights send $2.8$--$3.3\%$ of
+assignments to a degraded host, and $97$ of those $103$ assignments are to a
+\texttt{link\_congested} host. That kind adds delay to every call while its
+health, capacity, CPU and storage are drawn from the healthy ranges, because
+its degradation is in the path and in no resource gauge. The two features that
+could reveal it are derived from the topology graph, and in a star both
+normalize to zero.
+
+\textbf{Measured round-trip time is the strongest single signal.} Replacing
+the topology-derived latency with measured RTT brings the default weights to
+$0\%$ at 16 and 32 hosts and $0.6\%$ at 128, where all but one of the 14
+remaining assignments are again to \texttt{link\_congested} hosts, the mildly
+degraded ones. Configurations with some weight on latency average
+$0.4$--$1.1\%$ and those with none $5.3$--$5.9\%$. A score that reads measured
+latency and nothing else assigns no degraded host in any seed at any scale.
+
+\textbf{Health matters when measured latency is unavailable; capacity does
+not detect.} Without weight on measured latency, health is the only detector:
+$4.3$--$4.9\%$ with it against $9.4$--$11.2\%$ without. Among the 220
+configurations that do weight measured latency, those that also weight health
+average $0.2$--$1.0\%$ against $0.8$--$1.7\%$ for those that do not, and those
+that weight capacity average $0.5$--$1.3\%$ against $0.1$--$0.7\%$. Neither
+average reaches the $0\%$ of latency alone. In this model, then, no mixture
+improves on measured latency; of the weight taken from it, weight given to
+health costs least and weight given to capacity most. Capacity is a poor
+detector here, and its use in the score is to spread load. This runs against
+the expectation behind the default weights (\S\ref{sec:heuristic}), which put
+$0.35$ on each of health and capacity and $0.20$ on latency: the sweep argues
+for more weight on measured latency and less on capacity.
 
 \begin{table}[t]
 \centering
-\caption{Per-call service latency by topology scale and transport. XML-RPC: 15
-runs; gRPC: 25 runs (5 context seeds $\times$ 5 trials), 200 calls/primary,
-burst 10. Effect sizes are paired against \texttt{heuristic} on the gRPC arm.
-\texttt{baseline} is DEFT's shipped static mapping, which exists only for the
-9-host topology. The 9-host scenario is homogeneous and serves as the negative
-control: with nothing to discriminate between candidates, every method except
-\texttt{concentrated} and \texttt{baseline} is indistinguishable from the
-heuristic.}
-\label{tab:scalesweep}
+\caption{Degraded-assignment rate (\%) under the realistic degradation model:
+mean over the weight configurations in each group (count in parentheses), 30
+seeds, structural. A score that reads no host state has an expected rate of
+$12.5\%$; the hop-only row is its noisy 30-seed estimate.}
+\label{tab:terms}
 \resizebox{\columnwidth}{!}{%
-\begin{tabular}{llrrrrr}
+\begin{tabular}{lrrrrrr}
 \toprule
-& & XML-RPC & \multicolumn{4}{c}{gRPC} \\
-\cmidrule(lr){3-3}\cmidrule(lr){4-7}
-Scale & Method & Mean (ms) & Mean (ms) & 95\% CI & $r$ & $p_{\mathrm{Holm}}$ \\
+& \multicolumn{3}{c}{Topology latency} & \multicolumn{3}{c}{Measured RTT} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+Configurations & 16 & 32 & 128 & 16 & 32 & 128 \\
 \midrule
-\multirow{7}{*}{\shortstack[l]{9 hosts\\5 primaries\\homogeneous}}
- & \texttt{baseline} & 73.45 & 20.58 & [17.55, 24.56] & $+0.680$ & 0.0243 \\
- & \texttt{concentrated} & 107.42 & 32.60 & [29.84, 35.77] & $+1.000$ & $<$0.0001 \\
- & \texttt{random} & 58.70 & 16.04 & [14.50, 17.75] & $+0.329$ & 0.7817 \\
- & \texttt{round\_robin} & 47.51 & 14.06 & [12.22, 16.43] & $-0.422$ & 0.5010 \\
- & \texttt{heuristic} & 51.10 & 14.72 & [13.44, 16.18] & -- & -- \\
- & \texttt{optimal} & 45.90 & 13.60 & [12.50, 14.92] & $-0.286$ & 0.8799 \\
- & \texttt{PPO} & 48.44 & 13.79 & [12.06, 16.21] & $-0.403$ & 0.5010 \\
+Hops only (reference) & 10.0 & 23.2 & 6.8 & 10.0 & 23.2 & 6.8 \\
 \midrule
-\multirow{6}{*}{\shortstack[l]{16 hosts\\10 primaries\\2 degraded}}
- & \texttt{concentrated} & 175.36 & 77.97 & [72.12, 83.99] & $+1.000$ & $<$0.0001 \\
- & \texttt{random} & 145.00 & 31.45 & [24.34, 39.47] & $+0.655$ & 0.0185 \\
- & \texttt{round\_robin} & 144.21 & 26.23 & [24.08, 29.12] & $+0.705$ & 0.0104 \\
- & \texttt{heuristic} & 98.35 & 17.88 & [14.03, 22.76] & -- & -- \\
- & \texttt{optimal} & 90.73 & 18.82 & [14.30, 24.45] & $-0.046$ & 1.0000 \\
- & \texttt{PPO} & 89.38 & 13.83 & [12.57, 15.49] & $-0.200$ & 1.0000 \\
+$w_\ell = 0$ (66) & 5.3 & 5.9 & 5.5 & 5.3 & 5.9 & 5.5 \\
+$w_\ell > 0$ (220) & 5.6 & 6.7 & 5.8 & \textbf{0.4} & \textbf{0.8} & \textbf{1.1} \\
 \midrule
-\multirow{6}{*}{\shortstack[l]{32 hosts\\20 primaries\\4 degraded}}
- & \texttt{concentrated} & 296.00 & 121.13 & [116.06, 127.00] & $+1.000$ & $<$0.0001 \\
- & \texttt{random} & 172.59 & 31.84 & [23.14, 43.35] & $+0.945$ & $<$0.0001 \\
- & \texttt{round\_robin} & 163.39 & 28.62 & [22.64, 39.73] & $+0.994$ & $<$0.0001 \\
- & \texttt{heuristic} & 121.39 & 13.25 & [12.15, 14.95] & -- & -- \\
- & \texttt{optimal} & 123.29 & 19.15 & [12.49, 30.49] & $-0.022$ & 1.0000 \\
- & \texttt{PPO} & 130.38 & 13.22 & [12.34, 14.33] & $+0.126$ & 1.0000 \\
+$w_\ell = 0$, $w_h = 0$ (11) & 10.3 & 11.2 & 9.4 & 10.3 & 11.2 & 9.4 \\
+$w_\ell = 0$, $w_h > 0$ (55) & 4.3 & 4.9 & 4.7 & 4.3 & 4.9 & 4.7 \\
+$w_\ell = 0$, $w_k = 0$ (11) & 4.6 & 7.7 & 5.5 & 4.6 & 7.7 & 5.5 \\
+$w_\ell = 0$, $w_k > 0$ (55) & 5.4 & 5.6 & 5.5 & 5.4 & 5.6 & 5.5 \\
+\midrule
+$w_\ell > 0$, $w_h = 0$ (55) & 10.3 & 12.4 & 9.1 & 0.8 & 1.4 & 1.7 \\
+$w_\ell > 0$, $w_h > 0$ (165) & 4.1 & 4.9 & 4.7 & 0.2 & 0.6 & 1.0 \\
+$w_\ell > 0$, $w_k = 0$ (55) & 5.1 & 9.3 & 5.7 & 0.1 & 0.5 & 0.7 \\
+$w_\ell > 0$, $w_k > 0$ (165) & 5.8 & 5.9 & 5.8 & 0.5 & 0.9 & 1.3 \\
+\midrule
+Health only & 4.0 & 6.2 & 5.4 & 4.0 & 6.2 & 5.4 \\
+Capacity only & 10.3 & 10.0 & 9.7 & 10.3 & 10.0 & 9.7 \\
+Latency only & 10.0 & 23.2 & 6.8 & \textbf{0.0} & \textbf{0.0} & \textbf{0.0} \\
+\midrule
+Default weights & 3.3 & 2.8 & 3.2 & 0.0 & 0.0 & 0.6 \\
 \bottomrule
 \end{tabular}}
 \end{table}
 
-The same comparison was first run with every host as a process on one machine,
-over both transports (Table~\ref{tab:scalesweep}, Fig.~\ref{fig:latencyscale}).
-We keep these runs for two reasons. They show the finding does not depend on one
-RPC stack, and they are the data in which the measurement effects of
-\S\ref{sec:measurement} were found. Their absolute latencies carry three
-caveats: the hosts share one machine, the XML-RPC arm uses the shipped backlog,
-and differences below the $10$\,ms resolution floor of \S\ref{sec:stats} are
-not claimed.
-
-\textbf{9 hosts, homogeneous.} This scenario was not re-run on bare metal and
-serves as a negative control only. \texttt{round\_robin}, \texttt{optimal}, the
-learned policy and \texttt{random} are indistinguishable from the heuristic on
-both transports, and the two transports agree on that null to within
-$0.06$\,ms. We draw no conclusion from its absolute latencies.
-
-\textbf{16 and 32 hosts, heterogeneous.} \texttt{heuristic}, \texttt{optimal}
-and the learned policy never route a primary to a degraded host in any seed.
-\texttt{round\_robin} hits one on 2 of 10 and 4 of 20 assignments in every seed,
-and \texttt{random} between none and four depending on the seed. On the gRPC arm
-at 32 hosts the heuristic beats \texttt{round\_robin} by $9.75$\,ms at the median
-run ($r=0.994$, $p_{\mathrm{Holm}}<0.0001$) and \texttt{random} by $13.10$\,ms
-($r=0.945$). At 16 hosts the same comparisons give $r=0.705$
-($p_{\mathrm{Holm}}=0.0104$) and $r=0.655$ ($p=0.0185$). \texttt{optimal} and
-the learned policy are indistinguishable from the heuristic at both scales
-($|r| \le 0.20$, all $p_{\mathrm{Holm}} = 1.000$).
-
-The ordering therefore agrees with the bare-metal runs on both transports. The
-magnitudes do not, and should not be read as placement effects: on this harness
-the same comparison appears worth a third to a half of the mean, against a
-fifth on bare metal, for the reasons \S\ref{sec:p99} gives. One row is also
-specific to how these runs were built. The degraded hosts here are the first
-$n$ of the backup-eligible set, so the host \texttt{concentrated} piles onto
-happens to be healthy; \S\ref{sec:degconstruct} explains why that construction
-cannot be trusted.
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=\columnwidth]{figures/fig_latency_scale.pdf}
-\caption{Per-call service latency vs.\ topology scale, by transport (log axes).
-Top row: mean with cluster-bootstrap 95\% confidence intervals. Bottom row: p95.
-The 9-host point is the homogeneous scenario (its \texttt{baseline} method, which
-exists only there, is omitted). The p95 row shows the degraded-host penalty
-\texttt{round\_robin} and \texttt{random} pay at 16 and 32 hosts, which the gRPC
-arm separates more cleanly because its baseline latencies are an order of
-magnitude lower. The 128-host column is shaded and its confidence
-intervals are drawn faded: independent executions of that configuration differ
-several-fold on either transport, so it is not a usable latency measurement on
-a single machine (\S\ref{sec:single128}).}
-\label{fig:latencyscale}
-\end{figure}
-
-\subsection{Mechanism: Latency Follows Backup Load}
-\label{sec:backupload}
-
-Table~\ref{tab:backupload} pools service latency by the number of primaries
-sharing a backup, aggregated to one observation per (run $\times$ backup) so
-that correlated calls against one loaded server count once. Mean latency rises
-monotonically with load, whichever method produced the sharing. This is what
-licenses scoring a mapping \emph{structurally}, by how many distinct backups it
-uses and its peak load, where latency cannot be measured.
-
-\begin{table}[t]
-\centering
-\caption{Service latency vs.\ backup load on the XML-RPC arm, one observation per (run $\times$ backup).}
-\label{tab:backupload}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{clrrr}
-\toprule
-Scenario & Load & $n$ units & Mean (ms) & 95\% CI \\
-\midrule
-\multirow{4}{*}{Homog.} & 1 & 354 & 45.23 & [44.60, 45.89] \\
- & 2 & 33 & 68.07 & [65.80, 70.35] \\
- & 3 & 15 & 96.94 & [90.51, 104.25] \\
- & 4 & 15 & 126.20 & [117.85, 135.44] \\
-\midrule
-\multirow{4}{*}{16-host} & 1 & 678 & 104.56 & [98.86, 110.46] \\
- & 2 & 21 & 107.14 & [100.41, 113.65] \\
- & 3 & 15 & 229.03 & [115.11, 349.47] \\
- & 9 & 15 & 190.79 & [181.37, 199.20] \\
-\bottomrule
-\end{tabular}}
-\end{table}
+\textbf{Limits of this result.} Three qualifications apply. Every kind in the
+model adds some delay, which is realistic but makes measured RTT close to a
+sufficient statistic here; a host that is fast now and about to fail would not
+be caught by it and would need the health signal. The measured RTT is exact and
+current, whereas a probe is noisy and stale. And the result is structural: we
+have not measured latency under the realistic model on the testbed
+(\S\ref{sec:threats}). The supported claim is that a score restricted to
+resource gauges and topology-derived latency is blind to network-path
+degradation, and that measured path latency is the remedy.
 
 \subsection{Decentralized Baselines and Topology Diversity}
 \label{sec:hrw}
 
-Replica placement is well studied where storage is the subject, so we add the
-baselines that literature would expect: rendezvous hashing, health- and
-capacity-weighted rendezvous hashing, and Dynamo-style weighted consistent
-hashing~\cite{weil2006crush,decandia2007dynamo}, scored structurally
+Replica placement is well studied in storage, so we add the baselines that
+literature suggests~\cite{weil2006crush,decandia2007dynamo}, scored structurally
+under the binary model over 30 seeds
 (Table~\ref{tab:hrw}).
-
-Plain rendezvous hashing is quality-unaware and its degraded-host exposure is
-correspondingly uncontrolled. Both weighted variants avoid degraded hosts
-entirely at every scale, which establishes that \emph{quality-awareness, not
-centralization, is what buys avoidance}. They are coordination-free, however ---
-each primary hashes independently with no load penalty propagated --- so they
-spread load only statistically: mean peak per-backup load is $3.0/3.6/2.2$ and
-$2.8/3.0/3.2$ at 16/32/128 hosts, against the greedy heuristic's $1.4/2.0/2.0$
-and the exact assignment's $1.0$. A single coordinated pass load-balances
-materially tighter than either weighted-hash family at equal avoidance.
-
-Two robustness checks accompany this. A randomized-offset round-robin removes
-the naming dependence examined in \S\ref{sec:degconstruct}, and then meets degraded
-hosts at every scale in proportion to the degraded fraction. And repeating the
-comparison on multi-hub topologies, where host-to-host hop count and latency
-vary, leaves the structural outcome unchanged: avoidance and load balancing are
-driven by host quality rather than graph shape.
 
 \begin{table}[t]
 \centering
-\caption{Decentralized hash baselines and a fairer round-robin vs.\ the feature-aware
-methods, 5-seed average, heterogeneous star scenarios (multi-hub results are identical; see
-text). ``Deg.'' = mean primaries routed to a degraded host (lower is better); ``Load'' = mean
-max per-backup load (lower is a tighter spread).}
+\caption{Hash-based baselines against the state-aware methods, mean of 30
+seeds with the degraded hosts redrawn per seed (\texttt{random} also over 200
+draws per seed), binary degradation, structural. ``Deg.'' is the number of primaries
+assigned a degraded backup; ``Load'' is the peak number of primaries on one
+backup.}
 \label{tab:hrw}
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{lcccccc}
 \toprule
-& \multicolumn{2}{c}{16-host} & \multicolumn{2}{c}{32-host} & \multicolumn{2}{c}{128-host}\\
+& \multicolumn{2}{c}{16 hosts} & \multicolumn{2}{c}{32 hosts} & \multicolumn{2}{c}{128 hosts}\\
 \cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
 Method & Deg. & Load & Deg. & Load & Deg. & Load \\
 \midrule
-round\_robin & 2.0 & 1.0 & 4.0 & 1.0 & 0.0 & 1.0 \\
-rr\_random & 1.2 & 1.0 & 2.6 & 1.0 & 10.8 & 1.0 \\
-hrw & 2.0 & 3.0 & 0.0 & 3.0 & 9.0 & 2.0 \\
-weighted\_hrw & 0.0 & 3.0 & 0.0 & 3.6 & 0.0 & 2.2 \\
-weighted\_chash & 0.0 & 2.8 & 0.0 & 3.0 & 0.0 & 3.2 \\
-heuristic & \textbf{0.0} & \textbf{1.4} & \textbf{0.0} & \textbf{2.0} & \textbf{0.0} & \textbf{2.0} \\
-optimal & 0.0 & 1.0 & 0.0 & 1.0 & 0.0 & 1.0 \\
+\texttt{random} & 1.3 & 2.3 & 2.5 & 2.7 & 10.0 & 3.4 \\
+\texttt{round\_robin} & 1.4 & 1.0 & 2.5 & 1.0 & 10.0 & 1.0 \\
+\texttt{hrw} & 1.5 & 3.0 & 2.6 & 3.0 & 10.1 & 2.0 \\
+\texttt{weighted\_hrw} & 0.0 & 2.8 & 0.0 & 3.4 & 0.0 & 2.8 \\
+\texttt{weighted\_chash} & 0.0 & 2.8 & 0.0 & 2.9 & 0.0 & 3.4 \\
+\texttt{heuristic} & 0.0 & 1.6 & 0.0 & 1.9 & 0.0 & 2.0 \\
+\texttt{exact} & 0.0 & 1.0 & 0.0 & 1.0 & 0.0 & 1.0 \\
 \bottomrule
 \end{tabular}}
 \end{table}
 
-\subsection{The Learned Policy as a Secondary Baseline}
+Random placement, round-robin and plain rendezvous hashing read no host state
+and meet degraded hosts at the base rate of one assignment in eight ($1.25$,
+$2.5$ and $10$ primaries at the three scales). Both weighted
+variants assign no degraded backup at any scale, so
+\emph{reading host state, not centralization, is what provides avoidance}. They
+propagate no load between primaries, however, and reach a peak load of
+$2.8$--$3.4$ against the heuristic's $1.6$--$2.0$ and the exact assignment's
+$1.0$. By \S\ref{sec:scenarios} a peak load of three is a difference in fan-in
+and not in latency on this testbed: a weighted hash is as good as the heuristic
+for latency and leaves more primaries depending on one backup.
+
+Repeating the comparison on multi-hub topologies at 16 and 32 hosts, where hop
+count and topology latency vary between candidates, leaves the degraded
+assignments of every method unchanged and the heuristic's peak load within
+$0.1$ of its value on the star.
+
+\subsection{Oversubscribed Pools: Where the Exact Bound Stops Holding}
+\label{sec:oversub}
+
+Every result so far is from a regime in which each primary can have a backup of
+its own ($k = 1$, \S\ref{sec:optimal}), where a perfect spread exists and a
+greedy pass can be expected to find something close to it. To test the
+heuristic where backups must be shared, we restrict the pool to the hosts that
+are not primaries: 10, 20 and 80 primaries on 6, 12 and 48 backups, so $k = 2$.
+The comparison is structural, over 30 seeds, and the exact assignment's own
+objective, the total score, is the yardstick.
+
+\textbf{With healthy hosts the heuristic still matches.} Its total score is
+within $0.2\%$ of the exact assignment's on average at every scale and within
+$2\%$ in the worst seed. It uses every backup, with a peak load of 2--3 where
+the exact assignment holds 2.
+
+\textbf{With degraded hosts the cap, not the greedy pass, fails.} We then
+degrade a quarter of the pool (1, 3 and 12 backups, redrawn per seed). With 12
+and 48 backups the healthy ones offer $2 \times 9 = 18$ and $2 \times 36 = 72$
+slots for 20 and 80 primaries, so the exact assignment's cap of two per backup leaves 2 and 8
+primaries with nowhere to go but a degraded host
+(Table~\ref{tab:oversub}). The heuristic has no cap, only a load penalty. Under
+the binary model it assigns no degraded backup and raises its peak load to 3--4
+instead, and its total score is $16\%$ \emph{above} the exact assignment's in
+all 30 seeds at those two sizes. Under the realistic model it assigns fewer degraded backups than
+the exact assignment ($0.9$ against $2.0$, and $4.5$ against $8.1$) but not
+none: a mildly degraded host can outscore a healthy one that already backs
+three primaries.
+
+\begin{table}[t]
+\centering
+\caption{Oversubscribed pools ($k = 2$), a quarter of the backups degraded,
+mean of 30 seeds, structural. ``Deg.'' is the number of primaries assigned a
+degraded backup; ``Load'' is the peak number of primaries on one backup.}
+\label{tab:oversub}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{llcccc}
+\toprule
+& & \multicolumn{2}{c}{Binary} & \multicolumn{2}{c}{Realistic} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+Primaries / backups & Method & Deg. & Load & Deg. & Load \\
+\midrule
+\multirow{2}{*}{10 / 6} & \texttt{exact} & 0.0 & 2.0 & 0.0 & 2.0 \\
+ & \texttt{heuristic} & 0.0 & 2.5 & 0.0 & 2.9 \\
+\midrule
+\multirow{2}{*}{20 / 12} & \texttt{exact} & 2.0 & 2.0 & 2.0 & 2.0 \\
+ & \texttt{heuristic} & 0.0 & 3.2 & 0.9 & 3.3 \\
+\midrule
+\multirow{2}{*}{80 / 48} & \texttt{exact} & 8.0 & 2.0 & 8.1 & 2.0 \\
+ & \texttt{heuristic} & 0.0 & 3.2 & 4.5 & 3.7 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+Two conclusions follow, and one does not. The exact assignment is a bound only
+while its cap does not bind against the healthy capacity; past that point it is
+a different trade, load balance bought with degraded-host exposure, and the
+heuristic's is the better score. And ``a greedy heuristic suffices'' survives
+the move to $k = 2$ on the score. What does not follow is a latency claim. On
+this testbed three or four primaries on a backup cost under $1$\,ms and a
+degraded backup costs $100$\,ms per call (\S\ref{sec:scenarios}), which favours
+the heuristic's choice, but the oversubscribed case has not been measured, and
+with a backup that stores state the cost of sharing would be higher
+(\S\ref{sec:threats}).
+
+\subsection{Learned Policies}
 \label{sec:rl128}
-\label{sec:dqn}
 
-We include a learned policy because reinforcement learning is the usual
-proposal for NFV placement (\S\ref{sec:related}), not because the comparison is
-symmetric. The heuristic needs no training. The policy needs a model per host
-count and tuning that grows with scale. We therefore state the tuning it
-received and keep the claim narrow.
+\textbf{PPO.} On the testbed PPO avoids degraded hosts as the deterministic
+methods do: $0\%$ of calls at 16 and 128 hosts and $1\%$ at 32, where it assigns
+one of 20 primaries to a degraded backup in one seed (Table~\ref{tab:scales}).
+Its mean is within the interval of \texttt{exact} at 16 and 32 hosts and
+$3.28$\,ms slower at 128 ($95\%$ interval $[2.72, 3.84]$, all five seeds;
+Table~\ref{tab:seedlevel}). The mapping explains the gap. At 128 hosts PPO
+places its 80 primaries on 15--18 distinct backups with a peak load of 20--36,
+where the heuristic uses 72--78 and the exact assignment 80. It has learned
+which hosts are bad and has not learned to spread load, and at that degree of
+sharing the cost becomes measurable (Table~\ref{tab:loadcurve}).
 
-\textbf{Tuning effort.} Both learners were given comparable budgets, and we
-state them so the comparison can be judged. Through 32 hosts each was trained
-once per scale on a single configuration: a $[128,128]$ network for both, with
-entropy $0.01$ for PPO and $\epsilon$-greedy decay over the first $30\%$ of
-training for DQN, at 50k, 80k and 100k timesteps. These are our defaults, not
-the library's, which are smaller on both counts. Two scales then needed more.
-DQN at 32 hosts collapsed onto 2--4 of 20 backups under that configuration, a
-figure we measured directly from the released checkpoint rather than inferred.
-It was retrained with exploration widened to $70\%$ of training, a final
-$\epsilon$ of $0.15$, a doubled replay buffer and 150k timesteps, which lifted
-it to 12--16 and is the checkpoint Table~\ref{tab:ppodqn} reports. At 128 hosts PPO was trained three times: once at the library
-defaults ($[64,64]$, entropy $0$, 400k steps), which collapsed onto 1--5
-backups; once at $[128,128]$ with entropy $0.01$ and 600k steps, which improved
-only partly and is not released; and once at $[256,256]$ with entropy $0.02$,
-larger rollouts and 1M timesteps, which is the configuration reported. DQN at
-128 hosts received the matching $[256,256]$ network, a widened exploration
-schedule and the same 1M timesteps. Counting training runs, PPO received six
-and DQN five, with DQN given the larger budget at the one scale where both were
-retuned. This is a targeted search rather than an exhaustive one, and a larger
-budget might do better for either.
+\textbf{Both learners, scored structurally.} We score PPO and DQN over 30
+seeds with the degraded hosts redrawn for each, which is a wider test than the
+testbed's. PPO uses 7--10 of 10 backups at 16 hosts and 12--16 of 20 at 32,
+with no degraded assignment. At 128 hosts it uses 3--28 of 80 with a peak load
+of 13--77, and $2\%$ of its assignments are to a degraded host. DQN uses 6--9
+of 10 and 9--16 of 20, with one degraded assignment in 900. At 128 hosts it
+places every primary on the same two backups in every seed, which is the
+\texttt{concentrated} mapping, and $26\%$ of its assignments are degraded:
+whether they are depends on where the degraded hosts fall and not on the
+policy.
 
-\textbf{Result.} The policy avoids degraded hosts as well as the deterministic
-methods: $0\%$ of calls at 16 and 128 hosts and $1\%$ at 32
-(Table~\ref{tab:scales}). It is indistinguishable from \texttt{optimal} at 16
-and 32 hosts and significantly slower at 128
-($p_{\mathrm{Holm}} = 0.0009$, $r = -0.983$). Its structure explains the gap.
-In the 128-host runs it placed its 80 primaries on 15--18 distinct backups per
-run, against the heuristic's 72--78 and the exact assignment's 80. It learned
-which hosts are bad, but not to spread load.
+\textbf{Effort, and what we claim.} PPO received six training runs and DQN five
+across the four model sizes, with networks up to $[256,256]$ and one million
+timesteps at 128 hosts, after smaller configurations concentrated further. The
+configurations and every checkpoint, including the discarded ones, are released
+with the artifact. This is a targeted search, and a larger one might do better.
+Our claim is narrow: a deterministic heuristic already matches the exact
+assignment on this problem, so a learned policy has no headroom, and it adds a
+training and tuning burden per pool size. We do not claim that reinforcement
+learning cannot balance load at 128 hosts.
 
-\begin{table}[t]
-\centering
-\caption{PPO vs.\ DQN policy structure, 5 context seeds per scale. ``Distinct'' is the range
-of distinct backups a policy assigns its primaries across seeds (higher is a wider spread),
-``Peak'' the largest number of primaries placed on any one backup (lower is better), and
-``Degraded'' the assignments landing on a deliberately degraded host, out of 5 seeds
-$\times$ $|P|$.}
-\label{tab:ppodqn}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{llrrr}
-\toprule
-Scale & Algorithm & Distinct & Peak & Degraded \\
-\midrule
-\multirow{2}{*}{9-host} & PPO & 5--5 of 5 & 1--1 & 0/25 \\
- & DQN & 5--5 of 5 & 1--1 & 0/25 \\
-\midrule
-\multirow{2}{*}{16-host} & PPO & 10--10 of 10 & 1--1 & 0/50 \\
- & DQN & 9--10 of 10 & 1--2 & 0/50 \\
-\midrule
-\multirow{2}{*}{32-host} & PPO & 15--19 of 20 & 2--2 & 0/100 \\
- & DQN & 12--16 of 20 & 2--3 & 1/100 \\
-\midrule
-\multirow{2}{*}{128-host} & PPO & 24--30 of 80 & 9--28 & 0/400 \\
- & DQN & \textbf{1--3 of 80} & \textbf{45--80} & \textbf{172/400} \\
-\bottomrule
-\end{tabular}}
-\end{table}
+\textbf{Selection cost.} Computing a full 128-host mapping takes about
+$10$\,ms for the heuristic and the exact assignment, $62$\,ms for PPO and
+$40$\,ms for DQN (mean of 30 repeats), against failure-detection intervals of
+hundreds of milliseconds to
+seconds~\cite{gill2011understanding,potharaju2013demystifying}.
 
-\textbf{A second algorithm fails the same way.} We trained a DQN
-agent~\cite{mnih2015human} through the same environment, reward and inference
-path, and scored both structurally (Table~\ref{tab:ppodqn}). The two agree
-through 32 hosts. At 128 hosts DQN collapses onto 1--3 of 80 backups, with 172
-of 400 assignments on degraded hosts. An ablation of the reward's
-anti-concentration term, released with the artifact, shows the term helps but
-saturates well short of the heuristic's spread. Two algorithms with different
-update rules and exploration mechanisms failing alike points at the reward,
-which credits concentration at the step where it occurs while the consequences
-accrue later, rather than at either learner.
+\subsection{Consistency Check on a Single Machine}
+\label{sec:single}
 
-\textbf{What we claim.} For this problem a deterministic heuristic already
-matches the exact assignment, so a learned policy has no headroom to win, and it
-adds a per-scale training and tuning burden. We do not claim that RL cannot be
-made to work at 128 hosts.
-
-\subsection{Selection Overhead and Throughput}
-\label{sec:overhead}
-\label{sec:throughput}
-
-Selection must itself be fast. Table~\ref{tab:overhead} reports mean wall-clock
-time per full mapping (30 repeats, first call excluded). Every non-learned
-method computes a 128-host mapping in roughly $10$\,ms or less and the learned
-policy in about $60$\,ms, against failure-detection intervals of hundreds of
-milliseconds to seconds~\cite{gill2011understanding,potharaju2013demystifying}.
-No method's selection cost offsets its placement advantage.
-
-Fixed-window throughput and post-retry failure rate agree with latency where
-they resolve. \texttt{concentrated} is robustly worst on both
-($r \in [0.63, 0.78]$, every $p < 0.004$; failure rate $2.57\%$ against
-$0.16$--$0.62\%$). The remaining methods do not separate at 15 aggregate
-measurements each, which we read as a limit of that measurement, so the
-comparison rests on latency.
-
-\begin{table}[t]
-\centering
-\caption{Selection overhead (ms) per full mapping computation, mean of 30 repeats
-(first call excluded as warmup).}
-\label{tab:overhead}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lrrrr}
-\toprule
-Method & 9 hosts & 16 hosts & 32 hosts & 128 hosts \\
-\midrule
-\texttt{concentrated} & 0.006 & 0.021 & 0.035 & 0.600 \\
-\texttt{random} & 0.028 & 0.043 & 0.054 & 0.567 \\
-\texttt{round\_robin} & 0.005 & 0.007 & 0.009 & 0.055 \\
-\texttt{heuristic} & 0.050 & 0.145 & 0.600 & 10.277 \\
-\texttt{optimal} & 0.081 & 0.271 & 0.860 & 9.968 \\
-\texttt{PPO} & 6.345 & 5.065 & 10.605 & 61.636 \\
-\texttt{DQN} & 1.404 & 6.209 & 6.217 & 40.080 \\
-\bottomrule
-\end{tabular}}
-\end{table}
+The single-machine runs of \S\ref{sec:harness} agree with the testbed on the
+ordering of methods and not on magnitudes. At 16 and 32 hosts, on both
+transports, \texttt{heuristic}, \texttt{exact} and PPO assign no degraded
+backup in any seed and are faster than \texttt{round\_robin} and
+\texttt{random}; on the gRPC arm the heuristic's advantage over
+\texttt{round\_robin} is $11.43$\,ms at 16 hosts and $9.75$\,ms at 32 (median
+paired difference over 25 runs). On DEFT's own 9-host topology, which is
+homogeneous, the methods that spread load do not separate from one another,
+while DEFT's shipped \texttt{static} mapping, with three of five primaries on
+one backup, has a mean of $20.58$\,ms against the heuristic's $14.72$ on gRPC
+and $73.45$ against $51.10$ on XML-RPC. We draw no quantitative conclusion from
+these runs, for the reasons \S\ref{sec:harness} lists.

@@ -47,6 +47,9 @@ SCALES = {
     32: (20, 4, 8, 4, "rl_model_scaled32.zip"),
     128: (80, 16, 10, PER_NODE, "rl_model_scaled128_v3.zip"),
     256: (160, 32, 20, PER_NODE, None),
+    # 19 backup nodes x 13 servers, for an experiment with one faulty node.
+    # Primaries and degraded hosts keep the 5/8 and 1/8 shares, rounded.
+    247: (154, 31, 19, PER_NODE, None),
 }
 BASE_METHODS = ["concentrated", "random", "round_robin", "heuristic", "optimal"]
 
@@ -118,6 +121,10 @@ STEPS = [
     step("s256_binary", 256, 30, model="binary"),
     step("s256_realistic_probe", 256, 30, model="realistic", probe=True),
     step("s256_homog", 256, 30),
+    # The same at 247 hosts, the largest that 19 backup nodes carry.
+    step("s247_binary", 247, 30, model="binary"),
+    step("s247_realistic_probe", 247, 30, model="realistic", probe=True),
+    step("s247_homog", 247, 30),
     # 7. October's exact client (one process) at 30 seeds, so the change of client
     #    can be separated from the change of seed count.
     step("s16_binary_client1", 16, 30, model="binary", client_procs=1),
@@ -162,9 +169,12 @@ class Runner:
 
     # -- pieces of a step ---------------------------------------------------
 
+    def usable_nodes(self):
+        return [i for i in range(1, self.args.nodes + 1) if i not in self.args.exclude_nodes]
+
     def nodes_for(self, hosts):
         n_nodes = SCALES[hosts][2]
-        return ["node{}".format(i) for i in range(1, n_nodes + 1)]
+        return ["node{}".format(i) for i in self.usable_nodes()[:n_nodes]]
 
     def scenario_flags(self, s):
         primaries, n_degraded = SCALES[s["hosts"]][:2]
@@ -266,9 +276,9 @@ class Runner:
         if os.path.exists(marker) and not self.args.redo:
             self.say("skip {} (already done)".format(name))
             return "skipped"
-        if not self.args.smoke and SCALES[s["hosts"]][2] > self.args.nodes:
-            self.say("skip {}: needs {} backup nodes, {} present".format(
-                name, SCALES[s["hosts"]][2], self.args.nodes))
+        if not self.args.smoke and SCALES[s["hosts"]][2] > len(self.usable_nodes()):
+            self.say("skip {}: needs {} backup nodes, {} usable".format(
+                name, SCALES[s["hosts"]][2], len(self.usable_nodes())))
             return "skipped"
         self.say("=== {} === {} hosts, seeds {}-{}, model={}, layout={}/{}, client procs={} {}".format(
             name, s["hosts"], s["seed_lo"], s["seed_lo"] + s["seeds"] - 1, s["model"] or "none",
@@ -315,6 +325,8 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--nodes", type=int, default=0,
                     help="number of backup nodes (node1..nodeN); the client is node0")
+    ap.add_argument("--exclude-nodes", type=int, nargs="+", default=[],
+                    help="backup node numbers to leave out (a faulty node)")
     ap.add_argument("--iface", default=None, help="experiment-LAN interface on the nodes")
     ap.add_argument("--list", action="store_true", help="print the plan and exit")
     ap.add_argument("--dry-run", action="store_true", help="print every command, run none")

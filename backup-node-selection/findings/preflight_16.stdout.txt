@@ -1,0 +1,139 @@
+---------------------------------------------------------------------------------------------------
+client processes: 16
+transport: xmlrpc
+degradation model: binary -- w1(binary, s=1.00), w2(binary, s=1.00)
+physical degradation: per-call sleeps suppressed; the 2 degraded host(s) must already be slowed on their nodes (apply_degradation.py). Simulated delays dropped: w1=50ms, w2=50ms
+
+RTT probe: 16 hosts, 5 sequential calls each, median kept; excess is over the median host. Largest 24:
+  w2       101.18 ms  excess  100.26 ms  (degraded)
+  w1       101.00 ms  excess  100.08 ms  (degraded)
+  w16        1.00 ms  excess    0.08 ms
+  w3         0.97 ms  excess    0.05 ms
+  w15        0.96 ms  excess    0.04 ms
+  w4         0.94 ms  excess    0.02 ms
+  w14        0.92 ms  excess    0.00 ms
+  w8         0.92 ms  excess    0.00 ms
+  w10        0.70 ms  excess    0.00 ms
+  w11        0.64 ms  excess    0.00 ms
+  w12        0.91 ms  excess    0.00 ms
+  w13        0.81 ms  excess    0.00 ms
+  w5         0.92 ms  excess    0.00 ms
+  w6         0.82 ms  excess    0.00 ms
+  w7         0.83 ms  excess    0.00 ms
+  w9         0.82 ms  excess    0.00 ms
+telemetry: probe=True rtt_noise_ms=0.0 feature_noise=0.0 stale_frac=0.0
+
+  seed 1: stale (reported healthy): none
+
+--- context_seed=1 ---
+  concentrated mapping: {'w1': 'w2', 'w2': 'w1', 'w3': 'w1', 'w4': 'w1', 'w5': 'w1', 'w6': 'w1', 'w7': 'w1', 'w8': 'w1', 'w9': 'w1', 'w10': 'w1'}
+  random       mapping: {'w1': 'w4', 'w2': 'w11', 'w3': 'w15', 'w4': 'w14', 'w5': 'w14', 'w6': 'w2', 'w7': 'w5', 'w8': 'w2', 'w9': 'w8', 'w10': 'w14'}
+  round_robin  mapping: {'w1': 'w10', 'w2': 'w11', 'w3': 'w12', 'w4': 'w13', 'w5': 'w14', 'w6': 'w15', 'w7': 'w16', 'w8': 'w2', 'w9': 'w3', 'w10': 'w4'}
+  heuristic    mapping: {'w1': 'w13', 'w2': 'w15', 'w3': 'w8', 'w4': 'w3', 'w5': 'w7', 'w6': 'w9', 'w7': 'w11', 'w8': 'w5', 'w9': 'w13', 'w10': 'w3'}
+  optimal      mapping: {'w1': 'w8', 'w2': 'w7', 'w3': 'w15', 'w4': 'w12', 'w5': 'w14', 'w6': 'w9', 'w7': 'w11', 'w8': 'w3', 'w9': 'w13', 'w10': 'w5'}
+  rl           mapping: {'w1': 'w13', 'w2': 'w8', 'w3': 'w14', 'w4': 'w3', 'w5': 'w7', 'w6': 'w15', 'w7': 'w16', 'w8': 'w10', 'w9': 'w13', 'w10': 'w7'}
+  trial 1/3 done (order: ['optimal', 'round_robin', 'random', 'concentrated', 'rl', 'heuristic'])
+  trial 2/3 done (order: ['optimal', 'concentrated', 'random', 'rl', 'round_robin', 'heuristic'])
+  trial 3/3 done (order: ['rl', 'heuristic', 'concentrated', 'round_robin', 'random', 'optimal'])
+
+  seed 2: stale (reported healthy): none
+
+--- context_seed=2 ---
+  concentrated mapping: {'w1': 'w2', 'w2': 'w1', 'w3': 'w1', 'w4': 'w1', 'w5': 'w1', 'w6': 'w1', 'w7': 'w1', 'w8': 'w1', 'w9': 'w1', 'w10': 'w1'}
+  random       mapping: {'w1': 'w15', 'w2': 'w15', 'w3': 'w1', 'w4': 'w2', 'w5': 'w2', 'w6': 'w7', 'w7': 'w15', 'w8': 'w3', 'w9': 'w13', 'w10': 'w14'}
+  round_robin  mapping: {'w1': 'w10', 'w2': 'w11', 'w3': 'w12', 'w4': 'w13', 'w5': 'w14', 'w6': 'w15', 'w7': 'w16', 'w8': 'w2', 'w9': 'w3', 'w10': 'w4'}
+  heuristic    mapping: {'w1': 'w12', 'w2': 'w6', 'w3': 'w14', 'w4': 'w10', 'w5': 'w13', 'w6': 'w15', 'w7': 'w16', 'w8': 'w9', 'w9': 'w4', 'w10': 'w3'}
+  optimal      mapping: {'w1': 'w14', 'w2': 'w13', 'w3': 'w9', 'w4': 'w10', 'w5': 'w12', 'w6': 'w15', 'w7': 'w16', 'w8': 'w4', 'w9': 'w6', 'w10': 'w3'}
+  rl           mapping: {'w1': 'w14', 'w2': 'w8', 'w3': 'w7', 'w4': 'w13', 'w5': 'w3', 'w6': 'w16', 'w7': 'w6', 'w8': 'w15', 'w9': 'w10', 'w10': 'w14'}
+  trial 1/3 done (order: ['rl', 'concentrated', 'heuristic', 'random', 'round_robin', 'optimal'])
+  trial 2/3 done (order: ['heuristic', 'optimal', 'random', 'round_robin', 'concentrated', 'rl'])
+  trial 3/3 done (order: ['random', 'concentrated', 'optimal', 'rl', 'heuristic', 'round_robin'])
+
+
+===== RUN SUMMARY: 2 context seeds x 3 trials (200 calls/primary, burst=10) =====
+Independent observations per method: 6 runs (2 seeds x 3 trials).
+
+===== Latency decomposition: backup service time vs. client retry wait =====
+wall_ms is what the previous harness reported as 'latency'. Any gap between
+wall and service is the client's own backoff sleep, not backup delay.
+
+method        service p99    retry p99     wall p99 wall-service  retried %
+optimal              8.37         0.01         8.37         0.00       0.00
+round_robin        103.22         0.01       103.22         0.00       0.00
+random             103.45         0.01       103.45         0.00       0.00
+concentrated       109.48         0.00       109.48         0.00       0.00
+rl                   8.25         0.01         8.26         0.00       0.00
+heuristic            8.52         0.01         8.53         0.00       0.00
+
+===== Run-level summary: service latency =====
+One observation per (method, context_seed, trial). Latency statistics are
+computed within each run, then averaged across runs; CIs are cluster
+bootstraps over runs. Failed calls are censored (counted in failure rate,
+excluded from latency), not imputed as a sentinel value.
+
+method         runs    mean_ms  median_ms     p95_ms     p99_ms    fail_%         95% CI of mean
+optimal           6       4.58       4.48       7.02       8.36      0.00           [4.49, 4.68]
+round_robin       6      15.91       5.11     101.70     117.07      0.00         [14.26, 19.15]
+random            6      29.47       5.77     102.30     103.43      0.00         [26.16, 32.79]
+concentrated      6     101.80     101.52     103.27     109.41      0.00       [101.76, 101.84]
+rl                6       4.69       4.61       6.96       8.21      0.00           [4.65, 4.74]
+heuristic         6       4.74       4.64       7.15       8.57      0.00           [4.67, 4.80]
+
+===== Paired Wilcoxon signed-rank on per-run mean (service latency) =====
+Paired by (context_seed, trial); Holm-Bonferroni across the 15 comparisons.
+r is the matched-pairs rank-biserial correlation: how consistently one
+method beats the other across runs, +1 or -1 meaning every run agrees.
+[power] with n=6 pairs the smallest attainable two-sided p is 0.0312;
+        a non-significant result here is weak evidence, not evidence of no effect.
+
+method A     vs method B     n=       d_median        r       p_raw      p_holm  
+optimal      vs round_robin  n=6        -9.719   -1.000      0.0312      0.4688  n.s.
+optimal      vs random       n=6       -24.910   -1.000      0.0312      0.4688  n.s.
+optimal      vs concentrated n=6       -97.225   -1.000      0.0312      0.4688  n.s.
+optimal      vs rl           n=6        -0.141   -0.619      0.2188      0.4688  n.s.
+optimal      vs heuristic    n=6        -0.240   -0.714      0.1562      0.4688  n.s.
+round_robin  vs random       n=6       -15.059   -1.000      0.0312      0.4688  n.s.
+round_robin  vs concentrated n=6       -87.485   -1.000      0.0312      0.4688  n.s.
+round_robin  vs rl           n=6         9.652    1.000      0.0312      0.4688  n.s.
+round_robin  vs heuristic    n=6         9.650    1.000      0.0312      0.4688  n.s.
+random       vs concentrated n=6       -72.241   -1.000      0.0312      0.4688  n.s.
+random       vs rl           n=6        24.797    1.000      0.0312      0.4688  n.s.
+random       vs heuristic    n=6        24.767    1.000      0.0312      0.4688  n.s.
+concentrated vs rl           n=6        97.141    1.000      0.0312      0.4688  n.s.
+concentrated vs heuristic    n=6        97.062    1.000      0.0312      0.4688  n.s.
+rl           vs heuristic    n=6        -0.040   -0.524      0.3125      0.4688  n.s.
+
+===== Paired Wilcoxon signed-rank on per-run p99 (service latency) =====
+Paired by (context_seed, trial); Holm-Bonferroni across the 15 comparisons.
+r is the matched-pairs rank-biserial correlation: how consistently one
+method beats the other across runs, +1 or -1 meaning every run agrees.
+[power] with n=6 pairs the smallest attainable two-sided p is 0.0312;
+        a non-significant result here is weak evidence, not evidence of no effect.
+
+method A     vs method B     n=       d_median        r       p_raw      p_holm  
+optimal      vs round_robin  n=6       -94.216   -1.000      0.0312      0.4688  n.s.
+optimal      vs random       n=6       -95.099   -1.000      0.0312      0.4688  n.s.
+optimal      vs concentrated n=6      -101.071   -1.000      0.0312      0.4688  n.s.
+optimal      vs rl           n=6         0.167    0.524      0.3125      0.9375  n.s.
+optimal      vs heuristic    n=6        -0.162   -1.000      0.0312      0.4688  n.s.
+round_robin  vs random       n=6        -0.883   -0.429      0.4375      0.9375  n.s.
+round_robin  vs concentrated n=6        -6.930   -0.429      0.4375      0.9375  n.s.
+round_robin  vs rl           n=6        94.338    1.000      0.0312      0.4688  n.s.
+round_robin  vs heuristic    n=6        94.080    1.000      0.0312      0.4688  n.s.
+random       vs concentrated n=6        -6.077   -1.000      0.0312      0.4688  n.s.
+random       vs rl           n=6        95.254    1.000      0.0312      0.4688  n.s.
+random       vs heuristic    n=6        94.890    1.000      0.0312      0.4688  n.s.
+concentrated vs rl           n=6       101.154    1.000      0.0312      0.4688  n.s.
+concentrated vs heuristic    n=6       100.948    1.000      0.0312      0.4688  n.s.
+rl           vs heuristic    n=6        -0.337   -1.000      0.0312      0.4688  n.s.
+
+===== Service latency vs. backup load (one observation per run x backup) =====
+Does sharing a backup among more primaries raise latency, independent of
+which method produced the sharing? Aggregated per (run, backup) so that
+correlated calls against one loaded server count once, not thousands of times.
+
+  load n_units    mean_ms  median_ms         95% CI of mean
+     1     246      10.97       4.68          [8.17, 14.09]
+     2      21      32.60       4.96         [14.15, 51.06]
+     3       6       5.86       5.86           [5.74, 5.98]
+     9       6     101.80     101.82       [101.76, 101.84]

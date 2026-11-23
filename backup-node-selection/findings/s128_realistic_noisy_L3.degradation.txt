@@ -1,0 +1,31 @@
+---------------------------------------------------------------------------------------------------
+scenario: realistic model, random selection, scale seed 3
+  w5     link_congested       severity 0.58  delay 36.992ms
+  w16    cpu_starved          severity 0.71  delay 32.325ms
+  w23    capacity_exhausted   severity 0.75  delay 9.121ms
+  w53    storage_pressured    severity 0.34  delay 9.264ms
+  w55    unhealthy            severity 0.33  delay 11.356ms
+  w58    cpu_starved          severity 0.32  delay 15.154ms
+  w62    capacity_exhausted   severity 0.39  delay 4.949ms
+  w64    link_congested       severity 0.14  delay 12.730ms
+  w70    storage_pressured    severity 0.21  delay 6.028ms
+  w76    unhealthy            severity 0.29  delay 10.062ms
+  w94    cpu_starved          severity 0.33  delay 15.429ms
+  w99    capacity_exhausted   severity 0.64  delay 7.806ms
+  w106   capacity_exhausted   severity 0.96  delay 11.574ms
+  w116   link_congested       severity 0.25  delay 18.812ms
+  w121   storage_pressured    severity 0.58  delay 14.847ms
+  w124   unhealthy            severity 0.53  delay 16.963ms
+degrading 16 hosts on 7 node(s)
+
+  node1: w5:19004=36.992ms
+  node10: w121:19003=14.847ms, w124:19006=16.963ms
+  node2: w16:19002=32.325ms, w23:19009=9.121ms
+  node5: w53:19000=9.264ms, w55:19002=11.356ms, w58:19005=15.154ms, w62:19009=4.949ms, w64:19011=12.73ms
+  node6: w70:19004=6.028ms, w76:19010=10.062ms
+  node8: w94:19002=15.429ms, w99:19007=7.806ms
+  node9: w106:19001=11.574ms, w116:19011=18.812ms
+
+  not shaped (no degraded host): node3, node4, node7
+
+applied. verify with --show, and record it in the paper as tc netem on the server's source port.

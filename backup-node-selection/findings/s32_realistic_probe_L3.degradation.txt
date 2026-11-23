@@ -1,0 +1,15 @@
+---------------------------------------------------------------------------------------------------
+scenario: realistic model, random selection, scale seed 3
+  w9     unhealthy            severity 0.53  delay 16.963ms
+  w13    capacity_exhausted   severity 0.96  delay 11.574ms
+  w15    link_congested       severity 0.25  delay 18.812ms
+  w18    storage_pressured    severity 0.58  delay 14.847ms
+degrading 4 hosts on 3 node(s)
+
+  node3: w9:19000=16.963ms
+  node4: w13:19000=11.574ms, w15:19002=18.812ms
+  node5: w18:19001=14.847ms
+
+  not shaped (no degraded host): node1, node2, node6, node7, node8
+
+applied. verify with --show, and record it in the paper as tc netem on the server's source port.

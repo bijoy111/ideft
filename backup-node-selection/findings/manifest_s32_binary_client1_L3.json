@@ -1,0 +1,235 @@
+{
+  "backlog": 512,
+  "degradations": {},
+  "grpc_workers": null,
+  "hosts": {
+    "w1": {
+      "core": 2,
+      "ip": "node1",
+      "node": "node1",
+      "pid": 24637,
+      "port": 19000
+    },
+    "w10": {
+      "core": 3,
+      "ip": "node3",
+      "node": "node3",
+      "pid": 23718,
+      "port": 19001
+    },
+    "w11": {
+      "core": 4,
+      "ip": "node3",
+      "node": "node3",
+      "pid": 23741,
+      "port": 19002
+    },
+    "w12": {
+      "core": 5,
+      "ip": "node3",
+      "node": "node3",
+      "pid": 23764,
+      "port": 19003
+    },
+    "w13": {
+      "core": 2,
+      "ip": "node4",
+      "node": "node4",
+      "pid": 35496,
+      "port": 19000
+    },
+    "w14": {
+      "core": 3,
+      "ip": "node4",
+      "node": "node4",
+      "pid": 35519,
+      "port": 19001
+    },
+    "w15": {
+      "core": 4,
+      "ip": "node4",
+      "node": "node4",
+      "pid": 35542,
+      "port": 19002
+    },
+    "w16": {
+      "core": 5,
+      "ip": "node4",
+      "node": "node4",
+      "pid": 35565,
+      "port": 19003
+    },
+    "w17": {
+      "core": 2,
+      "ip": "node5",
+      "node": "node5",
+      "pid": 40616,
+      "port": 19000
+    },
+    "w18": {
+      "core": 3,
+      "ip": "node5",
+      "node": "node5",
+      "pid": 40639,
+      "port": 19001
+    },
+    "w19": {
+      "core": 4,
+      "ip": "node5",
+      "node": "node5",
+      "pid": 40662,
+      "port": 19002
+    },
+    "w2": {
+      "core": 3,
+      "ip": "node1",
+      "node": "node1",
+      "pid": 24660,
+      "port": 19001
+    },
+    "w20": {
+      "core": 5,
+      "ip": "node5",
+      "node": "node5",
+      "pid": 40685,
+      "port": 19003
+    },
+    "w21": {
+      "core": 2,
+      "ip": "node6",
+      "node": "node6",
+      "pid": 24905,
+      "port": 19000
+    },
+    "w22": {
+      "core": 3,
+      "ip": "node6",
+      "node": "node6",
+      "pid": 24928,
+      "port": 19001
+    },
+    "w23": {
+      "core": 4,
+      "ip": "node6",
+      "node": "node6",
+      "pid": 24951,
+      "port": 19002
+    },
+    "w24": {
+      "core": 5,
+      "ip": "node6",
+      "node": "node6",
+      "pid": 24974,
+      "port": 19003
+    },
+    "w25": {
+      "core": 2,
+      "ip": "node7",
+      "node": "node7",
+      "pid": 38948,
+      "port": 19000
+    },
+    "w26": {
+      "core": 3,
+      "ip": "node7",
+      "node": "node7",
+      "pid": 38971,
+      "port": 19001
+    },
+    "w27": {
+      "core": 4,
+      "ip": "node7",
+      "node": "node7",
+      "pid": 38994,
+      "port": 19002
+    },
+    "w28": {
+      "core": 5,
+      "ip": "node7",
+      "node": "node7",
+      "pid": 39017,
+      "port": 19003
+    },
+    "w29": {
+      "core": 2,
+      "ip": "node8",
+      "node": "node8",
+      "pid": 25099,
+      "port": 19000
+    },
+    "w3": {
+      "core": 4,
+      "ip": "node1",
+      "node": "node1",
+      "pid": 24683,
+      "port": 19002
+    },
+    "w30": {
+      "core": 3,
+      "ip": "node8",
+      "node": "node8",
+      "pid": 25122,
+      "port": 19001
+    },
+    "w31": {
+      "core": 4,
+      "ip": "node8",
+      "node": "node8",
+      "pid": 25145,
+      "port": 19002
+    },
+    "w32": {
+      "core": 5,
+      "ip": "node8",
+      "node": "node8",
+      "pid": 25168,
+      "port": 19003
+    },
+    "w4": {
+      "core": 5,
+      "ip": "node1",
+      "node": "node1",
+      "pid": 24706,
+      "port": 19003
+    },
+    "w5": {
+      "core": 2,
+      "ip": "node2",
+      "node": "node2",
+      "pid": 32366,
+      "port": 19000
+    },
+    "w6": {
+      "core": 3,
+      "ip": "node2",
+      "node": "node2",
+      "pid": 32389,
+      "port": 19001
+    },
+    "w7": {
+      "core": 4,
+      "ip": "node2",
+      "node": "node2",
+      "pid": 32412,
+      "port": 19002
+    },
+    "w8": {
+      "core": 5,
+      "ip": "node2",
+      "node": "node2",
+      "pid": 32435,
+      "port": 19003
+    },
+    "w9": {
+      "core": 2,
+      "ip": "node3",
+      "node": "node3",
+      "pid": 23695,
+      "port": 19000
+    }
+  },
+  "launched": "ssh",
+  "per_node": 4,
+  "transport": "xmlrpc",
+  "version": 1
+}

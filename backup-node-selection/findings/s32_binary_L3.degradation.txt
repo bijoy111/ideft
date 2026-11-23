@@ -1,0 +1,15 @@
+---------------------------------------------------------------------------------------------------
+scenario: binary model, random selection, scale seed 3
+  w9     binary               severity 1.00  delay 50.000ms
+  w13    binary               severity 1.00  delay 50.000ms
+  w15    binary               severity 1.00  delay 50.000ms
+  w18    binary               severity 1.00  delay 50.000ms
+degrading 4 hosts on 3 node(s)
+
+  node3: w9:19000=50ms
+  node4: w13:19000=50ms, w15:19002=50ms
+  node5: w18:19001=50ms
+
+  not shaped (no degraded host): node1, node2, node6, node7, node8
+
+applied. verify with --show, and record it in the paper as tc netem on the server's source port.

@@ -1,0 +1,1740 @@
+{
+  "backlog": 512,
+  "degradations": {},
+  "grpc_workers": null,
+  "hosts": {
+    "w1": {
+      "core": 2,
+      "ip": "node1",
+      "node": "node1",
+      "pid": 21643,
+      "port": 19000
+    },
+    "w10": {
+      "core": 11,
+      "ip": "node1",
+      "node": "node1",
+      "pid": 21850,
+      "port": 19009
+    },
+    "w100": {
+      "core": 10,
+      "ip": "node8",
+      "node": "node8",
+      "pid": 22530,
+      "port": 19008
+    },
+    "w101": {
+      "core": 11,
+      "ip": "node8",
+      "node": "node8",
+      "pid": 22553,
+      "port": 19009
+    },
+    "w102": {
+      "core": 12,
+      "ip": "node8",
+      "node": "node8",
+      "pid": 22576,
+      "port": 19010
+    },
+    "w103": {
+      "core": 13,
+      "ip": "node8",
+      "node": "node8",
+      "pid": 22599,
+      "port": 19011
+    },
+    "w104": {
+      "core": 14,
+      "ip": "node8",
+      "node": "node8",
+      "pid": 22622,
+      "port": 19012
+    },
+    "w105": {
+      "core": 2,
+      "ip": "node9",
+      "node": "node9",
+      "pid": 18173,
+      "port": 19000
+    },
+    "w106": {
+      "core": 3,
+      "ip": "node9",
+      "node": "node9",
+      "pid": 18196,
+      "port": 19001
+    },
+    "w107": {
+      "core": 4,
+      "ip": "node9",
+      "node": "node9",
+      "pid": 18219,
+      "port": 19002
+    },
+    "w108": {
+      "core": 5,
+      "ip": "node9",
+      "node": "node9",
+      "pid": 18242,
+      "port": 19003
+    },
+    "w109": {
+      "core": 6,
+      "ip": "node9",
+      "node": "node9",
+      "pid": 18265,
+      "port": 19004
+    },
+    "w11": {
+      "core": 12,
+      "ip": "node1",
+      "node": "node1",
+      "pid": 21873,
+      "port": 19010
+    },
+    "w110": {
+      "core": 7,
+      "ip": "node9",
+      "node": "node9",
+      "pid": 18288,
+      "port": 19005
+    },
+    "w111": {
+      "core": 8,
+      "ip": "node9",
+      "node": "node9",
+      "pid": 18311,
+      "port": 19006
+    },
+    "w112": {
+      "core": 9,
+      "ip": "node9",
+      "node": "node9",
+      "pid": 18334,
+      "port": 19007
+    },
+    "w113": {
+      "core": 10,
+      "ip": "node9",
+      "node": "node9",
+      "pid": 18357,
+      "port": 19008
+    },
+    "w114": {
+      "core": 11,
+      "ip": "node9",
+      "node": "node9",
+      "pid": 18380,
+      "port": 19009
+    },
+    "w115": {
+      "core": 12,
+      "ip": "node9",
+      "node": "node9",
+      "pid": 18403,
+      "port": 19010
+    },
+    "w116": {
+      "core": 13,
+      "ip": "node9",
+      "node": "node9",
+      "pid": 18426,
+      "port": 19011
+    },
+    "w117": {
+      "core": 14,
+      "ip": "node9",
+      "node": "node9",
+      "pid": 18449,
+      "port": 19012
+    },
+    "w118": {
+      "core": 2,
+      "ip": "node10",
+      "node": "node10",
+      "pid": 17735,
+      "port": 19000
+    },
+    "w119": {
+      "core": 3,
+      "ip": "node10",
+      "node": "node10",
+      "pid": 17758,
+      "port": 19001
+    },
+    "w12": {
+      "core": 13,
+      "ip": "node1",
+      "node": "node1",
+      "pid": 21896,
+      "port": 19011
+    },
+    "w120": {
+      "core": 4,
+      "ip": "node10",
+      "node": "node10",
+      "pid": 17781,
+      "port": 19002
+    },
+    "w121": {
+      "core": 5,
+      "ip": "node10",
+      "node": "node10",
+      "pid": 17804,
+      "port": 19003
+    },
+    "w122": {
+      "core": 6,
+      "ip": "node10",
+      "node": "node10",
+      "pid": 17827,
+      "port": 19004
+    },
+    "w123": {
+      "core": 7,
+      "ip": "node10",
+      "node": "node10",
+      "pid": 17850,
+      "port": 19005
+    },
+    "w124": {
+      "core": 8,
+      "ip": "node10",
+      "node": "node10",
+      "pid": 17873,
+      "port": 19006
+    },
+    "w125": {
+      "core": 9,
+      "ip": "node10",
+      "node": "node10",
+      "pid": 17896,
+      "port": 19007
+    },
+    "w126": {
+      "core": 10,
+      "ip": "node10",
+      "node": "node10",
+      "pid": 17919,
+      "port": 19008
+    },
+    "w127": {
+      "core": 11,
+      "ip": "node10",
+      "node": "node10",
+      "pid": 17942,
+      "port": 19009
+    },
+    "w128": {
+      "core": 12,
+      "ip": "node10",
+      "node": "node10",
+      "pid": 17965,
+      "port": 19010
+    },
+    "w129": {
+      "core": 13,
+      "ip": "node10",
+      "node": "node10",
+      "pid": 17988,
+      "port": 19011
+    },
+    "w13": {
+      "core": 14,
+      "ip": "node1",
+      "node": "node1",
+      "pid": 21919,
+      "port": 19012
+    },
+    "w130": {
+      "core": 14,
+      "ip": "node10",
+      "node": "node10",
+      "pid": 18011,
+      "port": 19012
+    },
+    "w131": {
+      "core": 2,
+      "ip": "node11",
+      "node": "node11",
+      "pid": 8368,
+      "port": 19000
+    },
+    "w132": {
+      "core": 3,
+      "ip": "node11",
+      "node": "node11",
+      "pid": 8391,
+      "port": 19001
+    },
+    "w133": {
+      "core": 4,
+      "ip": "node11",
+      "node": "node11",
+      "pid": 8414,
+      "port": 19002
+    },
+    "w134": {
+      "core": 5,
+      "ip": "node11",
+      "node": "node11",
+      "pid": 8437,
+      "port": 19003
+    },
+    "w135": {
+      "core": 6,
+      "ip": "node11",
+      "node": "node11",
+      "pid": 8460,
+      "port": 19004
+    },
+    "w136": {
+      "core": 7,
+      "ip": "node11",
+      "node": "node11",
+      "pid": 8483,
+      "port": 19005
+    },
+    "w137": {
+      "core": 8,
+      "ip": "node11",
+      "node": "node11",
+      "pid": 8506,
+      "port": 19006
+    },
+    "w138": {
+      "core": 9,
+      "ip": "node11",
+      "node": "node11",
+      "pid": 8529,
+      "port": 19007
+    },
+    "w139": {
+      "core": 10,
+      "ip": "node11",
+      "node": "node11",
+      "pid": 8552,
+      "port": 19008
+    },
+    "w14": {
+      "core": 2,
+      "ip": "node2",
+      "node": "node2",
+      "pid": 29677,
+      "port": 19000
+    },
+    "w140": {
+      "core": 11,
+      "ip": "node11",
+      "node": "node11",
+      "pid": 8575,
+      "port": 19009
+    },
+    "w141": {
+      "core": 12,
+      "ip": "node11",
+      "node": "node11",
+      "pid": 8598,
+      "port": 19010
+    },
+    "w142": {
+      "core": 13,
+      "ip": "node11",
+      "node": "node11",
+      "pid": 8621,
+      "port": 19011
+    },
+    "w143": {
+      "core": 14,
+      "ip": "node11",
+      "node": "node11",
+      "pid": 8644,
+      "port": 19012
+    },
+    "w144": {
+      "core": 2,
+      "ip": "node12",
+      "node": "node12",
+      "pid": 24477,
+      "port": 19000
+    },
+    "w145": {
+      "core": 3,
+      "ip": "node12",
+      "node": "node12",
+      "pid": 24500,
+      "port": 19001
+    },
+    "w146": {
+      "core": 4,
+      "ip": "node12",
+      "node": "node12",
+      "pid": 24523,
+      "port": 19002
+    },
+    "w147": {
+      "core": 5,
+      "ip": "node12",
+      "node": "node12",
+      "pid": 24546,
+      "port": 19003
+    },
+    "w148": {
+      "core": 6,
+      "ip": "node12",
+      "node": "node12",
+      "pid": 24569,
+      "port": 19004
+    },
+    "w149": {
+      "core": 7,
+      "ip": "node12",
+      "node": "node12",
+      "pid": 24592,
+      "port": 19005
+    },
+    "w15": {
+      "core": 3,
+      "ip": "node2",
+      "node": "node2",
+      "pid": 29700,
+      "port": 19001
+    },
+    "w150": {
+      "core": 8,
+      "ip": "node12",
+      "node": "node12",
+      "pid": 24615,
+      "port": 19006
+    },
+    "w151": {
+      "core": 9,
+      "ip": "node12",
+      "node": "node12",
+      "pid": 24638,
+      "port": 19007
+    },
+    "w152": {
+      "core": 10,
+      "ip": "node12",
+      "node": "node12",
+      "pid": 24661,
+      "port": 19008
+    },
+    "w153": {
+      "core": 11,
+      "ip": "node12",
+      "node": "node12",
+      "pid": 24684,
+      "port": 19009
+    },
+    "w154": {
+      "core": 12,
+      "ip": "node12",
+      "node": "node12",
+      "pid": 24707,
+      "port": 19010
+    },
+    "w155": {
+      "core": 13,
+      "ip": "node12",
+      "node": "node12",
+      "pid": 24730,
+      "port": 19011
+    },
+    "w156": {
+      "core": 14,
+      "ip": "node12",
+      "node": "node12",
+      "pid": 24753,
+      "port": 19012
+    },
+    "w157": {
+      "core": 2,
+      "ip": "node13",
+      "node": "node13",
+      "pid": 8361,
+      "port": 19000
+    },
+    "w158": {
+      "core": 3,
+      "ip": "node13",
+      "node": "node13",
+      "pid": 8384,
+      "port": 19001
+    },
+    "w159": {
+      "core": 4,
+      "ip": "node13",
+      "node": "node13",
+      "pid": 8407,
+      "port": 19002
+    },
+    "w16": {
+      "core": 4,
+      "ip": "node2",
+      "node": "node2",
+      "pid": 29723,
+      "port": 19002
+    },
+    "w160": {
+      "core": 5,
+      "ip": "node13",
+      "node": "node13",
+      "pid": 8430,
+      "port": 19003
+    },
+    "w161": {
+      "core": 6,
+      "ip": "node13",
+      "node": "node13",
+      "pid": 8453,
+      "port": 19004
+    },
+    "w162": {
+      "core": 7,
+      "ip": "node13",
+      "node": "node13",
+      "pid": 8476,
+      "port": 19005
+    },
+    "w163": {
+      "core": 8,
+      "ip": "node13",
+      "node": "node13",
+      "pid": 8499,
+      "port": 19006
+    },
+    "w164": {
+      "core": 9,
+      "ip": "node13",
+      "node": "node13",
+      "pid": 8522,
+      "port": 19007
+    },
+    "w165": {
+      "core": 10,
+      "ip": "node13",
+      "node": "node13",
+      "pid": 8545,
+      "port": 19008
+    },
+    "w166": {
+      "core": 11,
+      "ip": "node13",
+      "node": "node13",
+      "pid": 8568,
+      "port": 19009
+    },
+    "w167": {
+      "core": 12,
+      "ip": "node13",
+      "node": "node13",
+      "pid": 8591,
+      "port": 19010
+    },
+    "w168": {
+      "core": 13,
+      "ip": "node13",
+      "node": "node13",
+      "pid": 8614,
+      "port": 19011
+    },
+    "w169": {
+      "core": 14,
+      "ip": "node13",
+      "node": "node13",
+      "pid": 8637,
+      "port": 19012
+    },
+    "w17": {
+      "core": 5,
+      "ip": "node2",
+      "node": "node2",
+      "pid": 29746,
+      "port": 19003
+    },
+    "w170": {
+      "core": 2,
+      "ip": "node14",
+      "node": "node14",
+      "pid": 8690,
+      "port": 19000
+    },
+    "w171": {
+      "core": 3,
+      "ip": "node14",
+      "node": "node14",
+      "pid": 8713,
+      "port": 19001
+    },
+    "w172": {
+      "core": 4,
+      "ip": "node14",
+      "node": "node14",
+      "pid": 8736,
+      "port": 19002
+    },
+    "w173": {
+      "core": 5,
+      "ip": "node14",
+      "node": "node14",
+      "pid": 8759,
+      "port": 19003
+    },
+    "w174": {
+      "core": 6,
+      "ip": "node14",
+      "node": "node14",
+      "pid": 8782,
+      "port": 19004
+    },
+    "w175": {
+      "core": 7,
+      "ip": "node14",
+      "node": "node14",
+      "pid": 8805,
+      "port": 19005
+    },
+    "w176": {
+      "core": 8,
+      "ip": "node14",
+      "node": "node14",
+      "pid": 8828,
+      "port": 19006
+    },
+    "w177": {
+      "core": 9,
+      "ip": "node14",
+      "node": "node14",
+      "pid": 8851,
+      "port": 19007
+    },
+    "w178": {
+      "core": 10,
+      "ip": "node14",
+      "node": "node14",
+      "pid": 8874,
+      "port": 19008
+    },
+    "w179": {
+      "core": 11,
+      "ip": "node14",
+      "node": "node14",
+      "pid": 8897,
+      "port": 19009
+    },
+    "w18": {
+      "core": 6,
+      "ip": "node2",
+      "node": "node2",
+      "pid": 29769,
+      "port": 19004
+    },
+    "w180": {
+      "core": 12,
+      "ip": "node14",
+      "node": "node14",
+      "pid": 8920,
+      "port": 19010
+    },
+    "w181": {
+      "core": 13,
+      "ip": "node14",
+      "node": "node14",
+      "pid": 8943,
+      "port": 19011
+    },
+    "w182": {
+      "core": 14,
+      "ip": "node14",
+      "node": "node14",
+      "pid": 8966,
+      "port": 19012
+    },
+    "w183": {
+      "core": 2,
+      "ip": "node15",
+      "node": "node15",
+      "pid": 19539,
+      "port": 19000
+    },
+    "w184": {
+      "core": 3,
+      "ip": "node15",
+      "node": "node15",
+      "pid": 19562,
+      "port": 19001
+    },
+    "w185": {
+      "core": 4,
+      "ip": "node15",
+      "node": "node15",
+      "pid": 19585,
+      "port": 19002
+    },
+    "w186": {
+      "core": 5,
+      "ip": "node15",
+      "node": "node15",
+      "pid": 19608,
+      "port": 19003
+    },
+    "w187": {
+      "core": 6,
+      "ip": "node15",
+      "node": "node15",
+      "pid": 19631,
+      "port": 19004
+    },
+    "w188": {
+      "core": 7,
+      "ip": "node15",
+      "node": "node15",
+      "pid": 19654,
+      "port": 19005
+    },
+    "w189": {
+      "core": 8,
+      "ip": "node15",
+      "node": "node15",
+      "pid": 19677,
+      "port": 19006
+    },
+    "w19": {
+      "core": 7,
+      "ip": "node2",
+      "node": "node2",
+      "pid": 29792,
+      "port": 19005
+    },
+    "w190": {
+      "core": 9,
+      "ip": "node15",
+      "node": "node15",
+      "pid": 19700,
+      "port": 19007
+    },
+    "w191": {
+      "core": 10,
+      "ip": "node15",
+      "node": "node15",
+      "pid": 19723,
+      "port": 19008
+    },
+    "w192": {
+      "core": 11,
+      "ip": "node15",
+      "node": "node15",
+      "pid": 19746,
+      "port": 19009
+    },
+    "w193": {
+      "core": 12,
+      "ip": "node15",
+      "node": "node15",
+      "pid": 19769,
+      "port": 19010
+    },
+    "w194": {
+      "core": 13,
+      "ip": "node15",
+      "node": "node15",
+      "pid": 19792,
+      "port": 19011
+    },
+    "w195": {
+      "core": 14,
+      "ip": "node15",
+      "node": "node15",
+      "pid": 19815,
+      "port": 19012
+    },
+    "w196": {
+      "core": 2,
+      "ip": "node17",
+      "node": "node17",
+      "pid": 8179,
+      "port": 19000
+    },
+    "w197": {
+      "core": 3,
+      "ip": "node17",
+      "node": "node17",
+      "pid": 8202,
+      "port": 19001
+    },
+    "w198": {
+      "core": 4,
+      "ip": "node17",
+      "node": "node17",
+      "pid": 8225,
+      "port": 19002
+    },
+    "w199": {
+      "core": 5,
+      "ip": "node17",
+      "node": "node17",
+      "pid": 8248,
+      "port": 19003
+    },
+    "w2": {
+      "core": 3,
+      "ip": "node1",
+      "node": "node1",
+      "pid": 21666,
+      "port": 19001
+    },
+    "w20": {
+      "core": 8,
+      "ip": "node2",
+      "node": "node2",
+      "pid": 29815,
+      "port": 19006
+    },
+    "w200": {
+      "core": 6,
+      "ip": "node17",
+      "node": "node17",
+      "pid": 8271,
+      "port": 19004
+    },
+    "w201": {
+      "core": 7,
+      "ip": "node17",
+      "node": "node17",
+      "pid": 8294,
+      "port": 19005
+    },
+    "w202": {
+      "core": 8,
+      "ip": "node17",
+      "node": "node17",
+      "pid": 8317,
+      "port": 19006
+    },
+    "w203": {
+      "core": 9,
+      "ip": "node17",
+      "node": "node17",
+      "pid": 8340,
+      "port": 19007
+    },
+    "w204": {
+      "core": 10,
+      "ip": "node17",
+      "node": "node17",
+      "pid": 8363,
+      "port": 19008
+    },
+    "w205": {
+      "core": 11,
+      "ip": "node17",
+      "node": "node17",
+      "pid": 8386,
+      "port": 19009
+    },
+    "w206": {
+      "core": 12,
+      "ip": "node17",
+      "node": "node17",
+      "pid": 8409,
+      "port": 19010
+    },
+    "w207": {
+      "core": 13,
+      "ip": "node17",
+      "node": "node17",
+      "pid": 8432,
+      "port": 19011
+    },
+    "w208": {
+      "core": 14,
+      "ip": "node17",
+      "node": "node17",
+      "pid": 8455,
+      "port": 19012
+    },
+    "w209": {
+      "core": 2,
+      "ip": "node18",
+      "node": "node18",
+      "pid": 9029,
+      "port": 19000
+    },
+    "w21": {
+      "core": 9,
+      "ip": "node2",
+      "node": "node2",
+      "pid": 29838,
+      "port": 19007
+    },
+    "w210": {
+      "core": 3,
+      "ip": "node18",
+      "node": "node18",
+      "pid": 9052,
+      "port": 19001
+    },
+    "w211": {
+      "core": 4,
+      "ip": "node18",
+      "node": "node18",
+      "pid": 9075,
+      "port": 19002
+    },
+    "w212": {
+      "core": 5,
+      "ip": "node18",
+      "node": "node18",
+      "pid": 9098,
+      "port": 19003
+    },
+    "w213": {
+      "core": 6,
+      "ip": "node18",
+      "node": "node18",
+      "pid": 9121,
+      "port": 19004
+    },
+    "w214": {
+      "core": 7,
+      "ip": "node18",
+      "node": "node18",
+      "pid": 9144,
+      "port": 19005
+    },
+    "w215": {
+      "core": 8,
+      "ip": "node18",
+      "node": "node18",
+      "pid": 9167,
+      "port": 19006
+    },
+    "w216": {
+      "core": 9,
+      "ip": "node18",
+      "node": "node18",
+      "pid": 9190,
+      "port": 19007
+    },
+    "w217": {
+      "core": 10,
+      "ip": "node18",
+      "node": "node18",
+      "pid": 9213,
+      "port": 19008
+    },
+    "w218": {
+      "core": 11,
+      "ip": "node18",
+      "node": "node18",
+      "pid": 9236,
+      "port": 19009
+    },
+    "w219": {
+      "core": 12,
+      "ip": "node18",
+      "node": "node18",
+      "pid": 9259,
+      "port": 19010
+    },
+    "w22": {
+      "core": 10,
+      "ip": "node2",
+      "node": "node2",
+      "pid": 29861,
+      "port": 19008
+    },
+    "w220": {
+      "core": 13,
+      "ip": "node18",
+      "node": "node18",
+      "pid": 9282,
+      "port": 19011
+    },
+    "w221": {
+      "core": 14,
+      "ip": "node18",
+      "node": "node18",
+      "pid": 9305,
+      "port": 19012
+    },
+    "w222": {
+      "core": 2,
+      "ip": "node19",
+      "node": "node19",
+      "pid": 8506,
+      "port": 19000
+    },
+    "w223": {
+      "core": 3,
+      "ip": "node19",
+      "node": "node19",
+      "pid": 8529,
+      "port": 19001
+    },
+    "w224": {
+      "core": 4,
+      "ip": "node19",
+      "node": "node19",
+      "pid": 8552,
+      "port": 19002
+    },
+    "w225": {
+      "core": 5,
+      "ip": "node19",
+      "node": "node19",
+      "pid": 8575,
+      "port": 19003
+    },
+    "w226": {
+      "core": 6,
+      "ip": "node19",
+      "node": "node19",
+      "pid": 8598,
+      "port": 19004
+    },
+    "w227": {
+      "core": 7,
+      "ip": "node19",
+      "node": "node19",
+      "pid": 8621,
+      "port": 19005
+    },
+    "w228": {
+      "core": 8,
+      "ip": "node19",
+      "node": "node19",
+      "pid": 8644,
+      "port": 19006
+    },
+    "w229": {
+      "core": 9,
+      "ip": "node19",
+      "node": "node19",
+      "pid": 8667,
+      "port": 19007
+    },
+    "w23": {
+      "core": 11,
+      "ip": "node2",
+      "node": "node2",
+      "pid": 29884,
+      "port": 19009
+    },
+    "w230": {
+      "core": 10,
+      "ip": "node19",
+      "node": "node19",
+      "pid": 8690,
+      "port": 19008
+    },
+    "w231": {
+      "core": 11,
+      "ip": "node19",
+      "node": "node19",
+      "pid": 8713,
+      "port": 19009
+    },
+    "w232": {
+      "core": 12,
+      "ip": "node19",
+      "node": "node19",
+      "pid": 8736,
+      "port": 19010
+    },
+    "w233": {
+      "core": 13,
+      "ip": "node19",
+      "node": "node19",
+      "pid": 8759,
+      "port": 19011
+    },
+    "w234": {
+      "core": 14,
+      "ip": "node19",
+      "node": "node19",
+      "pid": 8782,
+      "port": 19012
+    },
+    "w235": {
+      "core": 2,
+      "ip": "node20",
+      "node": "node20",
+      "pid": 8187,
+      "port": 19000
+    },
+    "w236": {
+      "core": 3,
+      "ip": "node20",
+      "node": "node20",
+      "pid": 8210,
+      "port": 19001
+    },
+    "w237": {
+      "core": 4,
+      "ip": "node20",
+      "node": "node20",
+      "pid": 8233,
+      "port": 19002
+    },
+    "w238": {
+      "core": 5,
+      "ip": "node20",
+      "node": "node20",
+      "pid": 8256,
+      "port": 19003
+    },
+    "w239": {
+      "core": 6,
+      "ip": "node20",
+      "node": "node20",
+      "pid": 8279,
+      "port": 19004
+    },
+    "w24": {
+      "core": 12,
+      "ip": "node2",
+      "node": "node2",
+      "pid": 29907,
+      "port": 19010
+    },
+    "w240": {
+      "core": 7,
+      "ip": "node20",
+      "node": "node20",
+      "pid": 8302,
+      "port": 19005
+    },
+    "w241": {
+      "core": 8,
+      "ip": "node20",
+      "node": "node20",
+      "pid": 8325,
+      "port": 19006
+    },
+    "w242": {
+      "core": 9,
+      "ip": "node20",
+      "node": "node20",
+      "pid": 8348,
+      "port": 19007
+    },
+    "w243": {
+      "core": 10,
+      "ip": "node20",
+      "node": "node20",
+      "pid": 8371,
+      "port": 19008
+    },
+    "w244": {
+      "core": 11,
+      "ip": "node20",
+      "node": "node20",
+      "pid": 8394,
+      "port": 19009
+    },
+    "w245": {
+      "core": 12,
+      "ip": "node20",
+      "node": "node20",
+      "pid": 8417,
+      "port": 19010
+    },
+    "w246": {
+      "core": 13,
+      "ip": "node20",
+      "node": "node20",
+      "pid": 8440,
+      "port": 19011
+    },
+    "w247": {
+      "core": 14,
+      "ip": "node20",
+      "node": "node20",
+      "pid": 8463,
+      "port": 19012
+    },
+    "w25": {
+      "core": 13,
+      "ip": "node2",
+      "node": "node2",
+      "pid": 29930,
+      "port": 19011
+    },
+    "w26": {
+      "core": 14,
+      "ip": "node2",
+      "node": "node2",
+      "pid": 29953,
+      "port": 19012
+    },
+    "w27": {
+      "core": 2,
+      "ip": "node3",
+      "node": "node3",
+      "pid": 21009,
+      "port": 19000
+    },
+    "w28": {
+      "core": 3,
+      "ip": "node3",
+      "node": "node3",
+      "pid": 21032,
+      "port": 19001
+    },
+    "w29": {
+      "core": 4,
+      "ip": "node3",
+      "node": "node3",
+      "pid": 21055,
+      "port": 19002
+    },
+    "w3": {
+      "core": 4,
+      "ip": "node1",
+      "node": "node1",
+      "pid": 21689,
+      "port": 19002
+    },
+    "w30": {
+      "core": 5,
+      "ip": "node3",
+      "node": "node3",
+      "pid": 21078,
+      "port": 19003
+    },
+    "w31": {
+      "core": 6,
+      "ip": "node3",
+      "node": "node3",
+      "pid": 21101,
+      "port": 19004
+    },
+    "w32": {
+      "core": 7,
+      "ip": "node3",
+      "node": "node3",
+      "pid": 21124,
+      "port": 19005
+    },
+    "w33": {
+      "core": 8,
+      "ip": "node3",
+      "node": "node3",
+      "pid": 21147,
+      "port": 19006
+    },
+    "w34": {
+      "core": 9,
+      "ip": "node3",
+      "node": "node3",
+      "pid": 21170,
+      "port": 19007
+    },
+    "w35": {
+      "core": 10,
+      "ip": "node3",
+      "node": "node3",
+      "pid": 21193,
+      "port": 19008
+    },
+    "w36": {
+      "core": 11,
+      "ip": "node3",
+      "node": "node3",
+      "pid": 21216,
+      "port": 19009
+    },
+    "w37": {
+      "core": 12,
+      "ip": "node3",
+      "node": "node3",
+      "pid": 21239,
+      "port": 19010
+    },
+    "w38": {
+      "core": 13,
+      "ip": "node3",
+      "node": "node3",
+      "pid": 21262,
+      "port": 19011
+    },
+    "w39": {
+      "core": 14,
+      "ip": "node3",
+      "node": "node3",
+      "pid": 21286,
+      "port": 19012
+    },
+    "w4": {
+      "core": 5,
+      "ip": "node1",
+      "node": "node1",
+      "pid": 21712,
+      "port": 19003
+    },
+    "w40": {
+      "core": 2,
+      "ip": "node4",
+      "node": "node4",
+      "pid": 32659,
+      "port": 19000
+    },
+    "w41": {
+      "core": 3,
+      "ip": "node4",
+      "node": "node4",
+      "pid": 32682,
+      "port": 19001
+    },
+    "w42": {
+      "core": 4,
+      "ip": "node4",
+      "node": "node4",
+      "pid": 32705,
+      "port": 19002
+    },
+    "w43": {
+      "core": 5,
+      "ip": "node4",
+      "node": "node4",
+      "pid": 32728,
+      "port": 19003
+    },
+    "w44": {
+      "core": 6,
+      "ip": "node4",
+      "node": "node4",
+      "pid": 32751,
+      "port": 19004
+    },
+    "w45": {
+      "core": 7,
+      "ip": "node4",
+      "node": "node4",
+      "pid": 32774,
+      "port": 19005
+    },
+    "w46": {
+      "core": 8,
+      "ip": "node4",
+      "node": "node4",
+      "pid": 32797,
+      "port": 19006
+    },
+    "w47": {
+      "core": 9,
+      "ip": "node4",
+      "node": "node4",
+      "pid": 32820,
+      "port": 19007
+    },
+    "w48": {
+      "core": 10,
+      "ip": "node4",
+      "node": "node4",
+      "pid": 32843,
+      "port": 19008
+    },
+    "w49": {
+      "core": 11,
+      "ip": "node4",
+      "node": "node4",
+      "pid": 32866,
+      "port": 19009
+    },
+    "w5": {
+      "core": 6,
+      "ip": "node1",
+      "node": "node1",
+      "pid": 21735,
+      "port": 19004
+    },
+    "w50": {
+      "core": 12,
+      "ip": "node4",
+      "node": "node4",
+      "pid": 32889,
+      "port": 19010
+    },
+    "w51": {
+      "core": 13,
+      "ip": "node4",
+      "node": "node4",
+      "pid": 32912,
+      "port": 19011
+    },
+    "w52": {
+      "core": 14,
+      "ip": "node4",
+      "node": "node4",
+      "pid": 32935,
+      "port": 19012
+    },
+    "w53": {
+      "core": 2,
+      "ip": "node5",
+      "node": "node5",
+      "pid": 37717,
+      "port": 19000
+    },
+    "w54": {
+      "core": 3,
+      "ip": "node5",
+      "node": "node5",
+      "pid": 37740,
+      "port": 19001
+    },
+    "w55": {
+      "core": 4,
+      "ip": "node5",
+      "node": "node5",
+      "pid": 37763,
+      "port": 19002
+    },
+    "w56": {
+      "core": 5,
+      "ip": "node5",
+      "node": "node5",
+      "pid": 37786,
+      "port": 19003
+    },
+    "w57": {
+      "core": 6,
+      "ip": "node5",
+      "node": "node5",
+      "pid": 37809,
+      "port": 19004
+    },
+    "w58": {
+      "core": 7,
+      "ip": "node5",
+      "node": "node5",
+      "pid": 37832,
+      "port": 19005
+    },
+    "w59": {
+      "core": 8,
+      "ip": "node5",
+      "node": "node5",
+      "pid": 37855,
+      "port": 19006
+    },
+    "w6": {
+      "core": 7,
+      "ip": "node1",
+      "node": "node1",
+      "pid": 21758,
+      "port": 19005
+    },
+    "w60": {
+      "core": 9,
+      "ip": "node5",
+      "node": "node5",
+      "pid": 37878,
+      "port": 19007
+    },
+    "w61": {
+      "core": 10,
+      "ip": "node5",
+      "node": "node5",
+      "pid": 37901,
+      "port": 19008
+    },
+    "w62": {
+      "core": 11,
+      "ip": "node5",
+      "node": "node5",
+      "pid": 37924,
+      "port": 19009
+    },
+    "w63": {
+      "core": 12,
+      "ip": "node5",
+      "node": "node5",
+      "pid": 37947,
+      "port": 19010
+    },
+    "w64": {
+      "core": 13,
+      "ip": "node5",
+      "node": "node5",
+      "pid": 37970,
+      "port": 19011
+    },
+    "w65": {
+      "core": 14,
+      "ip": "node5",
+      "node": "node5",
+      "pid": 37993,
+      "port": 19012
+    },
+    "w66": {
+      "core": 2,
+      "ip": "node6",
+      "node": "node6",
+      "pid": 21998,
+      "port": 19000
+    },
+    "w67": {
+      "core": 3,
+      "ip": "node6",
+      "node": "node6",
+      "pid": 22021,
+      "port": 19001
+    },
+    "w68": {
+      "core": 4,
+      "ip": "node6",
+      "node": "node6",
+      "pid": 22044,
+      "port": 19002
+    },
+    "w69": {
+      "core": 5,
+      "ip": "node6",
+      "node": "node6",
+      "pid": 22067,
+      "port": 19003
+    },
+    "w7": {
+      "core": 8,
+      "ip": "node1",
+      "node": "node1",
+      "pid": 21781,
+      "port": 19006
+    },
+    "w70": {
+      "core": 6,
+      "ip": "node6",
+      "node": "node6",
+      "pid": 22090,
+      "port": 19004
+    },
+    "w71": {
+      "core": 7,
+      "ip": "node6",
+      "node": "node6",
+      "pid": 22113,
+      "port": 19005
+    },
+    "w72": {
+      "core": 8,
+      "ip": "node6",
+      "node": "node6",
+      "pid": 22136,
+      "port": 19006
+    },
+    "w73": {
+      "core": 9,
+      "ip": "node6",
+      "node": "node6",
+      "pid": 22159,
+      "port": 19007
+    },
+    "w74": {
+      "core": 10,
+      "ip": "node6",
+      "node": "node6",
+      "pid": 22182,
+      "port": 19008
+    },
+    "w75": {
+      "core": 11,
+      "ip": "node6",
+      "node": "node6",
+      "pid": 22205,
+      "port": 19009
+    },
+    "w76": {
+      "core": 12,
+      "ip": "node6",
+      "node": "node6",
+      "pid": 22228,
+      "port": 19010
+    },
+    "w77": {
+      "core": 13,
+      "ip": "node6",
+      "node": "node6",
+      "pid": 22251,
+      "port": 19011
+    },
+    "w78": {
+      "core": 14,
+      "ip": "node6",
+      "node": "node6",
+      "pid": 22274,
+      "port": 19012
+    },
+    "w79": {
+      "core": 2,
+      "ip": "node7",
+      "node": "node7",
+      "pid": 36120,
+      "port": 19000
+    },
+    "w8": {
+      "core": 9,
+      "ip": "node1",
+      "node": "node1",
+      "pid": 21804,
+      "port": 19007
+    },
+    "w80": {
+      "core": 3,
+      "ip": "node7",
+      "node": "node7",
+      "pid": 36143,
+      "port": 19001
+    },
+    "w81": {
+      "core": 4,
+      "ip": "node7",
+      "node": "node7",
+      "pid": 36166,
+      "port": 19002
+    },
+    "w82": {
+      "core": 5,
+      "ip": "node7",
+      "node": "node7",
+      "pid": 36189,
+      "port": 19003
+    },
+    "w83": {
+      "core": 6,
+      "ip": "node7",
+      "node": "node7",
+      "pid": 36212,
+      "port": 19004
+    },
+    "w84": {
+      "core": 7,
+      "ip": "node7",
+      "node": "node7",
+      "pid": 36235,
+      "port": 19005
+    },
+    "w85": {
+      "core": 8,
+      "ip": "node7",
+      "node": "node7",
+      "pid": 36258,
+      "port": 19006
+    },
+    "w86": {
+      "core": 9,
+      "ip": "node7",
+      "node": "node7",
+      "pid": 36281,
+      "port": 19007
+    },
+    "w87": {
+      "core": 10,
+      "ip": "node7",
+      "node": "node7",
+      "pid": 36304,
+      "port": 19008
+    },
+    "w88": {
+      "core": 11,
+      "ip": "node7",
+      "node": "node7",
+      "pid": 36327,
+      "port": 19009
+    },
+    "w89": {
+      "core": 12,
+      "ip": "node7",
+      "node": "node7",
+      "pid": 36350,
+      "port": 19010
+    },
+    "w9": {
+      "core": 10,
+      "ip": "node1",
+      "node": "node1",
+      "pid": 21827,
+      "port": 19008
+    },
+    "w90": {
+      "core": 13,
+      "ip": "node7",
+      "node": "node7",
+      "pid": 36373,
+      "port": 19011
+    },
+    "w91": {
+      "core": 14,
+      "ip": "node7",
+      "node": "node7",
+      "pid": 36396,
+      "port": 19012
+    },
+    "w92": {
+      "core": 2,
+      "ip": "node8",
+      "node": "node8",
+      "pid": 22346,
+      "port": 19000
+    },
+    "w93": {
+      "core": 3,
+      "ip": "node8",
+      "node": "node8",
+      "pid": 22369,
+      "port": 19001
+    },
+    "w94": {
+      "core": 4,
+      "ip": "node8",
+      "node": "node8",
+      "pid": 22392,
+      "port": 19002
+    },
+    "w95": {
+      "core": 5,
+      "ip": "node8",
+      "node": "node8",
+      "pid": 22415,
+      "port": 19003
+    },
+    "w96": {
+      "core": 6,
+      "ip": "node8",
+      "node": "node8",
+      "pid": 22438,
+      "port": 19004
+    },
+    "w97": {
+      "core": 7,
+      "ip": "node8",
+      "node": "node8",
+      "pid": 22461,
+      "port": 19005
+    },
+    "w98": {
+      "core": 8,
+      "ip": "node8",
+      "node": "node8",
+      "pid": 22484,
+      "port": 19006
+    },
+    "w99": {
+      "core": 9,
+      "ip": "node8",
+      "node": "node8",
+      "pid": 22507,
+      "port": 19007
+    }
+  },
+  "launched": "ssh",
+  "per_node": 13,
+  "transport": "xmlrpc",
+  "version": 1
+}

@@ -1,0 +1,18 @@
+=== before 2026-11-22 22:34:29 ===
+node1    TcpRetransSegs 1671 TcpExtListenOverflows 28362 TcpExtListenDrops 28362
+node2    TcpRetransSegs 12 TcpExtListenOverflows 0 TcpExtListenDrops 0
+node3    TcpRetransSegs 3 TcpExtListenOverflows 0 TcpExtListenDrops 0
+node4    TcpRetransSegs 7 TcpExtListenOverflows 0 TcpExtListenDrops 0
+node5    TcpRetransSegs 31 TcpExtListenOverflows 896 TcpExtListenDrops 896
+node6    TcpRetransSegs 12 TcpExtListenOverflows 0 TcpExtListenDrops 0
+node7    TcpRetransSegs 7 TcpExtListenOverflows 0 TcpExtListenDrops 0
+node8    TcpRetransSegs 3 TcpExtListenOverflows 0 TcpExtListenDrops 0
+=== after 2026-11-22 22:37:22 ===
+node1    TcpRetransSegs 1671 TcpExtListenOverflows 28362 TcpExtListenDrops 28362
+node2    TcpRetransSegs 12 TcpExtListenOverflows 0 TcpExtListenDrops 0
+node3    TcpRetransSegs 3 TcpExtListenOverflows 0 TcpExtListenDrops 0
+node4    TcpRetransSegs 7 TcpExtListenOverflows 0 TcpExtListenDrops 0
+node5    TcpRetransSegs 32 TcpExtListenOverflows 896 TcpExtListenDrops 896
+node6    TcpRetransSegs 12 TcpExtListenOverflows 0 TcpExtListenDrops 0
+node7    TcpRetransSegs 9 TcpExtListenOverflows 0 TcpExtListenDrops 0
+node8    TcpRetransSegs 3 TcpExtListenOverflows 0 TcpExtListenDrops 0

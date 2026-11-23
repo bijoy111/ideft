@@ -1,0 +1,56 @@
+---------------------------------------------------------------------------------------------------
+scenario: realistic model, random selection, scale seed 2
+  w9     capacity_exhausted   severity 0.15  delay 2.180ms
+  w29    capacity_exhausted   severity 0.70  delay 8.532ms
+  w35    link_congested       severity 0.17  delay 14.392ms
+  w43    cpu_starved          severity 0.87  delay 39.261ms
+  w44    storage_pressured    severity 0.85  delay 21.308ms
+  w45    unhealthy            severity 0.04  delay 3.179ms
+  w58    capacity_exhausted   severity 0.79  delay 9.559ms
+  w60    link_congested       severity 0.87  delay 52.942ms
+  w66    cpu_starved          severity 0.55  delay 25.099ms
+  w68    storage_pressured    severity 0.95  delay 23.846ms
+  w87    unhealthy            severity 0.32  delay 10.966ms
+  w94    link_congested       severity 0.48  delay 31.574ms
+  w106   link_congested       severity 0.65  delay 40.750ms
+  w111   cpu_starved          severity 0.52  delay 23.760ms
+  w120   storage_pressured    severity 0.30  delay 8.262ms
+  w121   unhealthy            severity 0.49  delay 15.619ms
+  w126   capacity_exhausted   severity 0.40  delay 5.116ms
+  w135   link_congested       severity 0.37  delay 25.508ms
+  w149   cpu_starved          severity 0.45  delay 20.867ms
+  w156   storage_pressured    severity 0.77  delay 19.419ms
+  w158   unhealthy            severity 0.70  delay 21.671ms
+  w173   capacity_exhausted   severity 0.49  delay 6.166ms
+  w180   link_congested       severity 0.36  delay 24.622ms
+  w184   cpu_starved          severity 0.82  delay 36.945ms
+  w203   storage_pressured    severity 0.64  delay 16.266ms
+  w206   unhealthy            severity 0.72  delay 22.220ms
+  w207   capacity_exhausted   severity 0.42  delay 5.373ms
+  w209   link_congested       severity 0.65  delay 40.488ms
+  w216   cpu_starved          severity 0.65  delay 29.490ms
+  w221   storage_pressured    severity 0.34  delay 9.061ms
+  w232   unhealthy            severity 0.22  delay 8.278ms
+degrading 31 hosts on 17 node(s)
+
+  node1: w9:19008=2.18ms
+  node10: w120:19002=8.262ms, w121:19003=15.619ms, w126:19008=5.116ms
+  node11: w135:19004=25.508ms
+  node12: w149:19005=20.867ms, w156:19012=19.419ms
+  node13: w158:19001=21.671ms
+  node14: w173:19003=6.166ms, w180:19010=24.622ms
+  node15: w184:19001=36.945ms
+  node17: w203:19007=16.266ms, w206:19010=22.22ms, w207:19011=5.373ms
+  node18: w209:19000=40.488ms, w216:19007=29.49ms, w221:19012=9.061ms
+  node19: w232:19010=8.278ms
+  node3: w29:19002=8.532ms, w35:19008=14.392ms
+  node4: w43:19003=39.261ms, w44:19004=21.308ms, w45:19005=3.179ms
+  node5: w58:19005=9.559ms, w60:19007=52.942ms
+  node6: w66:19000=25.099ms, w68:19002=23.846ms
+  node7: w87:19008=10.966ms
+  node8: w94:19002=31.574ms
+  node9: w106:19001=40.75ms, w111:19006=23.76ms
+
+  not shaped (no degraded host): node2, node20
+
+applied. verify with --show, and record it in the paper as tc netem on the server's source port.

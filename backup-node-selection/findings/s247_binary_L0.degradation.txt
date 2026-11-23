@@ -1,0 +1,57 @@
+---------------------------------------------------------------------------------------------------
+scenario: binary model, spread selection, scale seed 0
+  w1     binary               severity 1.00  delay 50.000ms
+  w2     binary               severity 1.00  delay 50.000ms
+  w12    binary               severity 1.00  delay 50.000ms
+  w27    binary               severity 1.00  delay 50.000ms
+  w34    binary               severity 1.00  delay 50.000ms
+  w41    binary               severity 1.00  delay 50.000ms
+  w49    binary               severity 1.00  delay 50.000ms
+  w56    binary               severity 1.00  delay 50.000ms
+  w63    binary               severity 1.00  delay 50.000ms
+  w70    binary               severity 1.00  delay 50.000ms
+  w78    binary               severity 1.00  delay 50.000ms
+  w85    binary               severity 1.00  delay 50.000ms
+  w92    binary               severity 1.00  delay 50.000ms
+  w105   binary               severity 1.00  delay 50.000ms
+  w112   binary               severity 1.00  delay 50.000ms
+  w127   binary               severity 1.00  delay 50.000ms
+  w134   binary               severity 1.00  delay 50.000ms
+  w141   binary               severity 1.00  delay 50.000ms
+  w149   binary               severity 1.00  delay 50.000ms
+  w156   binary               severity 1.00  delay 50.000ms
+  w163   binary               severity 1.00  delay 50.000ms
+  w170   binary               severity 1.00  delay 50.000ms
+  w178   binary               severity 1.00  delay 50.000ms
+  w185   binary               severity 1.00  delay 50.000ms
+  w192   binary               severity 1.00  delay 50.000ms
+  w206   binary               severity 1.00  delay 50.000ms
+  w213   binary               severity 1.00  delay 50.000ms
+  w220   binary               severity 1.00  delay 50.000ms
+  w228   binary               severity 1.00  delay 50.000ms
+  w235   binary               severity 1.00  delay 50.000ms
+  w242   binary               severity 1.00  delay 50.000ms
+degrading 31 hosts on 18 node(s)
+
+  node1: w1:19000=50ms, w2:19001=50ms, w12:19011=50ms
+  node10: w127:19009=50ms
+  node11: w134:19003=50ms, w141:19010=50ms
+  node12: w149:19005=50ms, w156:19012=50ms
+  node13: w163:19006=50ms
+  node14: w170:19000=50ms, w178:19008=50ms
+  node15: w185:19002=50ms, w192:19009=50ms
+  node17: w206:19010=50ms
+  node18: w213:19004=50ms, w220:19011=50ms
+  node19: w228:19006=50ms
+  node20: w235:19000=50ms, w242:19007=50ms
+  node3: w27:19000=50ms, w34:19007=50ms
+  node4: w41:19001=50ms, w49:19009=50ms
+  node5: w56:19003=50ms, w63:19010=50ms
+  node6: w70:19004=50ms, w78:19012=50ms
+  node7: w85:19006=50ms
+  node8: w92:19000=50ms
+  node9: w105:19000=50ms, w112:19007=50ms
+
+  not shaped (no degraded host): node2
+
+applied. verify with --show, and record it in the paper as tc netem on the server's source port.

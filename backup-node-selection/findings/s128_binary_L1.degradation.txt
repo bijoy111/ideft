@@ -1,0 +1,33 @@
+---------------------------------------------------------------------------------------------------
+scenario: binary model, random selection, scale seed 1
+  w6     binary               severity 1.00  delay 50.000ms
+  w15    binary               severity 1.00  delay 50.000ms
+  w20    binary               severity 1.00  delay 50.000ms
+  w23    binary               severity 1.00  delay 50.000ms
+  w32    binary               severity 1.00  delay 50.000ms
+  w38    binary               severity 1.00  delay 50.000ms
+  w42    binary               severity 1.00  delay 50.000ms
+  w44    binary               severity 1.00  delay 50.000ms
+  w55    binary               severity 1.00  delay 50.000ms
+  w76    binary               severity 1.00  delay 50.000ms
+  w84    binary               severity 1.00  delay 50.000ms
+  w90    binary               severity 1.00  delay 50.000ms
+  w94    binary               severity 1.00  delay 50.000ms
+  w96    binary               severity 1.00  delay 50.000ms
+  w122   binary               severity 1.00  delay 50.000ms
+  w124   binary               severity 1.00  delay 50.000ms
+degrading 16 hosts on 9 node(s)
+
+  node1: w6:19005=50ms
+  node10: w122:19004=50ms, w124:19006=50ms
+  node2: w15:19001=50ms, w20:19006=50ms, w23:19009=50ms
+  node3: w32:19005=50ms, w38:19011=50ms
+  node4: w42:19002=50ms, w44:19004=50ms
+  node5: w55:19002=50ms
+  node6: w76:19010=50ms
+  node7: w84:19005=50ms, w90:19011=50ms
+  node8: w94:19002=50ms, w96:19004=50ms
+
+  not shaped (no degraded host): node9
+
+applied. verify with --show, and record it in the paper as tc netem on the server's source port.
